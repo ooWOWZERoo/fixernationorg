@@ -1,19 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required for cPanel/Passenger Node.js deployment.
-  // Produces a self-contained .next/standalone directory.
+  // Produces a self-contained .next/standalone directory for cPanel deployment.
   output: "standalone",
 
   poweredByHeader: false,
-
-  experimental: {
-    // CloudLinux shared hosting enforces a per-user process limit.
-    // Both options limit parallel worker spawning to avoid EAGAIN on build:
-    // cpus: 1            — static page generation workers (default = CPU count)
-    // outputFileTracingConcurrentWorkers: 1 — nft tracing workers (default = 4)
-    cpus: 1,
-    outputFileTracingConcurrentWorkers: 1,
-  },
 
   async headers() {
     return [

@@ -1,7 +1,6 @@
 name: Deploy — Production
 
-# Owner-authorized manual trigger only.
-# Never runs automatically on push.
+# Owner-authorized manual trigger only. Never runs automatically on push.
 on:
   workflow_dispatch:
     inputs:
@@ -10,81 +9,108 @@ on:
         required: true
         type: boolean
       sha:
-        description: "Commit SHA to deploy (defaults to HEAD)"
+        description: "Commit SHA to deploy (leave blank for HEAD)"
         required: false
 
 jobs:
   gate:
-    name: Confirm authorization
+    name: Owner authorization
     runs-on: ubuntu-latest
     steps:
-      - name: Check owner authorization
+      - name: Require confirmation
         if: ${{ inputs.confirmed != true }}
         run: |
-          echo "Production deployment requires owner confirmation."
+          echo "::error::Production deployment requires explicit owner confirmation."
           exit 1
 
-  build-production:
-    name: Build for production
+  build-and-deploy:
+    name: Build & deploy
     needs: gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sha || 'HEAD' }}
+          ref: ${{ inputs.sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npm run db:generate
-        env:
-          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: npm ci --include=dev
 
       - name: Build
         run: npm run build
         env:
-          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.PROD_AUTH_SECRET }}
-          CRON_SECRET: ${{ secrets.PROD_CRON_SECRET }}
-          NEXT_PUBLIC_APP_URL: "https://fixernation.org"
-          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.PROD_POSTHOG_KEY }}
-          NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.PROD_POSTHOG_HOST }}
-          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.PROD_SENTRY_DSN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          NEXT_TELEMETRY_DISABLED: "1"
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AUTH_URL: ${{ secrets.AUTH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DESIGN_PREVIEW_PASSWORD: ${{ secrets.DESIGN_PREVIEW_PASSWORD }}
+          HOSTNAME: "0.0.0.0"
 
-      - name: Create production package
+      - name: Prepare standalone bundle
         run: |
-          tar -czf production-deploy-${{ github.sha }}.tar.gz \
-            .next/standalone \
-            .next/static \
-            public \
-            package.json
+          cp -r .next/static  .next/standalone/.next/static
+          cp -r public        .next/standalone/public
 
-      - name: Upload production artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-${{ github.sha }}
-          path: production-deploy-${{ github.sha }}.tar.gz
-          retention-days: 30
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
 
-  # ─── Manual cPanel deployment steps ─────────────────────────────────────────
-  # 1. Download production artifact from this workflow run
-  # 2. In cPanel Terminal:
-  #    cd ~/repositories/fixernation-org
-  #    git pull origin main
-  #    source ~/nodevenv/repositories/fixernation-org/20/bin/activate
-  #    npm ci
-  #    npm run build
-  #    npm run db:migrate
-  #    (restart via cPanel → Setup Node.js App)
-  # 3. Smoke-test https://fixernation.org/api/health
-  # 4. Confirm with owner
+      - name: Deploy standalone via rsync
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            .next/standalone/ \
+            fixernat@${{ secrets.DEPLOY_HOST }}:repositories/fixernationorg/.next/standalone/
+
+      - name: Sync prisma migrations
+        run: |
+          rsync -avz \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            prisma/ \
+            fixernat@${{ secrets.DEPLOY_HOST }}:repositories/fixernationorg/prisma/
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > /tmp/fn-db.env
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            /tmp/fn-db.env fixernat@${{ secrets.DEPLOY_HOST }}:/tmp/fn-db.env
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            fixernat@${{ secrets.DEPLOY_HOST }} \
+            'set -a && . /tmp/fn-db.env && set +a &&
+             source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate &&
+             cd /home/fixernat/repositories/fixernationorg &&
+             ./node_modules/.bin/prisma migrate deploy;
+             rm -f /tmp/fn-db.env'
+          rm -f /tmp/fn-db.env
+
+      - name: Summary
+        run: |
+          {
+            echo "## Deploy complete"
+            echo ""
+            echo "**Commit:** \`${{ github.sha }}\`"
+            echo "**Deployed by:** ${{ github.actor }}"
+            echo ""
+            echo "### Manual step required"
+            echo "Restart the Node.js app in cPanel: **Setup Node.js App → Restart application**"
+            echo ""
+            echo "Then verify: https://fixernation.org/api/health"
+          } >> "$GITHUB_STEP_SUMMARY"

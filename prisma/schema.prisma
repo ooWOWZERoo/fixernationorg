@@ -8,7 +8,10 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" covers local dev (macOS) and GitHub Actions (Ubuntu).
+  // The RHEL targets cover CloudLinux 8/9 (the cPanel server OS family).
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x"]
 }
 
 // ─── Auth.js required models ──────────────────────────────────────────────────

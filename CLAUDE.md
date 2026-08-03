@@ -21,58 +21,71 @@ This is a NEW project. It is NOT fixernationeducation.com (the FN Education Expr
 | DB engine | PostgreSQL |
 | DB credentials | Set in cPanel → Setup Node.js App → Environment variables |
 
-### Step 1 — Push to GitHub
+### Deploy process — GitHub Actions CI/CD
 
-Claude commits; the user pushes from their own terminal (Claude's sandbox can't authenticate GitHub push without a PAT that has `workflow` scope):
+**Builds run on GitHub Actions (Ubuntu), not on the cPanel server.** The CloudLinux process limit makes on-server builds impossible; GitHub Actions has no such restriction.
+
+#### Step 1 — Push to GitHub
 
 ```bash
 cd /Users/john.shaw/Documents/Claude/Projects/FixerNationOrg
 git push origin main
 ```
 
-Alternatively, create a PAT at github.com → Settings → Developer settings with **repo + workflow** scope and share it so Claude can embed it temporarily in the remote URL.
+#### Step 2 — Trigger the deployment
 
-### Step 2 — Deploy on cPanel Terminal
+1. Go to **GitHub → Actions → Deploy — Production**
+2. Click **Run workflow**
+3. Check "I confirm this release has been approved by the project owner"
+4. Click **Run workflow**
 
-Open cPanel → Advanced → Terminal, then run:
+The workflow: installs → builds → rsyncs `.next/standalone/` to server → runs `prisma migrate deploy`.
 
-```bash
-# 1. Activate Node.js environment (required — node is NOT on PATH by default)
-source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
-  cd /home/fixernat/repositories/fixernationorg
+#### Step 3 — Restart on cPanel (manual, ~30 seconds)
 
-# 2. Pull latest code
-git pull origin main
+After the workflow succeeds:
+1. Log into cPanel → **Setup Node.js App**
+2. Click **Restart** next to the fixernation.org app
 
-# 3. Install / update dependencies  (only needed when package.json changes)
-# --include=dev is REQUIRED: NODE_ENV=production in cPanel causes npm ci to skip
-# devDependencies otherwise — breaks build (no tailwindcss, no TypeScript path aliases)
-npm ci --include=dev
+#### Step 4 — Verify
 
-# 4. Build the app
-npm run build
-
-# 5. Copy static assets into standalone output (required after every build)
-cp -r .next/static .next/standalone/.next/static
-cp -r public .next/standalone/public
-
-# 6. Apply any pending DB migrations
-npx prisma migrate deploy
-
-# 7. Restart via cPanel UI: Setup Node.js App → Restart
+```
+https://fixernation.org/api/health
 ```
 
-**Shorthand for code-only deploys** (no dependency changes, no migrations):
+---
+
+### First-time DB schema setup (one-time only)
+
+No migration files exist yet. Before the first deploy, push the schema directly from cPanel Terminal:
 
 ```bash
 source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
   cd /home/fixernat/repositories/fixernationorg && \
-  git pull origin main && \
-  npm run build && \
-  cp -r .next/static .next/standalone/.next/static && \
-  cp -r public .next/standalone/public
-# Then restart in cPanel UI
+  ./node_modules/.bin/prisma db push
 ```
+
+After Stage 0 validation, create a proper baseline migration:
+```bash
+./node_modules/.bin/prisma migrate dev --name init
+```
+Commit the generated `prisma/migrations/` directory; subsequent deploys use `migrate deploy`.
+
+---
+
+### GitHub Secrets required
+
+Add these in **GitHub → repository → Settings → Secrets and variables → Actions**:
+
+| Secret name | Value |
+|---|---|
+| `DEPLOY_SSH_KEY` | Ed25519 private key (full PEM including `-----BEGIN/END-----` lines) |
+| `DEPLOY_HOST` | `s16388.use1.stableserver.net` |
+| `DATABASE_URL` | `postgresql://fixernat_fnapp:FixerNation123!@localhost:5432/fixernat_fixernationorg` |
+| `AUTH_SECRET` | `WS6GvF7BmXnKKpOIG0R7z0jxZ/1mH4mPU76D9oW7OPk=` |
+| `AUTH_URL` | `https://fixernation.org` |
+| `CRON_SECRET` | `176246ce05c4bde3ff40b30be93025fa` |
+| `DESIGN_PREVIEW_PASSWORD` | `preview` |
 
 ### Environment variables
 
@@ -101,13 +114,11 @@ When setting up the Node.js app for the first time:
 
 ### Critical cPanel gotchas
 
-1. **Restart required after ANY code change** — Next.js does not hot-reload in production.
-2. **Run `npm ci` after any `package.json` change** — cPanel doesn't auto-install new deps.
-3. **Copy static assets after every build** — standalone output doesn't include `.next/static` or `public/` automatically.
-4. **`node` is not on PATH** — always activate the nodevenv first (step 1 above).
-5. **Env vars in cPanel UI, not `.env` files** — `process.cwd()` is unreliable under Passenger.
-6. **nodevenv path depends on the Node version chosen** — if the path above fails, confirm the version number via cPanel → Setup Node.js App and adjust `/24/` accordingly.
-7. **`NODE_ENV=production` breaks `npm ci`** — cPanel's Node.js env has `NODE_ENV=production`, which causes npm to skip devDependencies. Always use `npm ci --include=dev` for deploy builds (devDeps are needed at build time for Tailwind and TypeScript path aliases; the standalone output doesn't use them at runtime).
+1. **Restart required after ANY deploy** — Next.js does not hot-reload in production. Manual restart in Setup Node.js App is the final step every time.
+2. **Env vars in cPanel UI, not `.env` files** — `process.cwd()` is unreliable under Passenger. All vars must be set in cPanel → Setup Node.js App → Environment variables.
+3. **nodevenv activation** — `node` is not on PATH by default. Always prefix manual cPanel Terminal commands with `source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate`.
+4. **Prisma binary targets** — the standalone is built on Ubuntu (GitHub Actions). The `binaryTargets` in `prisma/schema.prisma` include RHEL variants so the correct engine binary is bundled for the cPanel server (CloudLinux).
+5. **On-server builds are permanently broken** — CloudLinux's per-user `nproc` limit kills Next.js worker processes during static generation (EAGAIN). Build only on GitHub Actions.
 
 ---
 
