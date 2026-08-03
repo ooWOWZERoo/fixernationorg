@@ -39,7 +39,7 @@ Open cPanel → Advanced → Terminal, then run:
 ```bash
 # 1. Activate Node.js environment (required — node is NOT on PATH by default)
 source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
-  cd ~/repositories/fixernationorg
+  cd /home/fixernat/repositories/fixernationorg
 
 # 2. Pull latest code
 git pull origin main
@@ -64,7 +64,7 @@ npx prisma migrate deploy
 
 ```bash
 source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
-  cd ~/repositories/fixernationorg && \
+  cd /home/fixernat/repositories/fixernationorg && \
   git pull origin main && \
   npm run build && \
   cp -r .next/static .next/standalone/.next/static && \
