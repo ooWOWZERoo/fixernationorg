@@ -1,0 +1,123 @@
+// Stage 0 schema — Auth.js required models + cron proof + settings.
+// Database: PostgreSQL preferred; MySQL/MariaDB fallback pending cPanel validation.
+// For MySQL, change provider to "mysql" and replace @db.Text with @db.LongText where needed.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Auth.js required models ──────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Extended — not part of Auth.js spec
+  passwordHash String?
+  role         UserRole @default(CONSUMER)
+  mfaEnabled   Boolean  @default(false)
+  mfaSecret    String?  // encrypted TOTP secret; null until MFA enrolled
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Cron job tracking (FN-S0-OPS-001) ───────────────────────────────────────
+// cPanel calls /api/cron?job=KEY&token=CRON_SECRET
+// The handler acquires a row-level lock, executes, and records outcome.
+
+model CronJob {
+  id           String        @id @default(cuid())
+  key          String        @unique // e.g. "daily-digest"
+  status       CronJobStatus @default(PENDING)
+  lockedAt     DateTime?
+  lockedBy     String? // e.g. hostname or run UUID for multi-instance safety
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  lastRunAt    DateTime?
+  errorMessage String?       @db.Text
+  runCount     Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([key])
+  @@index([status])
+}
+
+// ─── Site settings ────────────────────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MEMBER
+  CONSUMER
+  PROVIDER
+  AMBASSADOR
+}
+
+enum CronJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}

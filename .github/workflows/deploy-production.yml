@@ -1,0 +1,90 @@
+name: Deploy — Production
+
+# Owner-authorized manual trigger only.
+# Never runs automatically on push.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmed:
+        description: "I confirm this release has been approved by the project owner"
+        required: true
+        type: boolean
+      sha:
+        description: "Commit SHA to deploy (defaults to HEAD)"
+        required: false
+
+jobs:
+  gate:
+    name: Confirm authorization
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check owner authorization
+        if: ${{ inputs.confirmed != true }}
+        run: |
+          echo "Production deployment requires owner confirmation."
+          exit 1
+
+  build-production:
+    name: Build for production
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || 'HEAD' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.PROD_AUTH_SECRET }}
+          CRON_SECRET: ${{ secrets.PROD_CRON_SECRET }}
+          NEXT_PUBLIC_APP_URL: "https://fixernation.org"
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.PROD_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.PROD_POSTHOG_HOST }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.PROD_SENTRY_DSN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+      - name: Create production package
+        run: |
+          tar -czf production-deploy-${{ github.sha }}.tar.gz \
+            .next/standalone \
+            .next/static \
+            public \
+            package.json
+
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-${{ github.sha }}
+          path: production-deploy-${{ github.sha }}.tar.gz
+          retention-days: 30
+
+  # ─── Manual cPanel deployment steps ─────────────────────────────────────────
+  # 1. Download production artifact from this workflow run
+  # 2. In cPanel Terminal:
+  #    cd ~/repositories/fixernation-org
+  #    git pull origin main
+  #    source ~/nodevenv/repositories/fixernation-org/20/bin/activate
+  #    npm ci
+  #    npm run build
+  #    npm run db:migrate
+  #    (restart via cPanel → Setup Node.js App)
+  # 3. Smoke-test https://fixernation.org/api/health
+  # 4. Confirm with owner

@@ -1,0 +1,66 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  build-staging:
+    name: Build for staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.STAGING_AUTH_SECRET }}
+          CRON_SECRET: ${{ secrets.STAGING_CRON_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.STAGING_APP_URL }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.STAGING_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.STAGING_POSTHOG_HOST }}
+
+      - name: Create deployment package
+        run: |
+          tar -czf staging-deploy.tar.gz \
+            .next/standalone \
+            .next/static \
+            public \
+            package.json
+
+      - name: Upload staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-${{ github.sha }}
+          path: staging-deploy.tar.gz
+          retention-days: 14
+
+  # ─── Manual cPanel deployment steps (until SSH automation is available) ───
+  # After the build artifact is ready:
+  # 1. Download staging-deploy.tar.gz from GitHub Actions artifacts
+  # 2. Upload to cPanel via File Manager
+  # 3. In cPanel Terminal:
+  #    cd ~/repositories/fixernation-org
+  #    git pull origin staging
+  #    source ~/nodevenv/repositories/fixernation-org/server/20/bin/activate
+  #    npm ci
+  #    npm run build
+  #    npm run db:migrate   # run pending migrations
+  #    (restart Node.js app via cPanel → Setup Node.js App)
