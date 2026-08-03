@@ -6,6 +6,13 @@ const nextConfig = {
 
   poweredByHeader: false,
 
+  experimental: {
+    // CloudLinux shared hosting enforces a per-user process limit.
+    // cpus: 1 tells Next.js to use a single static-generation worker
+    // instead of spawning one per CPU core, avoiding EAGAIN errors on build.
+    cpus: 1,
+  },
+
   async headers() {
     return [
       {
