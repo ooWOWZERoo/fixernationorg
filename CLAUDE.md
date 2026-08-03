@@ -45,7 +45,9 @@ source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
 git pull origin main
 
 # 3. Install / update dependencies  (only needed when package.json changes)
-npm ci --omit=dev
+# --include=dev is REQUIRED: NODE_ENV=production in cPanel causes npm ci to skip
+# devDependencies otherwise — breaks build (no tailwindcss, no TypeScript path aliases)
+npm ci --include=dev
 
 # 4. Build the app
 npm run build
@@ -105,6 +107,7 @@ When setting up the Node.js app for the first time:
 4. **`node` is not on PATH** — always activate the nodevenv first (step 1 above).
 5. **Env vars in cPanel UI, not `.env` files** — `process.cwd()` is unreliable under Passenger.
 6. **nodevenv path depends on the Node version chosen** — if the path above fails, confirm the version number via cPanel → Setup Node.js App and adjust `/24/` accordingly.
+7. **`NODE_ENV=production` breaks `npm ci`** — cPanel's Node.js env has `NODE_ENV=production`, which causes npm to skip devDependencies. Always use `npm ci --include=dev` for deploy builds (devDeps are needed at build time for Tailwind and TypeScript path aliases; the standalone output doesn't use them at runtime).
 
 ---
 
