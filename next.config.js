@@ -8,9 +8,11 @@ const nextConfig = {
 
   experimental: {
     // CloudLinux shared hosting enforces a per-user process limit.
-    // cpus: 1 tells Next.js to use a single static-generation worker
-    // instead of spawning one per CPU core, avoiding EAGAIN errors on build.
+    // Both options limit parallel worker spawning to avoid EAGAIN on build:
+    // cpus: 1            — static page generation workers (default = CPU count)
+    // outputFileTracingConcurrentWorkers: 1 — nft tracing workers (default = 4)
     cpus: 1,
+    outputFileTracingConcurrentWorkers: 1,
   },
 
   async headers() {
