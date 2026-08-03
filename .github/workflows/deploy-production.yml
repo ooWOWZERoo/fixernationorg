@@ -58,8 +58,8 @@ jobs:
 
       - name: Prepare standalone bundle
         run: |
-          cp -r .next/static  .next/standalone/.next/static
-          cp -r public        .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+          [ -d public ] && cp -r public .next/standalone/public || true
 
       - name: Configure SSH
         run: |
