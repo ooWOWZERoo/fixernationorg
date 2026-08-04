@@ -1,12 +1,8 @@
-import NextAuth from "next-auth";
-import { authConfig } from "@/lib/auth.config";
-import { NextResponse } from "next/server";
-
-const { auth } = NextAuth(authConfig);
+import { NextRequest, NextResponse } from "next/server";
 
 const DESIGN_COOKIE = "fn_design_preview";
 
-export default auth((req) => {
+export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // ── Design system preview gate ──────────────────────────────────────────────
@@ -27,7 +23,7 @@ export default auth((req) => {
       }
     }
   }
-});
+}
 
 export const config = {
   matcher: [

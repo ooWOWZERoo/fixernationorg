@@ -1,6 +1,6 @@
-import NextAuth, { type DefaultSession } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import Credentials from "next-auth/providers/credentials";
+import type { NextAuthOptions, DefaultSession } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "./db";
@@ -19,7 +19,7 @@ declare module "next-auth" {
   }
 }
 
-declare module "@auth/core/jwt" {
+declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
   }
@@ -32,10 +32,11 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
-// ─── NextAuth config ──────────────────────────────────────────────────────────
+// ─── Auth options ─────────────────────────────────────────────────────────────
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
+  secret: process.env.AUTH_SECRET,
 
   // JWT sessions are required when using the Credentials provider
   session: { strategy: "jwt" },
@@ -46,7 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
 
   providers: [
-    Credentials({
+    CredentialsProvider({
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -73,10 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Email verification is required before sign-in
         if (!user.emailVerified) return null;
 
-        const valid = await bcrypt.compare(
-          parsed.data.password,
-          user.passwordHash
-        );
+        const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!valid) return null;
 
         return {
@@ -100,4 +98,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+};

@@ -1,52 +1,44 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
 import { randomUUID } from "crypto";
 
 // cPanel calls this URL via HTTP:
 //   https://fixernation.org/api/cron?job=daily-digest&token=CRON_SECRET
-//
-// Proof covers: token validation, DB-backed locking, idempotency, retries, and
-// missed-run recovery. Actual job logic is wired in Phase 1.
 
-const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // consider lock stale after 5 minutes
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type JobHandler = () => Promise<{ message: string }>;
 
-// Registry of available jobs — add Phase 1+ jobs here
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
 };
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl;
-  const jobKey = searchParams.get("job");
-  const token = searchParams.get("token");
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  // ── Token validation ───────────────────────────────────────────────────────
+  const jobKey = req.query.job as string | undefined;
+  const token = req.query.token as string | undefined;
+
   const expected = process.env.CRON_SECRET;
   if (!expected || token !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   if (!jobKey) {
-    return NextResponse.json({ error: "Missing ?job= parameter" }, { status: 400 });
+    return res.status(400).json({ error: "Missing ?job= parameter" });
   }
 
-  const handler = JOBS[jobKey];
-  if (!handler) {
-    return NextResponse.json(
-      { error: `Unknown job: ${jobKey}` },
-      { status: 404 }
-    );
+  const jobHandler = JOBS[jobKey];
+  if (!jobHandler) {
+    return res.status(404).json({ error: `Unknown job: ${jobKey}` });
   }
 
   const runId = randomUUID();
   const now = new Date();
   const staleThreshold = new Date(now.getTime() - LOCK_TIMEOUT_MS);
 
-  // ── Acquire lock ───────────────────────────────────────────────────────────
-  // Upsert the job row; only take the lock if it's not already running,
-  // or if the existing lock is stale (previous run crashed).
   const existing = await db.cronJob.findUnique({ where: { key: jobKey } });
 
   if (
@@ -54,13 +46,13 @@ export async function GET(req: NextRequest) {
     existing.lockedAt &&
     existing.lockedAt > staleThreshold
   ) {
-    return NextResponse.json(
-      { skipped: true, reason: "Job is already running", lockedBy: existing.lockedBy },
-      { status: 200 }
-    );
+    return res.status(200).json({
+      skipped: true,
+      reason: "Job is already running",
+      lockedBy: existing.lockedBy,
+    });
   }
 
-  // Missed-run detection: log if last run was > 25 hours ago (daily jobs)
   if (existing?.lastRunAt) {
     const hoursSince =
       (now.getTime() - existing.lastRunAt.getTime()) / 1000 / 60 / 60;
@@ -87,9 +79,8 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // ── Execute ────────────────────────────────────────────────────────────────
   try {
-    const result = await handler();
+    const result = await jobHandler();
 
     await db.cronJob.update({
       where: { key: jobKey },
@@ -103,12 +94,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      job: jobKey,
-      runId,
-      ...result,
-    });
+    return res.status(200).json({ ok: true, job: jobKey, runId, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[cron] ${jobKey} failed:`, err);
@@ -125,9 +111,6 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(
-      { ok: false, job: jobKey, error: message },
-      { status: 500 }
-    );
+    return res.status(500).json({ ok: false, job: jobKey, error: message });
   }
 }

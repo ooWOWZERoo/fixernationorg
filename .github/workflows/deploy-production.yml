@@ -52,6 +52,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           AUTH_URL: ${{ secrets.AUTH_URL }}
+          NEXTAUTH_URL: ${{ secrets.AUTH_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           DESIGN_PREVIEW_PASSWORD: ${{ secrets.DESIGN_PREVIEW_PASSWORD }}
           HOSTNAME: "0.0.0.0"

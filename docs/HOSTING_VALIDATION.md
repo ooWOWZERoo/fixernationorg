@@ -34,9 +34,9 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 
 ## 5. SSL and Domains
 
-- [ ] Confirm SSL certificate is issued for `fixernation.org` and `www.fixernation.org`
-- [ ] Confirm auto-redirect HTTP → HTTPS is in place (or document how to set it up via `.htaccess`)
-- [x] Record cPanel server hostname — **`s16388.use1.stableserver.net`**
+- [x] Confirm SSL certificate is issued for `fixernation.org` and `www.fixernation.org` — **AutoSSL Domain Validated; expires Nov 1 2026, auto-renews ✓**
+- [ ] Confirm auto-redirect HTTP → HTTPS is in place
+- [x] Record cPanel server hostname — **`s16388.use1.stableserver.net` (IP: 185.181.252.113)**
 
 ## 6. Subdomains
 
