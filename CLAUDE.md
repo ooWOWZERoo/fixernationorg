@@ -1,7 +1,7 @@
 # CLAUDE.md — Fixer Nation (fixernation.org)
 
 **Primary domain:** fixernation.org  
-**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS · Prisma · Auth.js v5 · Stripe · Postmark  
+**Stack:** Next.js 15 (Pages Router) · TypeScript · Tailwind CSS · Prisma · next-auth v4 · Stripe · Postmark  
 **Status:** Stage 0 scaffold — awaiting owner approval before Phase 1
 
 This is a NEW project. It is NOT fixernationeducation.com (the FN Education Express/MariaDB app on s3074).
@@ -21,83 +21,85 @@ This is a NEW project. It is NOT fixernationeducation.com (the FN Education Expr
 | DB engine | PostgreSQL |
 | DB credentials | Set in cPanel → Setup Node.js App → Environment variables |
 
-### Deploy process — GitHub Actions CI/CD
+### Deploy process — build locally, push directly
 
-**Builds run on GitHub Actions (Ubuntu), not on the cPanel server.** The CloudLinux process limit makes on-server builds impossible; GitHub Actions has no such restriction.
+**Builds run on your Mac** (not on the cPanel server). The CloudLinux nproc limit makes on-server builds unsafe. The build output is rsynced directly to the server via SSH.
 
-#### Step 1 — Push to GitHub
+#### Step 0 — SSH key setup (first time only)
+
+```bash
+# Generate a deploy key
+ssh-keygen -t ed25519 -f ~/.ssh/fixernation_deploy -N ""
+
+# Print the public key — copy this
+cat ~/.ssh/fixernation_deploy.pub
+```
+
+Then in cPanel:
+1. **SSH/Shell Access → Manage SSH Keys → Import Key**
+2. Paste the public key, give it a name (e.g. `fixernation_deploy`)
+3. Click **Authorize** next to the imported key
+4. Test: `ssh -i ~/.ssh/fixernation_deploy fixernat@s16388.use1.stableserver.net exit`
+
+#### Step 1 — Push to GitHub (version control)
 
 ```bash
 cd /Users/john.shaw/Documents/Claude/Projects/FixerNationOrg
 git push origin main
 ```
 
-#### Step 2 — Trigger the deployment
+#### Step 2 — Run the deploy script
 
-1. Go to **GitHub → Actions → Deploy — Production**
-2. Click **Run workflow**
-3. Check "I confirm this release has been approved by the project owner"
-4. Click **Run workflow**
+```bash
+./deploy.sh
+```
 
-The workflow: installs → builds → rsyncs `.next/standalone/` to server → runs `prisma migrate deploy`.
+This builds Next.js on your Mac, then rsyncs `.next/standalone/` and `prisma/` to the server.
 
 #### Step 3 — Restart on cPanel (manual, ~30 seconds)
 
-After the workflow succeeds:
 1. Log into cPanel → **Setup Node.js App**
 2. Click **Restart** next to the fixernation.org app
 
 #### Step 4 — Verify
 
 ```
-https://fixernation.org/api/health
+curl https://fixernation.org/api/health
 ```
 
 ---
 
-### First-time DB schema setup (one-time only)
+### Running database migrations (when schema changes)
 
-No migration files exist yet. Before the first deploy, push the schema directly from cPanel Terminal:
+Migrations cannot run from the deploy script — they need `DATABASE_URL` which is only available in the Passenger process environment. Run from cPanel Terminal:
 
 ```bash
-source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate && \
-  cd /home/fixernat/repositories/fixernationorg && \
-  ./node_modules/.bin/prisma db push
+source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate
+cd /home/fixernat/repositories/fixernationorg
+DATABASE_URL="$(grep -oP "(?<=SetEnv DATABASE_URL ).*" ~/public_html/.htaccess)" \
+  ./node_modules/.bin/prisma migrate deploy
 ```
 
-After Stage 0 validation, create a proper baseline migration:
+**Stage 0 note:** no migration files exist yet. After Stage 0 validation, create a baseline migration:
 ```bash
 ./node_modules/.bin/prisma migrate dev --name init
 ```
-Commit the generated `prisma/migrations/` directory; subsequent deploys use `migrate deploy`.
+Commit the generated `prisma/migrations/` directory.
 
 ---
 
-### GitHub Secrets required
-
-Add these in **GitHub → repository → Settings → Secrets and variables → Actions**:
-
-| Secret name | Value |
-|---|---|
-| `DEPLOY_SSH_KEY` | Ed25519 private key (full PEM including `-----BEGIN/END-----` lines) |
-| `DEPLOY_HOST` | `s16388.use1.stableserver.net` |
-| `DATABASE_URL` | `postgresql://fixernat_fnapp:FixerNation123!@localhost:5432/fixernat_fixernationorg` |
-| `AUTH_SECRET` | `WS6GvF7BmXnKKpOIG0R7z0jxZ/1mH4mPU76D9oW7OPk=` |
-| `AUTH_URL` | `https://fixernation.org` |
-| `CRON_SECRET` | `176246ce05c4bde3ff40b30be93025fa` |
-| `DESIGN_PREVIEW_PASSWORD` | `preview` |
-
 ### Environment variables
 
-Set all env vars in **cPanel → Setup Node.js App → Environment variables** — do NOT rely on `.env` files in the repo (Passenger/LiteSpeed changes `process.cwd()`, making relative dotenv paths unreliable):
+Set all env vars in **cPanel → Setup Node.js App → Environment variables** — do NOT use `.env` files (Passenger changes `process.cwd()`, making dotenv paths unreliable):
 
-| Variable | Required | Notes |
+| Variable | Required | Value / Notes |
 |---|---|---|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `AUTH_SECRET` | ✅ | Min 32 chars — generate with `openssl rand -base64 32` |
-| `AUTH_URL` | ✅ | `https://fixernation.org` |
+| `DATABASE_URL` | ✅ | `postgresql://fixernat_fnapp:…@localhost:5432/fixernat_fixernationorg?connection_limit=3&pool_timeout=10` |
+| `AUTH_SECRET` | ✅ | Min 32 chars — generate: `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | ✅ | `https://fixernation.org` |
 | `CRON_SECRET` | ✅ | Min 16 chars random string |
 | `DESIGN_PREVIEW_PASSWORD` | ✅ | Password for /design preview gate |
+| `UV_THREADPOOL_SIZE` | ✅ | `2` (reduces libuv thread pool, saves nproc slots) |
 | `STRIPE_SECRET_KEY` | Phase 1 | |
 | `STRIPE_WEBHOOK_SECRET` | Phase 1 | |
 | `POSTMARK_SERVER_TOKEN` | Phase 1 | |
@@ -106,7 +108,6 @@ Set all env vars in **cPanel → Setup Node.js App → Environment variables** �
 
 ### Node.js app config in cPanel (first-time setup)
 
-When setting up the Node.js app for the first time:
 - **Application root:** `repositories/fixernationorg`
 - **Application URL:** `fixernation.org` (root, not a sub-path)
 - **Application startup file:** `.next/standalone/server.js`
@@ -114,11 +115,12 @@ When setting up the Node.js app for the first time:
 
 ### Critical cPanel gotchas
 
-1. **Restart required after ANY deploy** — Next.js does not hot-reload in production. Manual restart in Setup Node.js App is the final step every time.
-2. **Env vars in cPanel UI, not `.env` files** — `process.cwd()` is unreliable under Passenger. All vars must be set in cPanel → Setup Node.js App → Environment variables.
-3. **nodevenv activation** — `node` is not on PATH by default. Always prefix manual cPanel Terminal commands with `source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate`.
-4. **Prisma binary targets** — the standalone is built on Ubuntu (GitHub Actions). The `binaryTargets` in `prisma/schema.prisma` include RHEL variants so the correct engine binary is bundled for the cPanel server (CloudLinux).
-5. **On-server builds are permanently broken** — CloudLinux's per-user `nproc` limit kills Next.js worker processes during static generation (EAGAIN). Build only on GitHub Actions.
+1. **Restart required after every deploy** — Next.js does not hot-reload. Always restart after `./deploy.sh`.
+2. **Env vars in cPanel UI, not `.env` files** — `process.cwd()` is unreliable under Passenger.
+3. **nodevenv activation** — `node` is not on PATH by default in Terminal. Prefix commands with `source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate`.
+4. **Prisma binary targets** — `schema.prisma` includes `debian-openssl-1.1.x` so the correct engine is bundled alongside the macOS native binary from local builds.
+5. **Images unoptimized** — `next.config.js` sets `images: { unoptimized: true }` to avoid a macOS→Linux sharp binary mismatch in the standalone bundle. Remove in Phase 1 when image optimization is needed.
+6. **On-server builds are blocked** — CloudLinux nproc kills Next.js workers during compilation. Never run `npm run build` on the cPanel server.
 
 ---
 
@@ -131,9 +133,10 @@ npm run type-check   # TypeScript check (no emit)
 npm run lint         # ESLint
 npm run db:generate  # Regenerate Prisma client after schema changes
 npm run db:push      # Push schema to DB (dev only — no migration history)
-npm run db:migrate   # Apply pending migrations (staging/production)
+npm run db:migrate   # Apply pending migrations (production)
 npm run db:migrate:dev # Create + apply a new migration (dev)
 npm run db:studio    # Prisma Studio GUI
+./deploy.sh          # Build + deploy to production
 ```
 
 ---
@@ -142,27 +145,35 @@ npm run db:studio    # Prisma Studio GUI
 
 ```
 src/
-  app/              Next.js App Router pages and API routes
-    (auth)/         Sign-in, auth layout
-    design/         Design system preview (password-gated)
+  pages/            Next.js Pages Router
+    _app.tsx        Root wrapper (SessionProvider, Inter font)
+    _document.tsx   HTML shell (lang, skip-link)
+    index.tsx       Coming soon / home page
+    signin.tsx      Sign-in page
+    design/
+      index.tsx     Design system preview (password-gated)
+      unlock.tsx    Design preview unlock page
     api/
-      auth/         Auth.js route handler
-      cron/         cPanel cron jobs endpoint
-      health/       Health check
-      webhooks/stripe/  Stripe webhook handler
+      auth/[...nextauth].ts   next-auth v4 route
+      cron.ts       cPanel cron jobs endpoint
+      health.ts     Health check
+      design/unlock.ts        Design preview cookie setter
+      webhooks/stripe.ts      Stripe webhook handler
   components/
     ui/             Button, Card, Input, Badge, Alert
     layout/         SiteHeader, SiteFooter (Phase 1)
   lib/
-    auth.ts         Auth.js v5 config (NextAuth)
-    auth.config.ts  Edge-safe auth config (middleware only)
+    auth.ts         next-auth v4 config (authOptions: NextAuthOptions)
     db.ts           Prisma client singleton
     env.ts          Zod-validated environment variables
     stripe.ts       Stripe client (stub until Phase 1)
     postmark.ts     Postmark client (stub until Phase 1)
-  middleware.ts     Auth protection + design preview gate
+  styles/
+    globals.css     Tailwind base + CSS vars
+  middleware.ts     Design preview gate
 prisma/
   schema.prisma     Database schema (PostgreSQL)
+deploy.sh           Local build + deploy script
 docs/
   TRACEABILITY.md   Requirements → code mapping
   HOSTING_VALIDATION.md  cPanel inspection checklist (complete before Phase 1)
@@ -178,13 +189,13 @@ docs/
 ## Architecture
 
 ### Auth
-Auth.js v5 with Credentials provider (email + bcrypt). JWT sessions. Email verification enforced before sign-in. **Edge-safe split:** `auth.config.ts` is used in middleware (no bcrypt, no Prisma adapter); `auth.ts` is used in server components and API routes only.
+next-auth v4 with `@next-auth/prisma-adapter`. Credentials provider (email + bcrypt). JWT sessions. `authOptions` exported from `src/lib/auth.ts`, used in `src/pages/api/auth/[...nextauth].ts`.
 
 ### Database
-Prisma ORM, PostgreSQL. Use `prisma db push` for local dev. Use `npx prisma migrate deploy` for production. Do NOT use `db push` on production.
+Prisma ORM, PostgreSQL. `db push` for local dev. `prisma migrate deploy` for production. Never use `db push` on production.
 
 ### Cron
-cPanel calls `GET /api/cron?job=KEY&token=CRON_SECRET`. See `src/app/api/cron/route.ts`.
+cPanel calls `GET /api/cron?job=KEY&token=CRON_SECRET`. See `src/pages/api/cron.ts`.
 
 ### Design system preview
 Password-gated at `/design` via cookie `fn_design_preview`. Unlock at `/design/unlock`. Password = `DESIGN_PREVIEW_PASSWORD` env var.

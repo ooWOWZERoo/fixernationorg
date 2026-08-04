@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Produces a self-contained .next/standalone directory for cPanel deployment.
   output: "standalone",
-
   poweredByHeader: false,
+  images: {
+    unoptimized: true,
+  },
 
   async headers() {
     return [
