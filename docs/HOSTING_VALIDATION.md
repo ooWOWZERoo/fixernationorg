@@ -61,10 +61,10 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 - [ ] Confirm database backup procedure — defer to Phase 1
 - [ ] Test a restore from backup in staging — defer to Phase 1
 
-## 10. Deployment Proof *(requires DNS)*
+## 10. Deployment Proof
 
-- [x] Deploy pipeline proven — **GitHub Actions → rsync → cPanel; first run successful**
-- [ ] Confirm `GET /api/health` returns `{ status: "ok" }`
+- [x] Deploy pipeline proven — **GitHub Actions → rsync → cPanel ✓**
+- [x] `GET /api/health` returns `{ status: "ok" }` ✓
 - [ ] Confirm `GET /api/cron?job=health-check&token=...` creates a `CronJob` row
 - [ ] Confirm `/signin` page loads correctly
 - [ ] Confirm `/design` redirects to `/design/unlock` before password is set
@@ -74,15 +74,17 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 
 ```
 Node.js version: 24.18
+Server OS: Debian (OpenSSL 1.1.x) — confirmed via Prisma binary detection
 PostgreSQL available: YES
 Database engine selected: PostgreSQL
 DB name: fixernat_fixernationorg
 DB user: fixernat_fnapp
 Schema status: in sync (prisma db push confirmed)
-Passenger/standalone compatible: PENDING (deployed; DNS propagating)
-cPanel server: s16388.use1.stableserver.net
+Passenger/standalone compatible: YES ✓ (GET /api/health → { status: "ok" })
+cPanel server: s16388.use1.stableserver.net (IP: 185.181.252.113)
 cPanel user: fixernat
 App root: ~/repositories/fixernationorg
 Startup file: .next/standalone/server.js
 CI/CD: GitHub Actions → rsync → cPanel SSH ✓
+Prisma binaryTargets: native, rhel-openssl-3.0.x, rhel-openssl-1.1.x, debian-openssl-1.1.x
 ```
