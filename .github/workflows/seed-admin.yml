@@ -1,0 +1,53 @@
+name: Seed — Create admin user
+
+# One-shot: run once to create the initial admin account.
+# Safe to re-run — the script skips creation if the user already exists.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Admin email address"
+        required: true
+        default: "admin@fixernation.org"
+      password:
+        description: "Initial password (change after first login)"
+        required: true
+
+jobs:
+  seed:
+    name: Create admin user
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+
+      - name: Write and run seed script
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ADMIN_EMAIL: ${{ inputs.email }}
+          ADMIN_PASSWORD: ${{ inputs.password }}
+        run: |
+          printf 'DATABASE_URL=%s\nADMIN_EMAIL=%s\nADMIN_PASSWORD=%s\n' \
+            "$DATABASE_URL" "$ADMIN_EMAIL" "$ADMIN_PASSWORD" > /tmp/seed-env
+
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            /tmp/seed-env fixernat@${{ secrets.DEPLOY_HOST }}:/tmp/seed-env
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            fixernat@${{ secrets.DEPLOY_HOST }} \
+            'set -a && . /tmp/seed-env && set +a &&
+             source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate &&
+             cd /home/fixernat/repositories/fixernationorg &&
+             node scripts/create-admin.js;
+             rm -f /tmp/seed-env'
+
+          rm -f /tmp/seed-env
