@@ -28,8 +28,13 @@ jobs:
         env:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: https://fixernation.org
-          # Prisma generate reads the schema only — no live DB needed at build time
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Bundle Prisma CLI into standalone
+        run: |
+          cp -rL node_modules/prisma .next/standalone/node_modules/prisma
+          mkdir -p .next/standalone/node_modules/@prisma
+          cp -rL node_modules/@prisma/engines .next/standalone/node_modules/@prisma/engines
 
       - name: Prepare standalone bundle
         run: |
@@ -66,3 +71,12 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
             prisma/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/prisma/
+
+      - name: Run database migrations
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_HOST }}
+          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no \
+            fixernat@${SSH_HOST} \
+            'cd ~/repositories/fixernationorg && node .next/standalone/node_modules/prisma/build/index.js migrate deploy'
