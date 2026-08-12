@@ -35,7 +35,9 @@ if [[ -z "$NODE_ACTIVATE" ]]; then
   echo "Set it up via cPanel → Setup Node.js App first."
   exit 1
 fi
+set +u
 source "$NODE_ACTIVATE"
+set -u
 echo "    Using: $NODE_ACTIVATE"
 
 echo "==> Pulling latest code..."
