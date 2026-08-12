@@ -79,4 +79,4 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no \
             fixernat@${SSH_HOST} \
-            'cd ~/repositories/fixernationorg && node .next/standalone/node_modules/prisma/build/index.js migrate deploy'
+            'NODE=$(ls ~/nodevenv/repositories/fixernationorg/*/bin/node 2>/dev/null | head -1); cd ~/repositories/fixernationorg && $NODE .next/standalone/node_modules/prisma/build/index.js migrate deploy'
