@@ -104,7 +104,7 @@ export default function SignInPage() {
                 type="submit"
                 className="w-full mt-2"
                 isLoading={isLoading}
-                disabled={!email || !password}
+                disabled={isLoading}
               >
                 Sign in
               </Button>
