@@ -32,21 +32,32 @@ export default function SignInPage() {
     setIsLoading(true);
     setError(null);
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
 
-    if (result?.error) {
-      setError(ERROR_MESSAGES[result.error] ?? ERROR_MESSAGES.Default);
+      if (!result) {
+        setError("No response from server. Try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (result.error) {
+        setError(ERROR_MESSAGES[result.error] ?? ERROR_MESSAGES.Default);
+        setIsLoading(false);
+      } else {
+        const callbackUrl =
+          typeof router.query.callbackUrl === "string"
+            ? router.query.callbackUrl
+            : "/";
+        router.push(callbackUrl);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error. Try again.");
       setIsLoading(false);
-    } else {
-      const callbackUrl =
-        typeof router.query.callbackUrl === "string"
-          ? router.query.callbackUrl
-          : "/";
-      router.push(callbackUrl);
     }
   }
 
