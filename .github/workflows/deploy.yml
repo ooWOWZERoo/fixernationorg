@@ -82,5 +82,6 @@ jobs:
               -f -N -L 5432:localhost:5432 \
               fixernat@${SSH_HOST}
           sleep 2
+          npx prisma migrate resolve --applied "0_init" || true
           npx prisma migrate deploy
-          pkill -f "ssh.*5433:localhost" || true
+          pkill -f "ssh.*5432:localhost" || true
