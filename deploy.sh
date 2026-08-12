@@ -44,7 +44,7 @@ echo "==> Pulling latest code..."
 git pull origin main
 
 echo "==> Installing dependencies..."
-npm install --no-audit --no-fund --prefer-offline
+NODE_OPTIONS="--max-old-space-size=256" npm install --no-audit --no-fund --maxsockets=1
 
 echo "==> Building..."
 npm run build
