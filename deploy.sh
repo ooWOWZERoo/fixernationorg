@@ -27,6 +27,17 @@ echo ""
 read -p "Deploy this project on this server? (y/N) " confirm
 [[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "Aborted."; exit 0; }
 
+echo "==> Activating Node.js environment..."
+NODE_ENV_DIR="$HOME/nodevenv/repositories/fixernationorg"
+NODE_ACTIVATE=$(ls "$NODE_ENV_DIR"/*/bin/activate 2>/dev/null | head -1)
+if [[ -z "$NODE_ACTIVATE" ]]; then
+  echo "ERROR: Node.js virtual environment not found at $NODE_ENV_DIR"
+  echo "Set it up via cPanel → Setup Node.js App first."
+  exit 1
+fi
+source "$NODE_ACTIVATE"
+echo "    Using: $NODE_ACTIVATE"
+
 echo "==> Pulling latest code..."
 git pull origin main
 
