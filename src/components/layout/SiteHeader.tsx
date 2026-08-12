@@ -80,6 +80,11 @@ export function SiteHeader() {
                     <Link href="/account" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                       Account Settings
                     </Link>
+                    {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
+                      <Link href="/admin" className="block border-t border-navy/8 px-4 py-3 text-sm font-semibold text-navy no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
+                        Admin Dashboard
+                      </Link>
+                    )}
                     <button
                       onClick={() => signOut({ callbackUrl: "/" })}
                       className="w-full text-left border-t border-navy/8 px-4 py-3 text-sm font-semibold text-ink hover:bg-cream-panel"
@@ -151,6 +156,11 @@ export function SiteHeader() {
                 <Link href="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                   Dashboard
                 </Link>
+                {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
+                  <Link href="/admin" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
+                    Admin Dashboard
+                  </Link>
+                )}
                 <button onClick={() => signOut({ callbackUrl: "/" })} className="text-left rounded-lg px-3 py-2.5 text-sm font-bold text-navy hover:bg-cream-panel">
                   Sign Out
                 </button>
