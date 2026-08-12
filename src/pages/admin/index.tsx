@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
+import { UserRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -159,29 +160,43 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
-  const [totalUsers, activeMembers, activeProducts, newThisWeek, recentUsers] =
-    await Promise.all([
-      db.user.count(),
-      db.user.count({
-        where: {
-          role: { in: ["MEMBER", "ADMIN", "SUPER_ADMIN", "AMBASSADOR", "PROVIDER"] },
-        },
-      }),
-      db.product.count({ where: { active: true } }),
-      db.user.count({ where: { createdAt: { gte: weekAgo } } }),
-      db.user.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
-      }),
-    ]);
+  const PAID_ROLES: UserRole[] = [
+    UserRole.MEMBER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.AMBASSADOR,
+    UserRole.PROVIDER,
+  ];
 
-  return {
-    props: {
-      stats: { totalUsers, activeMembers, activeProducts, newThisWeek },
-      recentUsers: JSON.parse(JSON.stringify(recentUsers)),
-    },
-  };
+  try {
+    const [totalUsers, activeMembers, activeProducts, newThisWeek, recentUsers] =
+      await Promise.all([
+        db.user.count(),
+        db.user.count({ where: { role: { in: PAID_ROLES } } }),
+        db.product.count({ where: { active: true } }),
+        db.user.count({ where: { createdAt: { gte: weekAgo } } }),
+        db.user.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { id: true, name: true, email: true, role: true, createdAt: true },
+        }),
+      ]);
+
+    return {
+      props: {
+        stats: { totalUsers, activeMembers, activeProducts, newThisWeek },
+        recentUsers: JSON.parse(JSON.stringify(recentUsers)),
+      },
+    };
+  } catch (e) {
+    console.error("[admin/dashboard] getServerSideProps error:", e);
+    return {
+      props: {
+        stats: { totalUsers: 0, activeMembers: 0, activeProducts: 0, newThisWeek: 0 },
+        recentUsers: [],
+      },
+    };
+  }
 };
 
 export default AdminDashboard;
