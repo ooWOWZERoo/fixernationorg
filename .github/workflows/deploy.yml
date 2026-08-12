@@ -33,8 +33,7 @@ jobs:
       - name: Bundle Prisma CLI into standalone
         run: |
           cp -rL node_modules/prisma .next/standalone/node_modules/prisma
-          mkdir -p .next/standalone/node_modules/@prisma
-          cp -rL node_modules/@prisma/engines .next/standalone/node_modules/@prisma/engines
+          cp -rL node_modules/@prisma .next/standalone/node_modules/@prisma
 
       - name: Prepare standalone bundle
         run: |
