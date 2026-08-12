@@ -111,7 +111,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const products = await db.product.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: { _count: { select: { prices: { where: { active: true } } } } },
+    include: { _count: { select: { prices: true } } },
   });
 
   return { props: { products: JSON.parse(JSON.stringify(products)) } };
