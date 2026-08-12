@@ -130,7 +130,7 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Site Settings</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Key/value configuration stored in the database.
+          Runtime configuration flags stored in the database — change behavior without a code deploy. Examples: <code className="rounded bg-slate-100 px-1 text-xs">maintenance.mode</code>, <code className="rounded bg-slate-100 px-1 text-xs">banner.message</code>.
         </p>
       </div>
 
