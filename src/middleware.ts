@@ -5,6 +5,14 @@ const DESIGN_COOKIE = "fn_design_preview";
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ── HTTPS enforcement ───────────────────────────────────────────────────────
+  const proto = req.headers.get("x-forwarded-proto");
+  if (proto === "http") {
+    const url = req.nextUrl.clone();
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301);
+  }
+
   // ── Design system preview gate ──────────────────────────────────────────────
   if (
     pathname.startsWith("/design") &&

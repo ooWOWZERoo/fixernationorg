@@ -6,8 +6,8 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 
 - [x] Confirm available Node.js versions (need ≥ 20 for Next.js 15) — **Node 24.18 confirmed**
 - [x] Confirm `node --version` and `npm --version` in cPanel Terminal after activating nodevenv — **24.18 / npm bundled**
-- [ ] Confirm max process memory limit
-- [x] Confirm whether `output: "standalone"` + `node .next/standalone/server.js` works under Passenger/LiteSpeed — **deployed successfully via GitHub Actions rsync; pending live verification (DNS)**
+- [ ] Confirm max process memory limit — defer to Phase 1
+- [x] Confirm whether `output: "standalone"` + `node .next/standalone/server.js` works under Passenger/LiteSpeed — **confirmed ✓ (`/api/health` → `{"status":"ok"}`)**
 - [x] Record: Application root path in cPanel "Setup Node.js App" — **`repositories/fixernationorg`**
 - [x] Record: Application URL that will map to the Node.js process — **`fixernation.org`**
 
@@ -15,15 +15,15 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 
 - [x] Open cPanel → MySQL Databases — is PostgreSQL listed anywhere? — **YES — PostgreSQL available**
 - [x] Create a test database and run `prisma db push` — **`fixernat_fixernationorg` created; schema in sync**
-- [ ] Confirm max connections and connection pool compatibility
+- [x] Confirm max connections and connection pool compatibility — **`connection_limit=3&pool_timeout=10` in DATABASE_URL; confirmed stable**
 - [x] **Decision:** Provider is `postgresql` ✓
 
 ## 3. Cron Jobs
 
-- [ ] Confirm cPanel Cron Jobs supports HTTP GET requests (or shell commands)
-- [ ] Set up a test cron: `curl -s "https://fixernation.org/api/cron?job=health-check&token=CRON_SECRET"`
-- [ ] Verify job records a row in `CronJob` table after execution
-- [ ] Verify missed-run warning appears in logs when gap > 25 hours
+- [x] Confirm cPanel Cron Jobs supports HTTP GET requests — **yes, via `curl` shell command**
+- [x] Set up a test cron: `curl -s "https://fixernation.org/api/cron?job=health-check&token=CRON_SECRET"` — **returns `{"ok":true,"job":"health-check",...}` ✓**
+- [ ] Verify job records a row in `CronJob` table after execution — defer to Phase 1
+- [ ] Verify missed-run warning appears in logs when gap > 25 hours — defer to Phase 1
 
 ## 4. File Storage
 
@@ -35,13 +35,13 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 ## 5. SSL and Domains
 
 - [x] Confirm SSL certificate is issued for `fixernation.org` and `www.fixernation.org` — **AutoSSL Domain Validated; expires Nov 1 2026, auto-renews ✓**
-- [ ] Confirm auto-redirect HTTP → HTTPS is in place
+- [ ] Confirm auto-redirect HTTP → HTTPS is in place — **❌ NOT in place — add RewriteRule to .htaccess**
 - [x] Record cPanel server hostname — **`s16388.use1.stableserver.net` (IP: 185.181.252.113)**
 
 ## 6. Subdomains
 
 - [x] Confirm subdomains can be created — **Domains/Subdomains tool available in cPanel ✓**
-- [ ] Confirm separate Node.js app can run on a subdomain — **not yet tested; needed for staging**
+- [ ] Confirm separate Node.js app can run on a subdomain — defer to Phase 1 (needed for staging)
 
 ## 7. Email
 
@@ -63,12 +63,12 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 
 ## 10. Deployment Proof
 
-- [x] Deploy pipeline proven — **GitHub Actions → rsync → cPanel ✓**
+- [x] Deploy pipeline proven — **direct deploy via `deploy.sh` (Mac build → rsync → cPanel restart) ✓**
 - [x] `GET /api/health` returns `{ status: "ok" }` ✓
-- [ ] Confirm `GET /api/cron?job=health-check&token=...` creates a `CronJob` row
-- [ ] Confirm `/signin` page loads correctly
-- [ ] Confirm `/design` redirects to `/design/unlock` before password is set
-- [ ] Confirm Auth.js sign-in flow works end-to-end
+- [ ] Confirm `GET /api/cron?job=health-check&token=...` creates a `CronJob` row — defer to Phase 1
+- [x] Confirm `/signin` page loads correctly ✓
+- [x] Confirm `/design` redirects to `/design/unlock` ✓
+- [x] Confirm sign-in flow works end-to-end — **`johnfshaw@yahoo.com` signs in, redirects to `/dashboard` (404 expected) ✓**
 
 ## Findings so far
 
@@ -85,6 +85,9 @@ cPanel server: s16388.use1.stableserver.net (IP: 185.181.252.113)
 cPanel user: fixernat
 App root: ~/repositories/fixernationorg
 Startup file: .next/standalone/server.js
-CI/CD: GitHub Actions → rsync → cPanel SSH ✓
+Deploy: direct — deploy.sh (Mac build → rsync → cPanel restart)
 Prisma binaryTargets: native, rhel-openssl-3.0.x, rhel-openssl-1.1.x, debian-openssl-1.1.x
+PassengerMaxPoolSize: 1 (set in .htaccess to limit worker processes)
+HTTP→HTTPS redirect: NOT YET — add RewriteRule to .htaccess
+Admin user: johnfshaw@yahoo.com (SUPER_ADMIN) seeded ✓
 ```
