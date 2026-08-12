@@ -1,37 +1,33 @@
 #!/usr/bin/env bash
-# deploy.sh — run in cPanel Terminal after the GitHub Actions workflow goes green
+# deploy.sh
+# Manual: run in cPanel Terminal after GitHub Actions goes green.
+# CI:     called automatically by the workflow with CI=true.
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PROJECT="fixernation.org"
+# ── Guard: make sure we're in the right project ────────────────────────────
 EXPECTED_REMOTE="fixernationorg"
-
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
 if [[ "$REMOTE_URL" != *"$EXPECTED_REMOTE"* ]]; then
-  echo "ERROR: Wrong project directory."
-  echo "  Expected repo containing '$EXPECTED_REMOTE'"
-  echo "  Got: $REMOTE_URL"
+  echo "ERROR: Wrong project directory (expected repo containing '$EXPECTED_REMOTE')."
   exit 1
 fi
 
-echo ""
-echo "========================================="
-echo "  PROJECT: $PROJECT"
-echo "  Build + migrations: GitHub Actions"
-echo "  This step: restart only"
-echo "========================================="
-echo ""
-echo "  GitHub Actions handles the build, file"
-echo "  deployment, and database migrations."
-echo ""
-echo "  Only continue once the workflow is green."
-echo ""
-read -p "Restart the app and go live? (y/N) " confirm
-[[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "Aborted."; exit 0; }
+# ── Interactive prompt (skip when CI=true or no TTY) ──────────────────────
+if [[ "${CI:-}" != "true" ]] && [ -t 0 ]; then
+  echo ""
+  echo "========================================="
+  echo "  PROJECT: fixernation.org"
+  echo "  This step: restart only"
+  echo "========================================="
+  echo ""
+  read -p "Restart the app and go live? (y/N) " confirm
+  [[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "Aborted."; exit 0; }
+fi
 
-echo ""
-echo "==> Restart the app to go live:"
-echo "    cPanel → Setup Node.js App → Restart application"
-echo ""
-echo "==> Then verify: curl https://fixernation.org/api/health"
+# ── Restart: kill the process; Passenger (MinInstances 1) restarts it ─────
+echo "Restarting app..."
+pkill -f "fixernationorg/.next/standalone/server.js" || true
+sleep 3
+echo "Done."
