@@ -99,7 +99,7 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} \
               -o StrictHostKeyChecking=no \
               fixernat@${SSH_HOST} \
-              'CI=true bash ~/repositories/fixernationorg/deploy.sh'
+              'pkill -f "fixernationorg/.next/standalone/server.js" || true; sleep 4; echo "App restarted."'
 
       - name: Run database migrations via SSH tunnel
         env:
