@@ -1,23 +1,35 @@
 import type { AppProps } from "next/app";
+import type { NextComponentType, NextPageContext } from "next";
 import { SessionProvider } from "next-auth/react";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import Head from "next/head";
 import "../styles/globals.css";
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-manrope",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-export default function App({ Component, pageProps: { session, ...pageProps } }: AppProps) {
+type NextPageWithLayout = NextComponentType<NextPageContext, unknown, Record<string, unknown>> & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout;
+};
+
+export default function App({ Component, pageProps: { session, ...pageProps } }: AppPropsWithLayout) {
+  const getLayout = Component.getLayout ?? ((page: React.ReactElement) => page);
+
   return (
     <SessionProvider session={session}>
-      <div className={inter.variable}>
+      <div className={`${manrope.variable} font-sans`}>
         <Head>
           <meta name="viewport" content="width=device-width, initial-scale=1" />
         </Head>
-        <Component {...pageProps} />
+        {getLayout(<Component {...pageProps} />)}
       </div>
     </SessionProvider>
   );

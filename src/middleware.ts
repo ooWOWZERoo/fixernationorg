@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 const DESIGN_COOKIE = "fn_design_preview";
+const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
 
-export default function middleware(req: NextRequest) {
+export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // ── HTTPS enforcement ───────────────────────────────────────────────────────
@@ -11,6 +13,27 @@ export default function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.protocol = "https:";
     return NextResponse.redirect(url, 301);
+  }
+
+  // ── Admin route gate ────────────────────────────────────────────────────────
+  if (pathname.startsWith("/admin")) {
+    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+    if (!token) {
+      return NextResponse.redirect(
+        new URL(`/signin?from=${encodeURIComponent(pathname)}`, req.url)
+      );
+    }
+    if (!ADMIN_ROLES.has(token.role as string)) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
+  // ── Admin API gate ──────────────────────────────────────────────────────────
+  if (pathname.startsWith("/api/admin")) {
+    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+    if (!token || !ADMIN_ROLES.has(token.role as string)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   // ── Design system preview gate ──────────────────────────────────────────────

@@ -106,6 +106,46 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// ─── Products & Pricing ───────────────────────────────────────────────────────
+// Admin-configurable products (memberships, books, digital/physical goods).
+// Prices are separate so one product can have multiple billing intervals.
+
+model Product {
+  id          String      @id @default(cuid())
+  type        ProductType
+  name        String
+  slug        String      @unique
+  description String?     @db.Text
+  features    String[]    // membership feature bullet list
+  imageUrl    String?
+  active      Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  prices      Price[]
+
+  @@index([type, active])
+  @@index([sortOrder])
+}
+
+model Price {
+  id             String        @id @default(cuid())
+  productId      String
+  interval       PriceInterval
+  amount         Int           // in cents; 0 = free
+  currency       String        @default("usd")
+  trialDays      Int?          // only for FREE_TRIAL interval
+  membershipRole UserRole?     // role granted on purchase (null for non-membership)
+  stripePriceId  String?       // populated when Stripe integration is wired in Phase 1
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([active])
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
@@ -123,4 +163,18 @@ enum CronJobStatus {
   COMPLETED
   FAILED
   SKIPPED
+}
+
+enum ProductType {
+  MEMBERSHIP
+  BOOK
+  DIGITAL
+  PHYSICAL
+}
+
+enum PriceInterval {
+  FREE_TRIAL
+  MONTHLY
+  ANNUAL
+  ONE_TIME
 }

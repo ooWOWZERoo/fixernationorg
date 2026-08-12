@@ -4,13 +4,16 @@
 
 @layer base {
   :root {
-    /* Brand tokens — mirrors tailwind.config.ts values for use in inline styles */
-    --color-brand-600: #1D4ED8;
-    --color-accent-600: #E8620A;
-    --color-neutral-50: #f8fafc;
-    --color-neutral-900: #0f172a;
-
-    --radius: 0.5rem;
+    --color-navy: #1F3A54;
+    --color-navy-dark: #142838;
+    --color-amber: #F2A93C;
+    --color-amber-dark: #D98F1F;
+    --color-coral: #FF7A59;
+    --color-cream: #FAF7F1;
+    --color-panel: #F1ECE2;
+    --color-ink: #23262B;
+    --color-ink-soft: #5C6470;
+    --radius: 1rem;
   }
 
   html {
@@ -19,10 +22,9 @@
   }
 
   body {
-    @apply bg-white text-slate-900;
+    @apply bg-cream text-ink;
   }
 
-  /* Admin dark theme — applied via <html class="dark"> */
   .dark body {
     @apply bg-slate-950 text-slate-100;
   }
@@ -34,22 +36,26 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold leading-tight tracking-tight;
+    @apply font-bold leading-tight tracking-tight text-navy;
   }
 
   a {
-    @apply text-brand-600 hover:text-brand-700 transition-colors;
+    @apply text-navy hover:text-navy-dark transition-colors;
   }
 
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-600;
+    @apply outline-2 outline-offset-2 outline-navy;
   }
 }
 
 @layer components {
-  /* Skip-to-content for WCAG 2.2 AA */
   .skip-link {
     @apply sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50
-           focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-md focus:shadow-lg;
+           focus:px-4 focus:py-2 focus:bg-navy focus:text-cream focus:rounded-md focus:shadow-lg;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-extrabold uppercase tracking-widest text-navy;
+    background-color: rgba(31, 58, 84, 0.08);
   }
 }

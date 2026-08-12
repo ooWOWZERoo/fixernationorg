@@ -1,33 +1,37 @@
 #!/usr/bin/env bash
-# deploy.sh — build locally on your Mac, push to fixernation.org
-#
-# First-time setup (run once):
-#   1. ssh-keygen -t ed25519 -f ~/.ssh/fixernation_deploy -N ""
-#   2. cPanel → SSH/Shell Access → Manage SSH Keys → Import Key
-#      (paste the full contents of ~/.ssh/fixernation_deploy.pub)
-#   3. Click "Authorize" next to the imported key
-#   4. Test: ssh -i ~/.ssh/fixernation_deploy fixernat@s16388.use1.stableserver.net exit
-#
-# Usage:
-#   ./deploy.sh
+# deploy.sh — run in cPanel Terminal for fixernation.org
 
 set -euo pipefail
 
-REMOTE="fixernat@s16388.use1.stableserver.net"
-REMOTE_PATH="repositories/fixernationorg"
-KEY="${DEPLOY_SSH_KEY_PATH:-$HOME/.ssh/fixernation_deploy}"
-SSH_OPTS="-i $KEY -o StrictHostKeyChecking=yes -o BatchMode=yes"
+cd "$(dirname "$0")"
 
-if [[ ! -f "$KEY" ]]; then
-  echo "ERROR: SSH key not found at $KEY"
-  echo ""
-  echo "Generate one:"
-  echo "  ssh-keygen -t ed25519 -f $KEY -N \"\""
-  echo ""
-  echo "Then add the public key in:"
-  echo "  cPanel → SSH/Shell Access → Manage SSH Keys → Import Key"
+PROJECT="fixernation.org"
+EXPECTED_REMOTE="fixernationorg"
+
+# Confirm we're in the right repo
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if [[ "$REMOTE_URL" != *"$EXPECTED_REMOTE"* ]]; then
+  echo "ERROR: Wrong project directory."
+  echo "  Expected a repo containing '$EXPECTED_REMOTE'"
+  echo "  Got: $REMOTE_URL"
   exit 1
 fi
+
+echo ""
+echo "========================================="
+echo "  PROJECT: $PROJECT"
+echo "  REMOTE:  $REMOTE_URL"
+echo "  DIR:     $(pwd)"
+echo "========================================="
+echo ""
+read -p "Deploy this project on this server? (y/N) " confirm
+[[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "Aborted."; exit 0; }
+
+echo "==> Pulling latest code..."
+git pull origin main
+
+echo "==> Installing dependencies..."
+npm ci
 
 echo "==> Building..."
 npm run build
@@ -36,20 +40,11 @@ echo "==> Preparing standalone bundle..."
 cp -r .next/static .next/standalone/.next/static
 [[ -d public ]] && cp -r public .next/standalone/public || true
 
-echo "==> Deploying standalone..."
-rsync -az --delete \
-  -e "ssh $SSH_OPTS" \
-  .next/standalone/ \
-  "$REMOTE:$REMOTE_PATH/.next/standalone/"
-
-echo "==> Syncing prisma..."
-rsync -az \
-  -e "ssh $SSH_OPTS" \
-  prisma/ \
-  "$REMOTE:$REMOTE_PATH/prisma/"
+echo "==> Running database migrations..."
+npx prisma migrate deploy
 
 echo ""
-echo "==> Done. Restart the app to go live:"
+echo "==> Build complete. Restart the app to go live:"
 echo "    cPanel → Setup Node.js App → Restart application"
 echo ""
 echo "==> Verify: curl https://fixernation.org/api/health"
