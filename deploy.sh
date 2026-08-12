@@ -44,7 +44,7 @@ echo "==> Pulling latest code..."
 git pull origin main
 
 echo "==> Installing dependencies..."
-npm ci
+npm install --no-audit --no-fund --prefer-offline
 
 echo "==> Building..."
 npm run build
