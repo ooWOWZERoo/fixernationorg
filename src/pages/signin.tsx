@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import Head from "next/head";
@@ -27,8 +27,7 @@ export default function SignInPage() {
     if (code) setError(ERROR_MESSAGES[code] ?? ERROR_MESSAGES.Default);
   }, [router.isReady, router.query.error]);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function doSignIn() {
     setIsLoading(true);
     setError(null);
 
@@ -91,7 +90,7 @@ export default function SignInPage() {
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <form onSubmit={(e) => { e.preventDefault(); doSignIn(); }} className="space-y-4" noValidate>
               <Input
                 label="Email address"
                 type="email"
@@ -112,7 +111,8 @@ export default function SignInPage() {
               />
 
               <Button
-                type="submit"
+                type="button"
+                onClick={doSignIn}
                 className="w-full mt-2"
                 isLoading={isLoading}
                 disabled={isLoading}
