@@ -5,6 +5,8 @@ import { signOut, useSession } from "next-auth/react";
 const ADMIN_NAV = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/products", label: "Products" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 interface AdminLayoutProps {
