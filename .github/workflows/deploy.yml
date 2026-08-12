@@ -91,6 +91,16 @@ jobs:
             prisma/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/prisma/
 
+      - name: Restart app
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_HOST }}
+          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} \
+              -o StrictHostKeyChecking=no \
+              fixernat@${SSH_HOST} \
+              'bash ~/repositories/fixernationorg/deploy.sh'
+
       - name: Run database migrations via SSH tunnel
         env:
           SSH_HOST: ${{ secrets.CPANEL_HOST }}
