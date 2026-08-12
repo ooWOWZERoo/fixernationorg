@@ -35,7 +35,7 @@ Run each check on the Hosting.com cPanel environment before finalizing architect
 ## 5. SSL and Domains
 
 - [x] Confirm SSL certificate is issued for `fixernation.org` and `www.fixernation.org` — **AutoSSL Domain Validated; expires Nov 1 2026, auto-renews ✓**
-- [ ] Confirm auto-redirect HTTP → HTTPS is in place — **❌ NOT in place — add RewriteRule to .htaccess**
+- [x] Confirm auto-redirect HTTP → HTTPS is in place — **enforced via middleware (`x-forwarded-proto` check) ✓**
 - [x] Record cPanel server hostname — **`s16388.use1.stableserver.net` (IP: 185.181.252.113)**
 
 ## 6. Subdomains
@@ -88,6 +88,6 @@ Startup file: .next/standalone/server.js
 Deploy: direct — deploy.sh (Mac build → rsync → cPanel restart)
 Prisma binaryTargets: native, rhel-openssl-3.0.x, rhel-openssl-1.1.x, debian-openssl-1.1.x
 PassengerMaxPoolSize: 1 (set in .htaccess to limit worker processes)
-HTTP→HTTPS redirect: NOT YET — add RewriteRule to .htaccess
+HTTP→HTTPS redirect: enforced via middleware x-forwarded-proto ✓
 Admin user: johnfshaw@yahoo.com (SUPER_ADMIN) seeded ✓
 ```
