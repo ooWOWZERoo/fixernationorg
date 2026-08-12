@@ -61,6 +61,16 @@ jobs:
             .next/standalone/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/.next/standalone/
 
+      - name: Sync static files to public_html
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_HOST }}
+          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
+            .next/static/ \
+            fixernat@${SSH_HOST}:~/public_html/.next/static/
+
       - name: Sync deploy script
         env:
           SSH_HOST: ${{ secrets.CPANEL_HOST }}
