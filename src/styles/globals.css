@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    --font-manrope: 'Manrope', sans-serif;
     --color-navy: #1F3A54;
     --color-navy-dark: #142838;
     --color-amber: #F2A93C;
