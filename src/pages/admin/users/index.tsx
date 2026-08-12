@@ -157,7 +157,7 @@ AdminUsersPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
-    return { redirect: { destination: "/signin", permanent: false } };
+    return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
   const users = await db.user.findMany({

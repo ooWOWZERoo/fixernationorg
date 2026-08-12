@@ -45,7 +45,7 @@ export default function SignInPage() {
       const callbackUrl =
         typeof router.query.callbackUrl === "string"
           ? router.query.callbackUrl
-          : "/dashboard";
+          : "/";
       router.push(callbackUrl);
     }
   }
