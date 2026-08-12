@@ -61,6 +61,16 @@ jobs:
             .next/standalone/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/.next/standalone/
 
+      - name: Sync deploy script
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_HOST }}
+          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+        run: |
+          rsync -avz \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
+            deploy.sh \
+            fixernat@${SSH_HOST}:~/repositories/fixernationorg/deploy.sh
+
       - name: Sync prisma migrations
         env:
           SSH_HOST: ${{ secrets.CPANEL_HOST }}
