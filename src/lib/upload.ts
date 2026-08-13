@@ -1,14 +1,9 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import crypto from "crypto";
-import path from "path";
+import { v2 as cloudinary } from "cloudinary";
 
-export const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 export async function uploadToR2(
@@ -16,17 +11,12 @@ export async function uploadToR2(
   originalName: string,
   mimeType: string
 ): Promise<string> {
-  const ext = path.extname(originalName).toLowerCase() || ".jpg";
-  const key = `social/${crypto.randomUUID()}${ext}`;
-
-  await r2.send(
-    new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME ?? "fn-uploads",
-      Key: key,
-      Body: buffer,
-      ContentType: mimeType,
-    })
-  );
-
-  return `${process.env.R2_PUBLIC_URL}/${key}`;
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream({ folder: "social", resource_type: "image" }, (error, result) => {
+        if (error || !result) return reject(error ?? new Error("Upload failed"));
+        resolve(result.secure_url);
+      })
+      .end(buffer);
+  });
 }
