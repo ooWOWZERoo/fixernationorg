@@ -2,53 +2,40 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import type { GetServerSideProps } from "next";
+import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
 type Filter = "all" | "series" | "new";
 
-const BOOKS = [
-  {
-    title: "Kill the Bully",
-    cover: "/images/cover-kill-the-bully.png",
+// Static metadata that doesn't belong in the DB (presentation + external links)
+const BOOK_META: Record<string, { amazon: string | null; filter: Filter[]; tag: string; tagNew: boolean }> = {
+  "kill-the-bully": {
+    amazon: "https://www.amazon.com",
+    filter: ["all", "series"],
     tag: "Also on Amazon Kindle",
     tagNew: false,
-    desc: "Alex Parker is done being the target. This is the story of what happens when a kid decides to stop absorbing the hits and find a different kind of power.",
-    amazon: "https://www.amazon.com",
-    detailHref: "/books/kill-the-bully",
-    filter: ["all", "series"] as Filter[],
   },
-  {
-    title: "Your Past Doesn't Define You",
-    cover: "/images/cover-your-past.png",
+  "your-past-doesnt-define-you": {
+    amazon: "https://www.amazon.com",
+    filter: ["all", "series"],
     tag: "Also on Amazon Kindle",
     tagNew: false,
-    desc: "Sam's story is about what happens when pain turns inward. Emily's is about figuring out how to reach someone who keeps pulling away.",
-    amazon: "https://www.amazon.com",
-    detailHref: "/books/your-past",
-    filter: ["all", "series"] as Filter[],
   },
-  {
-    title: "Think with 5 Brains, Then Make Up Your Mind",
-    cover: "/images/cover-5-brains.png",
+  "think-with-5-brains": {
+    amazon: null,
+    filter: ["all", "series", "new"],
     tag: "New Arrival",
     tagNew: true,
-    desc: "A different approach to making decisions. This one challenges you to slow down and think from more than one angle before committing.",
-    amazon: null,
-    detailHref: "/books/think-with-5-brains",
-    filter: ["all", "series", "new"] as Filter[],
   },
-  {
-    title: "How to Lie and Get Away With It Every Time",
-    cover: "/images/cover-how-to-lie.png",
+  "how-to-lie": {
+    amazon: null,
+    filter: ["all", "series", "new"],
     tag: "New Arrival",
     tagNew: true,
-    desc: "A sharp look at how dishonesty works, why people do it, and how to protect yourself from it without becoming cynical.",
-    amazon: null,
-    detailHref: "/books/how-to-lie",
-    filter: ["all", "series", "new"] as Filter[],
   },
-];
+};
 
 const FILTERS: { label: string; value: Filter }[] = [
   { label: "All Books", value: "all" },
@@ -56,10 +43,25 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "New Arrivals", value: "new" },
 ];
 
-const BooksPage: NextPageWithLayout = () => {
+interface BookItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+}
+
+interface Props {
+  books: BookItem[];
+}
+
+const BooksPage: NextPageWithLayout<Props> = ({ books }) => {
   const [active, setActive] = useState<Filter>("all");
 
-  const visible = BOOKS.filter((b) => b.filter.includes(active));
+  const visible = books.filter((b) => {
+    const meta = BOOK_META[b.slug];
+    return meta ? meta.filter.includes(active) : active === "all";
+  });
 
   return (
     <>
@@ -108,55 +110,60 @@ const BooksPage: NextPageWithLayout = () => {
 
           {/* Grid */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {visible.map((book) => (
-              <div
-                key={book.title}
-                className="flex flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.28)]"
-              >
-                {/* Cover */}
-                <div className="flex items-center justify-center bg-white p-4" style={{ aspectRatio: "3/4" }}>
-                  <Image
-                    src={book.cover}
-                    alt={`${book.title} book cover`}
-                    width={220}
-                    height={293}
-                    className="h-full w-full object-contain drop-shadow-md"
-                  />
-                </div>
-
-                {/* Info */}
-                <div className="flex flex-1 flex-col gap-3 p-5">
-                  <span className={`text-xs font-extrabold uppercase tracking-wider ${book.tagNew ? "text-coral" : "text-amber-dark"}`}>
-                    {book.tag}
-                  </span>
-                  <h3 className="text-sm font-extrabold leading-snug text-navy">{book.title}</h3>
-                  <p className="flex-1 text-sm leading-relaxed text-ink-soft">{book.desc}</p>
-
-                  <div className="mt-2 flex gap-2">
-                    <Link
-                      href={book.detailHref}
-                      className="flex flex-1 items-center justify-center rounded-[8px] border-2 border-navy px-3 py-2 text-xs font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
-                    >
-                      Details
-                    </Link>
-                    {book.amazon ? (
-                      <a
-                        href={book.amazon}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center rounded-[8px] bg-amber px-3 py-2 text-xs font-bold text-navy-dark no-underline shadow-[0_8px_16px_-8px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-                      >
-                        Amazon
-                      </a>
-                    ) : (
-                      <span className="flex flex-1 items-center justify-center rounded-[8px] bg-cream-panel px-3 py-2 text-xs font-bold text-ink-soft cursor-default">
-                        Coming Soon
-                      </span>
+            {visible.map((book) => {
+              const meta = BOOK_META[book.slug] ?? { amazon: null, tag: "Book", tagNew: false };
+              return (
+                <div
+                  key={book.id}
+                  className="flex flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.28)]"
+                >
+                  {/* Cover */}
+                  <div className="flex items-center justify-center bg-white p-4" style={{ aspectRatio: "3/4" }}>
+                    {book.imageUrl && (
+                      <Image
+                        src={book.imageUrl}
+                        alt={`${book.name} book cover`}
+                        width={220}
+                        height={293}
+                        className="h-full w-full object-contain drop-shadow-md"
+                      />
                     )}
                   </div>
+
+                  {/* Info */}
+                  <div className="flex flex-1 flex-col gap-3 p-5">
+                    <span className={`text-xs font-extrabold uppercase tracking-wider ${meta.tagNew ? "text-coral" : "text-amber-dark"}`}>
+                      {meta.tag}
+                    </span>
+                    <h3 className="text-sm font-extrabold leading-snug text-navy">{book.name}</h3>
+                    <p className="flex-1 text-sm leading-relaxed text-ink-soft">{book.description}</p>
+
+                    <div className="mt-2 flex gap-2">
+                      <Link
+                        href={`/books/${book.slug}`}
+                        className="flex flex-1 items-center justify-center rounded-[8px] border-2 border-navy px-3 py-2 text-xs font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
+                      >
+                        Details
+                      </Link>
+                      {meta.amazon ? (
+                        <a
+                          href={meta.amazon}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex flex-1 items-center justify-center rounded-[8px] bg-amber px-3 py-2 text-xs font-bold text-navy-dark no-underline shadow-[0_8px_16px_-8px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                        >
+                          Amazon
+                        </a>
+                      ) : (
+                        <span className="flex flex-1 items-center justify-center rounded-[8px] bg-cream-panel px-3 py-2 text-xs font-bold text-ink-soft cursor-default">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -189,4 +196,14 @@ const BooksPage: NextPageWithLayout = () => {
 };
 
 BooksPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
+
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
+  const books = await db.product.findMany({
+    where: { type: "BOOK", active: true },
+    select: { id: true, slug: true, name: true, description: true, imageUrl: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  return { props: { books: JSON.parse(JSON.stringify(books)) } };
+};
+
 export default BooksPage;
