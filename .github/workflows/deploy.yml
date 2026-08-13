@@ -112,4 +112,4 @@ jobs:
               'source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate \
                && cd /home/fixernat/repositories/fixernationorg \
                && export DATABASE_URL=$(grep -oP "(?<=SetEnv DATABASE_URL ).*" ~/public_html/.htaccess) \
-               && node_modules/.bin/prisma migrate deploy'
+               && node .next/standalone/node_modules/prisma/build/index.js migrate deploy'

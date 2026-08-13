@@ -76,8 +76,8 @@ Migrations cannot run from the deploy script — they need `DATABASE_URL` which 
 ```bash
 source /home/fixernat/nodevenv/repositories/fixernationorg/24/bin/activate
 cd /home/fixernat/repositories/fixernationorg
-DATABASE_URL="$(grep -oP "(?<=SetEnv DATABASE_URL ).*" ~/public_html/.htaccess)" \
-  ./node_modules/.bin/prisma migrate deploy
+export DATABASE_URL=$(grep -oP '(?<=SetEnv DATABASE_URL ).*' ~/public_html/.htaccess)
+node .next/standalone/node_modules/prisma/build/index.js migrate deploy
 ```
 
 **Stage 0 note:** no migration files exist yet. After Stage 0 validation, create a baseline migration:
