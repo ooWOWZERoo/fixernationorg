@@ -80,7 +80,7 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
       {/* Pricing grid */}
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-3xl">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
 
             {/* Free with Book card */}
             {freeWithBook && (
@@ -112,13 +112,13 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
 
             {/* Consumer Membership card with billing toggle */}
             {consumerMembership && (
-              <div className="relative rounded-2xl border-2 border-amber bg-white p-8 shadow-[0_20px_45px_-18px_rgba(242,169,60,0.35)] md:scale-[1.03]">
+              <div className="relative rounded-2xl border-2 border-amber bg-white p-8 shadow-[0_20px_45px_-18px_rgba(242,169,60,0.35)]">
                 <span className="absolute -top-3.5 right-6 rounded-full bg-amber px-4 py-1.5 text-xs font-extrabold uppercase tracking-wide text-navy-dark shadow-[0_10px_20px_-8px_rgba(242,169,60,0.6)]">
                   Most popular
                 </span>
 
                 <h3 className="text-lg font-extrabold text-navy">{consumerMembership.name}</h3>
-                <p className="mt-2 text-sm text-ink-soft">{priceSub}</p>
+                <p className="mt-2 min-h-[2.5rem] text-sm text-ink-soft">{priceSub}</p>
 
                 {/* Billing toggle */}
                 <div className="mt-4 flex rounded-lg bg-slate-100 p-1">
