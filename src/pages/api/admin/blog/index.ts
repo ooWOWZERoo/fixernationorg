@@ -1,0 +1,72 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getServerSession } from "next-auth";
+import { z } from "zod";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
+
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+const toSlug = (title: string) =>
+  title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+const createSchema = z.object({
+  title: z.string().min(1),
+  slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  excerpt: z.string().optional(),
+  body: z.string().min(1),
+  category: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
+  authorName: z.string().default("Anthony J. Placito"),
+  publishedAt: z.string().datetime().optional().nullable(),
+});
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = await getServerSession(req, res, authOptions);
+  if (!session || !ADMIN_ROLES.includes(session.user.role)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  if (req.method === "GET") {
+    const posts = await db.blogPost.findMany({
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, slug: true, title: true, category: true, publishedAt: true, createdAt: true },
+    });
+    return res.status(200).json(posts);
+  }
+
+  if (req.method === "POST") {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+    }
+
+    const { title, slug, imageUrl, publishedAt, ...rest } = parsed.data;
+    const resolvedSlug = slug ?? toSlug(title);
+
+    try {
+      const post = await db.blogPost.create({
+        data: {
+          title,
+          slug: resolvedSlug,
+          imageUrl: imageUrl || null,
+          publishedAt: publishedAt ? new Date(publishedAt) : null,
+          ...rest,
+        },
+      });
+      return res.status(201).json(post);
+    } catch (err: unknown) {
+      if (
+        err != null &&
+        typeof err === "object" &&
+        "code" in err &&
+        (err as { code: string }).code === "P2002"
+      ) {
+        return res.status(409).json({ error: "A post with that slug already exists." });
+      }
+      throw err;
+    }
+  }
+
+  res.setHeader("Allow", "GET, POST");
+  return res.status(405).json({ error: "Method not allowed" });
+}

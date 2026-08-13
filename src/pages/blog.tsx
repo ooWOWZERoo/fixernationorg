@@ -1,58 +1,37 @@
 import Head from "next/head";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
+import { GetServerSideProps } from "next";
+import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
-type Category = "all" | "weekend-energy" | "books-blog" | "mindset";
+interface PostSummary {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  authorName: string;
+  publishedAt: string;
+}
 
-const FEATURED = {
-  eyebrow: "Weekend Energy",
-  title: "Turning Your Issue Into an Answer, One Morning Boost at a Time",
-  excerpt:
-    "How a five-minute daily habit can reset your mindset and carry you through the week's hardest moments.",
-  author: "Anthony J. Placito",
-  img: "https://images.unsplash.com/photo-1500462918059-b1a0cb512f1d?w=900&q=80",
-  href: "#",
-};
+interface Props {
+  featured: PostSummary | null;
+  posts: PostSummary[];
+  categories: string[];
+}
 
-const POSTS = [
-  {
-    category: "Mindset",
-    key: "mindset" as Category,
-    title: "Silencing the Inner Critic",
-    excerpt: "Practical steps for redirecting self-doubt into forward motion.",
-    img: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&q=80",
-    href: "#",
-  },
-  {
-    category: "Books Blog",
-    key: "books-blog" as Category,
-    title: "Behind the Pages of Kill the Bully",
-    excerpt: "What inspired the book, and how readers are using it to stand their ground.",
-    img: "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=80",
-    href: "#",
-  },
-  {
-    category: "Weekend Energy",
-    key: "weekend-energy" as Category,
-    title: "Resetting Before Monday",
-    excerpt: "A short ritual to close out the week and walk into the next one with clarity.",
-    img: "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?w=600&q=80",
-    href: "#",
-  },
-];
+const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories }) => {
+  const [activeCategory, setActiveCategory] = useState<string>("all");
 
-const FILTERS: { label: string; value: Category }[] = [
-  { label: "All Posts", value: "all" },
-  { label: "Weekend Energy", value: "weekend-energy" },
-  { label: "Books Blog", value: "books-blog" },
-  { label: "Mindset", value: "mindset" },
-];
+  const visible = activeCategory === "all"
+    ? posts
+    : posts.filter((p) => p.category === activeCategory);
 
-const BlogPage: NextPageWithLayout = () => {
-  const [active, setActive] = useState<Category>("all");
-  const visible = active === "all" ? POSTS : POSTS.filter((p) => p.key === active);
+  const hasPosts = featured !== null || posts.length > 0;
 
   return (
     <>
@@ -80,83 +59,125 @@ const BlogPage: NextPageWithLayout = () => {
       <section className="px-6 pb-20 pt-10 lg:px-8">
         <div className="mx-auto max-w-6xl">
 
-          {/* Featured post */}
-          <div className="mb-12 grid overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-2">
-            <div className="min-h-[260px] overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={FEATURED.img}
-                alt={FEATURED.title}
-                className="h-full w-full object-cover"
-              />
+          {!hasPosts && (
+            <div className="rounded-2xl bg-white p-14 text-center shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]">
+              <p className="text-lg font-bold text-navy">Posts coming soon.</p>
+              <p className="mt-2 text-sm text-ink-soft">
+                The first articles are on their way. Check back shortly.
+              </p>
             </div>
-            <div className="flex flex-col justify-center p-8 lg:p-10">
-              <span className="eyebrow self-start">{FEATURED.eyebrow}</span>
-              <h2 className="mt-4 text-2xl font-extrabold leading-snug text-navy">
-                {FEATURED.title}
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-ink-soft">{FEATURED.excerpt}</p>
-              <Link
-                href={FEATURED.href}
-                className="mt-6 inline-flex self-start items-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-              >
-                Read the Post
-              </Link>
-              <p className="mt-6 text-xs font-bold text-ink-soft">{FEATURED.author}</p>
-            </div>
-          </div>
+          )}
 
-          {/* Filter chips */}
-          <div className="mb-9 flex flex-wrap justify-center gap-3">
-            {FILTERS.map((f) => (
+          {/* Featured post */}
+          {featured && (
+            <div className="mb-12 grid overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-2">
+              <div className="min-h-[260px] overflow-hidden">
+                {featured.imageUrl ? (
+                  <Image
+                    src={featured.imageUrl}
+                    alt={featured.title}
+                    width={640}
+                    height={420}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full min-h-[260px] bg-cream-panel" />
+                )}
+              </div>
+              <div className="flex flex-col justify-center p-8 lg:p-10">
+                {featured.category && (
+                  <span className="eyebrow self-start">{featured.category}</span>
+                )}
+                <h2 className="mt-4 text-2xl font-extrabold leading-snug text-navy">
+                  {featured.title}
+                </h2>
+                {featured.excerpt && (
+                  <p className="mt-3 text-sm leading-relaxed text-ink-soft">{featured.excerpt}</p>
+                )}
+                <Link
+                  href={`/blog/${featured.slug}`}
+                  className="mt-6 inline-flex self-start items-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                >
+                  Read the Post
+                </Link>
+                <p className="mt-6 text-xs font-bold text-ink-soft">{featured.authorName}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Category filter chips */}
+          {categories.length > 0 && (
+            <div className="mb-9 flex flex-wrap justify-center gap-3">
               <button
-                key={f.value}
-                onClick={() => setActive(f.value)}
+                onClick={() => setActiveCategory("all")}
                 className={[
                   "rounded-full px-5 py-2.5 text-sm font-bold transition-colors",
-                  active === f.value
+                  activeCategory === "all"
                     ? "bg-navy text-white"
                     : "bg-white text-ink-soft shadow-[0_6px_16px_-10px_rgba(20,40,56,0.25)] hover:text-navy",
                 ].join(" ")}
               >
-                {f.label}
+                All Posts
               </button>
-            ))}
-          </div>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={[
+                    "rounded-full px-5 py-2.5 text-sm font-bold transition-colors",
+                    activeCategory === cat
+                      ? "bg-navy text-white"
+                      : "bg-white text-ink-soft shadow-[0_6px_16px_-10px_rgba(20,40,56,0.25)] hover:text-navy",
+                  ].join(" ")}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Grid */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {visible.map((post) => (
-              <div
-                key={post.title}
-                className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-1.5"
-              >
-                <div className="aspect-video overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={post.img}
-                    alt={post.title}
-                    className="h-full w-full object-cover"
-                  />
+          {visible.length > 0 && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map((post) => (
+                <div
+                  key={post.id}
+                  className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-1.5"
+                >
+                  <div className="aspect-video overflow-hidden bg-cream-panel">
+                    {post.imageUrl && (
+                      <Image
+                        src={post.imageUrl}
+                        alt={post.title}
+                        width={480}
+                        height={270}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-5">
+                    {post.category && (
+                      <span className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-amber-dark">
+                        {post.category}
+                      </span>
+                    )}
+                    <h3 className="mb-2 text-[17px] font-extrabold leading-snug text-navy">
+                      {post.title}
+                    </h3>
+                    {post.excerpt && (
+                      <p className="flex-1 text-sm leading-relaxed text-ink-soft">{post.excerpt}</p>
+                    )}
+                    <Link
+                      href={`/blog/${post.slug}`}
+                      className="mt-5 inline-flex items-center rounded-[8px] border-2 border-navy px-4 py-2 text-xs font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
+                    >
+                      Read More
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex flex-1 flex-col p-5">
-                  <span className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-amber-dark">
-                    {post.category}
-                  </span>
-                  <h3 className="mb-2 text-[17px] font-extrabold leading-snug text-navy">
-                    {post.title}
-                  </h3>
-                  <p className="flex-1 text-sm leading-relaxed text-ink-soft">{post.excerpt}</p>
-                  <Link
-                    href={post.href}
-                    className="mt-5 inline-flex items-center rounded-[8px] border-2 border-navy px-4 py-2 text-xs font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
-                  >
-                    Read More
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -170,7 +191,7 @@ const BlogPage: NextPageWithLayout = () => {
             Full Access
           </span>
           <h2 className="mt-4 text-3xl font-extrabold text-white">
-            Unlock the full Positivity, Health &amp; Wellness Library
+            Get full access to the Positivity, Health &amp; Wellness Library
           </h2>
           <Link
             href="/join"
@@ -185,4 +206,24 @@ const BlogPage: NextPageWithLayout = () => {
 };
 
 BlogPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
+
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
+  const allPosts = await db.blogPost.findMany({
+    where: { publishedAt: { not: null } },
+    select: { id: true, slug: true, title: true, excerpt: true, category: true, imageUrl: true, authorName: true, publishedAt: true },
+    orderBy: { publishedAt: "desc" },
+  });
+
+  const serialized: PostSummary[] = JSON.parse(JSON.stringify(allPosts));
+
+  const featured = serialized[0] ?? null;
+  const posts = serialized.slice(1);
+
+  const categories = Array.from(
+    new Set(serialized.map((p) => p.category).filter(Boolean) as string[])
+  );
+
+  return { props: { featured, posts, categories } };
+};
+
 export default BlogPage;

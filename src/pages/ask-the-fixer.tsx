@@ -24,10 +24,38 @@ const HOW_IT_WORKS = [
 
 const AskTheFixerPage: NextPageWithLayout = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ask-the-fixer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${firstName} ${lastName}`.trim(),
+          email,
+          body,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Something went wrong. Please try again.");
+      } else {
+        setSubmitted(true);
+      }
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -107,7 +135,11 @@ const AskTheFixerPage: NextPageWithLayout = () => {
                     </label>
                     <input
                       type="text"
+                      name="firstName"
+                      required
                       placeholder="Jane"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
                       className="w-full rounded-[10px] border-2 border-[rgba(20,40,56,0.12)] bg-cream px-4 py-3 text-sm focus:border-amber focus:outline-none"
                     />
                   </div>
@@ -117,7 +149,10 @@ const AskTheFixerPage: NextPageWithLayout = () => {
                     </label>
                     <input
                       type="text"
+                      name="lastName"
                       placeholder="Doe"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
                       className="w-full rounded-[10px] border-2 border-[rgba(20,40,56,0.12)] bg-cream px-4 py-3 text-sm focus:border-amber focus:outline-none"
                     />
                   </div>
@@ -129,8 +164,11 @@ const AskTheFixerPage: NextPageWithLayout = () => {
                   </label>
                   <input
                     type="email"
+                    name="email"
                     required
                     placeholder="jane@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-[10px] border-2 border-[rgba(20,40,56,0.12)] bg-cream px-4 py-3 text-sm focus:border-amber focus:outline-none"
                   />
                 </div>
@@ -140,19 +178,27 @@ const AskTheFixerPage: NextPageWithLayout = () => {
                     Your Message
                   </label>
                   <textarea
+                    name="body"
                     required
                     placeholder="Tell The Fixer what's on your mind..."
                     rows={5}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
                     className="w-full resize-none rounded-[10px] border-2 border-[rgba(20,40,56,0.12)] bg-cream px-4 py-3 text-sm focus:border-amber focus:outline-none"
                   />
                 </div>
 
+                {error && (
+                  <p className="text-sm text-red-600">{error}</p>
+                )}
+
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="rounded-[10px] bg-amber px-7 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                    disabled={submitting}
+                    className="rounded-[10px] bg-amber px-7 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
-                    Send
+                    {submitting ? "Sending…" : "Send"}
                   </button>
                 </div>
               </form>

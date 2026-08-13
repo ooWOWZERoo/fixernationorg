@@ -321,6 +321,40 @@ model Reaction {
   @@index([commentId])
 }
 
+// ─── Blog (admin-managed posts) ──────────────────────────────────────────────
+
+model BlogPost {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String?   @db.Text
+  body        String    @db.Text
+  category    String?
+  imageUrl    String?
+  authorName  String    @default("Anthony J. Placito")
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([publishedAt])
+  @@index([category])
+}
+
+// ─── Ask The Fixer submissions ────────────────────────────────────────────────
+
+model FixerQuestion {
+  id          String         @id @default(cuid())
+  name        String
+  email       String
+  subject     String?
+  body        String         @db.Text
+  status      QuestionStatus @default(NEW)
+  respondedAt DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([status, createdAt])
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
@@ -373,4 +407,11 @@ enum GroupRequestStatus {
 
 enum ReactionType {
   LIKE
+}
+
+enum QuestionStatus {
+  NEW
+  IN_REVIEW
+  RESPONDED
+  CLOSED
 }
