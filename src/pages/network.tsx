@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { NetworkTabBar } from "@/components/network/NetworkTabBar";
 import { PostCard, type PostData } from "@/components/network/PostCard";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -68,15 +69,7 @@ const NetworkPage: NextPageWithLayout<Props> = ({
           <p className="mt-2 text-base text-ink-soft">
             What's happening across Fixer Nation.
           </p>
-          <div className="mt-8 flex gap-8">
-            <span className="border-b-[3px] border-amber pb-3 text-sm font-bold text-navy">Feed</span>
-            <Link
-              href="/network/groups"
-              className="border-b-[3px] border-transparent pb-3 text-sm font-bold text-ink-soft no-underline hover:text-navy"
-            >
-              Groups
-            </Link>
-          </div>
+          <NetworkTabBar />
         </div>
       </section>
 

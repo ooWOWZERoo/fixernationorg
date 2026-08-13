@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { NetworkTabBar } from "@/components/network/NetworkTabBar";
 import type { NextPageWithLayout } from "@/types/next";
 
 type GroupCard = {
@@ -51,17 +52,7 @@ const NetworkGroupsPage: NextPageWithLayout<Props> = ({ groups, isSignedIn }) =>
           <p className="mt-2 text-base text-ink-soft">
             Find your people. Request to join a group and start connecting.
           </p>
-          <div className="mt-6 flex gap-4 pb-px">
-            <Link
-              href="/network"
-              className="border-b-[3px] border-transparent pb-3 text-sm font-bold text-ink-soft no-underline hover:text-navy"
-            >
-              Feed
-            </Link>
-            <span className="border-b-[3px] border-amber pb-3 text-sm font-bold text-navy">
-              Groups
-            </span>
-          </div>
+          <NetworkTabBar />
         </div>
       </section>
 

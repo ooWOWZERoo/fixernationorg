@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { NetworkTabBar } from "@/components/network/NetworkTabBar";
 import type { NextPageWithLayout } from "@/types/next";
 
 type OtherUser = { id: string; name: string | null; image: string | null };
@@ -44,7 +45,11 @@ function Avatar({ user }: { user: OtherUser }) {
   );
 }
 
-const MessagesPage: NextPageWithLayout<Props> = ({ conversations, currentUserId, allUsers }) => {
+const NetworkMessagesPage: NextPageWithLayout<Props> = ({
+  conversations,
+  currentUserId,
+  allUsers,
+}) => {
   const [showNew, setShowNew] = useState(false);
   const [search, setSearch] = useState("");
   const [starting, setStarting] = useState(false);
@@ -59,14 +64,14 @@ const MessagesPage: NextPageWithLayout<Props> = ({ conversations, currentUserId,
   async function startConversation(recipientId: string) {
     setStarting(true);
     try {
-      const res = await fetch("/api/messages", {
+      const res = await fetch("/api/network/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipientId }),
       });
       if (res.ok) {
         const data = await res.json();
-        window.location.href = `/messages/${data.conversationId}`;
+        window.location.href = `/network/messages/${data.conversationId}`;
       }
     } finally {
       setStarting(false);
@@ -76,73 +81,96 @@ const MessagesPage: NextPageWithLayout<Props> = ({ conversations, currentUserId,
   return (
     <>
       <Head>
-        <title>Messages — Fixer Nation</title>
+        <title>Messages — FN Network</title>
+        <meta name="description" content="Your direct messages on Fixer Nation." />
       </Head>
 
-      <div className="mx-auto max-w-2xl px-6 py-10 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight text-navy">Messages</h1>
-          <button
-            onClick={() => setShowNew(true)}
-            className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy-dark transition-colors"
-          >
-            New Message
-          </button>
+      {/* Page header */}
+      <section className="border-b border-navy/10 px-6 pb-0 pt-14 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <span className="eyebrow">FN Network</span>
+          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-navy">Messages</h1>
+          <p className="mt-2 text-base text-ink-soft">Private conversations with other members.</p>
+          <NetworkTabBar />
         </div>
+      </section>
 
-        {conversations.length === 0 ? (
-          <div className="rounded-2xl border border-navy/10 bg-white p-12 text-center">
-            <p className="text-sm font-semibold text-navy">No messages yet</p>
-            <p className="mt-1 text-sm text-ink-soft">Start a conversation with another member.</p>
+      <section className="px-6 py-10 lg:px-8">
+        <div className="mx-auto max-w-2xl">
+          <div className="mb-6 flex items-center justify-between">
+            <p className="text-sm text-ink-soft">
+              {conversations.length === 0
+                ? "No conversations yet."
+                : `${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`}
+            </p>
             <button
               onClick={() => setShowNew(true)}
-              className="mt-4 inline-block rounded-lg bg-navy px-5 py-2 text-sm font-semibold text-white hover:bg-navy-dark transition-colors"
+              className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy-dark transition-colors"
             >
               New Message
             </button>
           </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-navy/10 bg-white divide-y divide-navy/6">
-            {conversations.map((c) => {
-              const other = c.other[0];
-              if (!other) return null;
-              return (
-                <Link
-                  key={c.id}
-                  href={`/messages/${c.id}`}
-                  className="flex items-center gap-3 px-5 py-4 no-underline hover:bg-cream-panel transition-colors"
-                >
-                  <Avatar user={other} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className={`text-sm font-bold truncate ${c.unreadCount > 0 ? "text-navy" : "text-ink"}`}>
-                        {other.name ?? other.id}
-                      </span>
-                      {c.lastMessage && (
-                        <span className="flex-shrink-0 text-xs text-ink-soft">
-                          {timeAgo(c.lastMessage.createdAt)}
+
+          {conversations.length === 0 ? (
+            <div className="rounded-2xl border border-navy/10 bg-white p-12 text-center">
+              <p className="text-sm font-semibold text-navy">No messages yet</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                Start a private conversation with another Fixer Nation member.
+              </p>
+              <button
+                onClick={() => setShowNew(true)}
+                className="mt-4 inline-block rounded-lg bg-navy px-5 py-2 text-sm font-semibold text-white hover:bg-navy-dark transition-colors"
+              >
+                New Message
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-navy/10 bg-white divide-y divide-navy/6">
+              {conversations.map((c) => {
+                const other = c.other[0];
+                if (!other) return null;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/network/messages/${c.id}`}
+                    className="flex items-center gap-3 px-5 py-4 no-underline hover:bg-cream-panel transition-colors"
+                  >
+                    <Avatar user={other} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span
+                          className={`truncate text-sm font-bold ${
+                            c.unreadCount > 0 ? "text-navy" : "text-ink"
+                          }`}
+                        >
+                          {other.name ?? other.id}
                         </span>
-                      )}
+                        {c.lastMessage && (
+                          <span className="flex-shrink-0 text-xs text-ink-soft">
+                            {timeAgo(c.lastMessage.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <p className="truncate text-xs text-ink-soft">
+                          {c.lastMessage
+                            ? `${c.lastMessage.senderId === currentUserId ? "You: " : ""}${c.lastMessage.body}`
+                            : "No messages yet"}
+                        </p>
+                        {c.unreadCount > 0 && (
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber px-1.5 text-xs font-bold text-navy-dark">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <p className="truncate text-xs text-ink-soft">
-                        {c.lastMessage
-                          ? `${c.lastMessage.senderId === currentUserId ? "You: " : ""}${c.lastMessage.body}`
-                          : "No messages yet"}
-                      </p>
-                      {c.unreadCount > 0 && (
-                        <span className="flex-shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber px-1.5 text-xs font-bold text-navy-dark">
-                          {c.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* New message modal */}
       {showNew && (
@@ -150,7 +178,10 @@ const MessagesPage: NextPageWithLayout<Props> = ({ conversations, currentUserId,
           <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-navy/10 px-5 py-4">
               <h2 className="text-base font-bold text-navy">New Message</h2>
-              <button onClick={() => setShowNew(false)} className="text-ink-soft hover:text-navy text-lg leading-none">
+              <button
+                onClick={() => setShowNew(false)}
+                className="text-ink-soft hover:text-navy text-lg leading-none"
+              >
                 ✕
               </button>
             </div>
@@ -186,14 +217,14 @@ const MessagesPage: NextPageWithLayout<Props> = ({ conversations, currentUserId,
   );
 };
 
-MessagesPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
+NetworkMessagesPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
     return {
       redirect: {
-        destination: `/signin?callbackUrl=${encodeURIComponent("/messages")}`,
+        destination: `/signin?callbackUrl=${encodeURIComponent("/network/messages")}`,
         permanent: false,
       },
     };
@@ -258,12 +289,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   });
 
   return {
-    props: {
-      conversations,
-      currentUserId: me,
-      allUsers,
-    },
+    props: { conversations, currentUserId: me, allUsers },
   };
 };
 
-export default MessagesPage;
+export default NetworkMessagesPage;

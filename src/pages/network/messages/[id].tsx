@@ -23,8 +23,7 @@ interface Props {
 }
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function formatDate(iso: string) {
@@ -47,7 +46,7 @@ function formatDate(iso: string) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-const ThreadPage: NextPageWithLayout<Props> = ({
+const NetworkThreadPage: NextPageWithLayout<Props> = ({
   conversationId,
   otherUser,
   initialMessages,
@@ -67,35 +66,30 @@ const ThreadPage: NextPageWithLayout<Props> = ({
     bottomRef.current?.scrollIntoView({ behavior });
   }, []);
 
-  // Mark as read on mount and when messages change
   useEffect(() => {
-    fetch(`/api/messages/${conversationId}`, { method: "PUT" });
+    fetch(`/api/network/messages/${conversationId}`, { method: "PUT" });
   }, [conversationId]);
 
-  // Scroll to bottom on initial load
   useEffect(() => {
     scrollToBottom("instant");
   }, [scrollToBottom]);
 
-  // Poll for new messages every 5 seconds
   useEffect(() => {
     const poll = async () => {
       const since = lastCreatedAt.current;
       if (!since) return;
       const res = await fetch(
-        `/api/messages/${conversationId}?since=${encodeURIComponent(since)}`
+        `/api/network/messages/${conversationId}?since=${encodeURIComponent(since)}`
       );
       if (!res.ok) return;
       const data = await res.json();
       if (data.messages.length > 0) {
         setMessages((prev) => [...prev, ...data.messages]);
         lastCreatedAt.current = data.messages[data.messages.length - 1].createdAt;
-        // Mark read when new messages arrive
-        fetch(`/api/messages/${conversationId}`, { method: "PUT" });
+        fetch(`/api/network/messages/${conversationId}`, { method: "PUT" });
         setTimeout(() => scrollToBottom(), 50);
       }
     };
-
     const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
   }, [conversationId, scrollToBottom]);
@@ -106,7 +100,7 @@ const ThreadPage: NextPageWithLayout<Props> = ({
     setSending(true);
     setBody("");
     try {
-      const res = await fetch(`/api/messages/${conversationId}`, {
+      const res = await fetch(`/api/network/messages/${conversationId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: text }),
@@ -129,7 +123,6 @@ const ThreadPage: NextPageWithLayout<Props> = ({
     }
   }
 
-  // Group messages by date
   const grouped: { date: string; msgs: MessageData[] }[] = [];
   for (const m of messages) {
     const label = formatDate(m.createdAt);
@@ -143,14 +136,14 @@ const ThreadPage: NextPageWithLayout<Props> = ({
   return (
     <>
       <Head>
-        <title>{otherUser.name ?? "Messages"} — Fixer Nation</title>
+        <title>{otherUser.name ?? "Messages"} — FN Network</title>
       </Head>
 
       <div className="flex h-[calc(100dvh-4rem)] flex-col">
         {/* Thread header */}
         <div className="flex items-center gap-3 border-b border-navy/10 bg-white px-5 py-3">
           <Link
-            href="/messages"
+            href="/network/messages"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft hover:bg-cream-panel no-underline transition-colors"
           >
             ←
@@ -167,17 +160,13 @@ const ThreadPage: NextPageWithLayout<Props> = ({
               {(otherUser.name ?? "?")[0].toUpperCase()}
             </div>
           )}
-          <span className="text-sm font-bold text-navy">
-            {otherUser.name ?? "Unknown"}
-          </span>
+          <span className="text-sm font-bold text-navy">{otherUser.name ?? "Unknown"}</span>
         </div>
 
         {/* Message list */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {messages.length === 0 && (
-            <p className="mt-12 text-center text-sm text-ink-soft">
-              No messages yet. Say hello!
-            </p>
+            <p className="mt-12 text-center text-sm text-ink-soft">No messages yet. Say hello!</p>
           )}
 
           {grouped.map(({ date, msgs }) => (
@@ -249,14 +238,14 @@ const ThreadPage: NextPageWithLayout<Props> = ({
   );
 };
 
-ThreadPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
+NetworkThreadPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
     return {
       redirect: {
-        destination: `/signin?callbackUrl=${encodeURIComponent("/messages")}`,
+        destination: `/signin?callbackUrl=${encodeURIComponent("/network/messages")}`,
         permanent: false,
       },
     };
@@ -289,7 +278,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const otherParticipant = conversation.participants.find((p) => p.userId !== me);
   if (!otherParticipant) return { notFound: true };
 
-  // Mark as read on initial server-side load
   await db.conversationParticipant.update({
     where: { conversationId_userId: { conversationId, userId: me } },
     data: { lastReadAt: new Date() },
@@ -310,4 +298,4 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
-export default ThreadPage;
+export default NetworkThreadPage;

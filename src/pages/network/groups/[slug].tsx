@@ -153,6 +153,12 @@ const GroupPage: NextPageWithLayout<Props> = ({
             <span className="border-b-[3px] border-amber pb-2 text-sm font-bold text-navy">
               {group.name}
             </span>
+            <Link
+              href="/network/messages"
+              className="border-b-[3px] border-transparent pb-2 text-sm font-bold text-ink-soft no-underline hover:text-navy"
+            >
+              Messages
+            </Link>
           </div>
         </div>
       </div>
