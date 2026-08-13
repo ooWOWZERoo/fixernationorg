@@ -33,12 +33,14 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  groupMemberships GroupMember[]
-  groupRequests    GroupRequest[]
-  reviewedRequests GroupRequest[] @relation("ReviewedGroupRequests")
-  posts            Post[]
-  comments         Comment[]
-  reactions        Reaction[]
+  groupMemberships         GroupMember[]
+  groupRequests            GroupRequest[]
+  reviewedRequests         GroupRequest[]            @relation("ReviewedGroupRequests")
+  posts                    Post[]
+  comments                 Comment[]
+  reactions                Reaction[]
+  conversationParticipants ConversationParticipant[]
+  sentMessages             DirectMessage[]
 
   @@index([email])
 }
@@ -150,6 +152,45 @@ model Price {
 
   @@index([productId])
   @@index([active])
+}
+
+// ─── Direct Messages (Phase 2b) ──────────────────────────────────────────────
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     DirectMessage[]
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String    @db.Text
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }
 
 // ─── Social / FN Network (Phase 2a) ──────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
@@ -18,6 +18,18 @@ export function SiteHeader() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    const fetchUnread = () =>
+      fetch("/api/messages/unread")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setUnreadCount(d.count));
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [session]);
 
   const isActive = (href: string) =>
     href === "/" ? router.pathname === "/" : router.pathname.startsWith(href);
@@ -55,6 +67,22 @@ export function SiteHeader() {
               {link.label}
             </Link>
           ))}
+          {session && (
+            <Link
+              href="/messages"
+              className={[
+                "relative rounded-lg px-3 py-2 text-sm font-bold transition-colors no-underline",
+                isActive("/messages") ? "text-amber-dark" : "text-navy hover:text-navy/70",
+              ].join(" ")}
+            >
+              Messages
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-bold text-navy-dark">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
         </nav>
 
         {/* Auth CTAs + hamburger */}
@@ -155,6 +183,14 @@ export function SiteHeader() {
               <>
                 <Link href="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                   Dashboard
+                </Link>
+                <Link href="/messages" className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
+                  Messages
+                  {unreadCount > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber px-1.5 text-xs font-bold text-navy-dark">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
                 </Link>
                 {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
                   <Link href="/admin" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
