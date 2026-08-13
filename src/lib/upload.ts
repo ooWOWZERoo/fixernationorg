@@ -1,22 +1,32 @@
-import path from "path";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
-import multer from "multer";
+import path from "path";
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR ?? "/tmp/fn-uploads";
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${crypto.randomUUID()}${ext}`);
+export const r2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
   },
 });
 
-export const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    cb(null, allowed.includes(file.mimetype));
-  },
-});
+export async function uploadToR2(
+  buffer: Buffer,
+  originalName: string,
+  mimeType: string
+): Promise<string> {
+  const ext = path.extname(originalName).toLowerCase() || ".jpg";
+  const key = `social/${crypto.randomUUID()}${ext}`;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME ?? "fn-uploads",
+      Key: key,
+      Body: buffer,
+      ContentType: mimeType,
+    })
+  );
+
+  return `${process.env.R2_PUBLIC_URL}/${key}`;
+}

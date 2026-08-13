@@ -1,8 +1,7 @@
 name: Build & Deploy fixernation.org
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: # manual trigger only — Vercel handles automatic deploys
   workflow_dispatch:
 
 jobs:
