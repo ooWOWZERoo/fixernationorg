@@ -11,7 +11,9 @@ type GroupRow = {
   name: string;
   slug: string;
   visibility: string;
-  type: string;
+  autoMember: boolean;
+  autoAmbassador: boolean;
+  autoProvider: boolean;
   memberCount: number;
   postCount: number;
   pendingRequests: number;
@@ -23,12 +25,15 @@ interface Props {
 }
 
 const VISIBILITY_LABEL: Record<string, string> = { PUBLIC: "Public", PRIVATE: "Private" };
-const TYPE_LABEL: Record<string, string> = {
-  GENERAL: "General",
-  AUTO_MEMBER: "Auto (Member)",
-  AUTO_AMBASSADOR: "Auto (Ambassador)",
-  AUTO_PROVIDER: "Auto (Provider)",
-};
+
+function autoJoinLabel(g: Pick<GroupRow, "autoMember" | "autoAmbassador" | "autoProvider">) {
+  const tags = [
+    g.autoMember && "Members",
+    g.autoAmbassador && "Ambassadors",
+    g.autoProvider && "Providers",
+  ].filter(Boolean) as string[];
+  return tags.length ? tags.join(", ") : null;
+}
 
 const AdminGroupsPage: NextPageWithLayout<Props> = ({ groups }) => (
   <div>
@@ -80,9 +85,13 @@ const AdminGroupsPage: NextPageWithLayout<Props> = ({ groups }) => (
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-medium text-navy">
-                    {TYPE_LABEL[g.type] ?? g.type}
-                  </span>
+                  {autoJoinLabel(g) ? (
+                    <span className="inline-flex rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-medium text-navy">
+                      Auto: {autoJoinLabel(g)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400">General</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{VISIBILITY_LABEL[g.visibility] ?? g.visibility}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{g.memberCount}</td>
@@ -147,7 +156,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         name: g.name,
         slug: g.slug,
         visibility: g.visibility,
-        type: g.type,
+        autoMember: g.autoMember,
+        autoAmbassador: g.autoAmbassador,
+        autoProvider: g.autoProvider,
         memberCount: g._count.members,
         postCount: g._count.posts,
         pendingRequests: g.requests.length,

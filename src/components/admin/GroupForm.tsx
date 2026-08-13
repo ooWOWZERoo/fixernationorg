@@ -6,12 +6,14 @@ type GroupFormValues = {
   slug: string;
   description: string;
   coverUrl: string;
-  type: string;
+  autoMember: boolean;
+  autoAmbassador: boolean;
+  autoProvider: boolean;
   visibility: string;
 };
 
 interface Props {
-  initial?: Partial<GroupFormValues>;
+  initial?: Partial<GroupFormValues> & { autoMember?: boolean; autoAmbassador?: boolean; autoProvider?: boolean };
   groupId?: string;
   mode: "create" | "edit";
 }
@@ -30,7 +32,9 @@ export function GroupForm({ initial, groupId, mode }: Props) {
     slug: initial?.slug ?? "",
     description: initial?.description ?? "",
     coverUrl: initial?.coverUrl ?? "",
-    type: initial?.type ?? "GENERAL",
+    autoMember: initial?.autoMember ?? false,
+    autoAmbassador: initial?.autoAmbassador ?? false,
+    autoProvider: initial?.autoProvider ?? false,
     visibility: initial?.visibility ?? "PUBLIC",
   });
   const [slugManual, setSlugManual] = useState(mode === "edit");
@@ -44,6 +48,10 @@ export function GroupForm({ initial, groupId, mode }: Props) {
   const set = (field: keyof GroupFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (field === "slug") setSlugManual(true);
     setValues((v) => ({ ...v, [field]: e.target.value }));
+  };
+
+  const toggle = (field: "autoMember" | "autoAmbassador" | "autoProvider") => () => {
+    setValues((v) => ({ ...v, [field]: !v[field] }));
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -145,32 +153,39 @@ export function GroupForm({ initial, groupId, mode }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Visibility</label>
-          <select
-            value={values.visibility}
-            onChange={set("visibility")}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-          >
-            <option value="PUBLIC">Public</option>
-            <option value="PRIVATE">Private</option>
-          </select>
-        </div>
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-slate-700">Visibility</label>
+        <select
+          value={values.visibility}
+          onChange={set("visibility")}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+        >
+          <option value="PUBLIC">Public</option>
+          <option value="PRIVATE">Private</option>
+        </select>
+      </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Type</label>
-          <select
-            value={values.type}
-            onChange={set("type")}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-          >
-            <option value="GENERAL">General</option>
-            <option value="AUTO_MEMBER">Auto-join (Members)</option>
-            <option value="AUTO_AMBASSADOR">Auto-join (Ambassadors)</option>
-            <option value="AUTO_PROVIDER">Auto-join (Providers)</option>
-          </select>
-          <p className="mt-1 text-xs text-slate-400">Auto-join groups add users automatically when their role is assigned.</p>
+      <div>
+        <p className="mb-2 text-sm font-medium text-slate-700">Auto-join</p>
+        <p className="mb-3 text-xs text-slate-400">Users with matching roles are added automatically when their role is assigned.</p>
+        <div className="space-y-2">
+          {(
+            [
+              { field: "autoMember", label: "Members" },
+              { field: "autoAmbassador", label: "Ambassadors" },
+              { field: "autoProvider", label: "Service Providers" },
+            ] as const
+          ).map(({ field, label }) => (
+            <label key={field} className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={values[field]}
+                onChange={toggle(field)}
+                className="h-4 w-4 rounded border-slate-300 accent-navy"
+              />
+              <span className="text-sm text-slate-700">{label}</span>
+            </label>
+          ))}
         </div>
       </div>
 

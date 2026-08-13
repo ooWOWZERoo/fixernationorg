@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { GroupType, GroupVisibility } from "@prisma/client";
+import { GroupVisibility } from "@prisma/client";
 
 function isAdmin(role: string) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
@@ -18,7 +18,9 @@ const createBody = z.object({
     .regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens only."),
   description: z.string().max(500).optional(),
   coverUrl: z.string().url().optional().or(z.literal("")),
-  type: z.nativeEnum(GroupType).optional(),
+  autoMember: z.boolean().optional(),
+  autoAmbassador: z.boolean().optional(),
+  autoProvider: z.boolean().optional(),
   visibility: z.nativeEnum(GroupVisibility).optional(),
 });
 
@@ -43,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid data." });
     }
 
-    const { name, slug, description, coverUrl, type, visibility } = parsed.data;
+    const { name, slug, description, coverUrl, autoMember, autoAmbassador, autoProvider, visibility } = parsed.data;
 
     const slugTaken = await db.socialGroup.findUnique({ where: { slug } });
     if (slugTaken) return res.status(409).json({ error: "Slug already in use." });
@@ -54,7 +56,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         slug,
         description: description ?? null,
         coverUrl: coverUrl || null,
-        type: type ?? "GENERAL",
+        autoMember: autoMember ?? false,
+        autoAmbassador: autoAmbassador ?? false,
+        autoProvider: autoProvider ?? false,
         visibility: visibility ?? "PUBLIC",
       },
     });

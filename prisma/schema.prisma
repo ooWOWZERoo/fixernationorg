@@ -160,8 +160,10 @@ model SocialGroup {
   slug        String          @unique
   description String?         @db.Text
   coverUrl    String?
-  type        GroupType       @default(GENERAL)
-  visibility  GroupVisibility @default(PUBLIC)
+  autoMember     Boolean         @default(false)
+  autoAmbassador Boolean         @default(false)
+  autoProvider   Boolean         @default(false)
+  visibility     GroupVisibility @default(PUBLIC)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -291,13 +293,6 @@ enum PriceInterval {
   MONTHLY
   ANNUAL
   ONE_TIME
-}
-
-enum GroupType {
-  GENERAL
-  AUTO_MEMBER
-  AUTO_AMBASSADOR
-  AUTO_PROVIDER
 }
 
 enum GroupVisibility {

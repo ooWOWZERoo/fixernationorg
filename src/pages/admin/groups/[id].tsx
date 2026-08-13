@@ -14,7 +14,9 @@ interface Props {
     slug: string;
     description: string | null;
     coverUrl: string | null;
-    type: string;
+    autoMember: boolean;
+    autoAmbassador: boolean;
+    autoProvider: boolean;
     visibility: string;
   };
   pendingCount: number;
@@ -45,7 +47,9 @@ const AdminGroupEditPage: NextPageWithLayout<Props> = ({ group, pendingCount }) 
         slug: group.slug,
         description: group.description ?? "",
         coverUrl: group.coverUrl ?? "",
-        type: group.type,
+        autoMember: group.autoMember,
+        autoAmbassador: group.autoAmbassador,
+        autoProvider: group.autoProvider,
         visibility: group.visibility,
       }}
     />
@@ -75,7 +79,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         slug: group.slug,
         description: group.description,
         coverUrl: group.coverUrl,
-        type: group.type,
+        autoMember: group.autoMember,
+        autoAmbassador: group.autoAmbassador,
+        autoProvider: group.autoProvider,
         visibility: group.visibility,
       },
       pendingCount: group.requests.length,

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { GroupType, GroupVisibility } from "@prisma/client";
+import { GroupVisibility } from "@prisma/client";
 
 function isAdmin(role: string) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
@@ -19,7 +19,9 @@ const updateBody = z.object({
     .optional(),
   description: z.string().max(500).optional().nullable(),
   coverUrl: z.string().url().optional().nullable().or(z.literal("")),
-  type: z.nativeEnum(GroupType).optional(),
+  autoMember: z.boolean().optional(),
+  autoAmbassador: z.boolean().optional(),
+  autoProvider: z.boolean().optional(),
   visibility: z.nativeEnum(GroupVisibility).optional(),
 });
 
@@ -55,7 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...(Object.prototype.hasOwnProperty.call(rest, "coverUrl")
           ? { coverUrl: rest.coverUrl || null }
           : {}),
-        ...(rest.type ? { type: rest.type } : {}),
+        ...(rest.autoMember !== undefined ? { autoMember: rest.autoMember } : {}),
+        ...(rest.autoAmbassador !== undefined ? { autoAmbassador: rest.autoAmbassador } : {}),
+        ...(rest.autoProvider !== undefined ? { autoProvider: rest.autoProvider } : {}),
         ...(rest.visibility ? { visibility: rest.visibility } : {}),
       },
     });
