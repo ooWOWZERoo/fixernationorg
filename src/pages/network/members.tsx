@@ -185,7 +185,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     },
   });
 
-  const members: MemberCard[] = profiles.map((p) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const members: MemberCard[] = profiles.map((p: any) => ({
     id: p.user.id,
     name: p.user.name,
     username: p.user.username,

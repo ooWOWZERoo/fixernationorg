@@ -2,13 +2,16 @@ import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 
 const ERROR_MESSAGES: Record<string, string> = {
   CredentialsSignin: "Your email or password is incorrect.",
-  EmailNotVerified: "Please verify your email before signing in.",
+  EmailNotVerified: "Please verify your email before signing in. Check your inbox for the verification link.",
+  InvalidToken: "That link is invalid.",
+  ExpiredToken: "That link has expired. Request a new one.",
   Default: "Something went wrong. Try again.",
 };
 
@@ -20,12 +23,15 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Populate error from URL params after hydration
+  const [verified, setVerified] = useState(false);
+
+  // Populate error/success from URL params after hydration
   useEffect(() => {
     if (!router.isReady) return;
     const code = typeof router.query.error === "string" ? router.query.error : null;
     if (code) setError(ERROR_MESSAGES[code] ?? ERROR_MESSAGES.Default);
-  }, [router.isReady, router.query.error]);
+    if (router.query.verified === "1") setVerified(true);
+  }, [router.isReady, router.query.error, router.query.verified]);
 
   async function doSignIn() {
     setIsLoading(true);
@@ -84,6 +90,11 @@ export default function SignInPage() {
               Enter your email and password to continue.
             </p>
 
+            {verified && (
+              <Alert variant="success" className="mb-5">
+                Email verified! You can now sign in.
+              </Alert>
+            )}
             {error && (
               <Alert variant="error" className="mb-5">
                 {error}
@@ -100,15 +111,22 @@ export default function SignInPage() {
                 required
                 disabled={isLoading}
               />
-              <Input
-                label="Password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <div>
+                <Input
+                  label="Password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+                <div className="mt-1 text-right">
+                  <Link href="/forgot-password" className="text-xs font-semibold text-slate-500 no-underline hover:text-navy">
+                    Forgot password?
+                  </Link>
+                </div>
+              </div>
 
               <Button
                 type="button"
@@ -121,10 +139,11 @@ export default function SignInPage() {
               </Button>
             </form>
 
-            <div className="mt-5 pt-5 border-t border-slate-100 text-center text-sm text-slate-500">
-              <span className="text-slate-400">
-                Password reset and new accounts available at launch.
-              </span>
+            <div className="mt-5 pt-5 border-t border-slate-100 text-center text-sm">
+              <span className="text-slate-500">New to Fixer Nation? </span>
+              <Link href="/register" className="font-semibold text-navy no-underline hover:underline">
+                Create an account
+              </Link>
             </div>
           </div>
         </div>
