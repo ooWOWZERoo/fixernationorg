@@ -15,9 +15,9 @@ const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
   ADMIN: "Admin",
   MEMBER: "Member",
-  PROVIDER: "Provider",
-  AMBASSADOR: "Ambassador",
-  CONSUMER: "Guest",
+  PROVIDER: "Service Provider",
+  AMBASSADOR: "Brand Ambassador",
+  CONSUMER: "Consumer",
 };
 
 const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {

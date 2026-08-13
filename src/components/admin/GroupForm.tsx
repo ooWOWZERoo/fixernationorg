@@ -171,8 +171,8 @@ export function GroupForm({ initial, groupId, mode }: Props) {
         <div className="space-y-2">
           {(
             [
-              { field: "autoMember", label: "Members" },
-              { field: "autoAmbassador", label: "Ambassadors" },
+              { field: "autoMember", label: "Consumers" },
+              { field: "autoAmbassador", label: "Brand Ambassadors" },
               { field: "autoProvider", label: "Service Providers" },
             ] as const
           ).map(({ field, label }) => (

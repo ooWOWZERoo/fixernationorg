@@ -28,9 +28,9 @@ const VISIBILITY_LABEL: Record<string, string> = { PUBLIC: "Public", PRIVATE: "P
 
 function autoJoinLabel(g: Pick<GroupRow, "autoMember" | "autoAmbassador" | "autoProvider">) {
   const tags = [
-    g.autoMember && "Members",
-    g.autoAmbassador && "Ambassadors",
-    g.autoProvider && "Providers",
+    g.autoMember && "Consumers",
+    g.autoAmbassador && "Brand Ambassadors",
+    g.autoProvider && "Service Providers",
   ].filter(Boolean) as string[];
   return tags.length ? tags.join(", ") : null;
 }

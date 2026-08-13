@@ -16,6 +16,15 @@ const ALL_ROLES = [
   "SUPER_ADMIN",
 ] as const;
 
+const ROLE_LABEL: Record<string, string> = {
+  CONSUMER: "Consumer",
+  MEMBER: "Member",
+  PROVIDER: "Service Provider",
+  AMBASSADOR: "Brand Ambassador",
+  ADMIN: "Admin",
+  SUPER_ADMIN: "Super Admin",
+};
+
 interface UserRow {
   id: string;
   name: string | null;
@@ -115,13 +124,13 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
                         >
                           {ALL_ROLES.map((r) => (
                             <option key={r} value={r}>
-                              {r}
+                              {ROLE_LABEL[r] ?? r}
                             </option>
                           ))}
                         </select>
                       ) : (
                         <span className="inline-flex rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-medium text-navy">
-                          {user.role}
+                          {ROLE_LABEL[user.role] ?? user.role}
                         </span>
                       )}
                       {saving === user.id && (

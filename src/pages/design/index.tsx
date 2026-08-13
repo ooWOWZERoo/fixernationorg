@@ -540,8 +540,8 @@ export default function DesignPage() {
                   <aside className="w-48 shrink-0 bg-slate-900/70 border-r border-slate-800 p-2.5 space-y-0.5">
                     {[
                       ["Dashboard", true],
-                      ["Members", false],
-                      ["Providers", false],
+                      ["Consumers", false],
+                      ["Service Providers", false],
                       ["Commerce", false],
                       ["Content", false],
                       ["Email & CRM", false],
@@ -573,9 +573,9 @@ export default function DesignPage() {
                     </h3>
                     <div className="grid grid-cols-3 gap-3 mb-5">
                       {[
-                        { label: "Members", value: "1,284", bg: "bg-brand-600" },
+                        { label: "Consumers", value: "1,284", bg: "bg-brand-600" },
                         { label: "Revenue", value: "$8,420", bg: "bg-accent-600" },
-                        { label: "Providers", value: "47", bg: "bg-green-600" },
+                        { label: "Service Providers", value: "47", bg: "bg-green-600" },
                       ].map((s) => (
                         <div
                           key={s.label}
