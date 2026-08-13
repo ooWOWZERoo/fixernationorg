@@ -33,6 +33,13 @@ model User {
   accounts Account[]
   sessions Session[]
 
+  groupMemberships GroupMember[]
+  groupRequests    GroupRequest[]
+  reviewedRequests GroupRequest[] @relation("ReviewedGroupRequests")
+  posts            Post[]
+  comments         Comment[]
+  reactions        Reaction[]
+
   @@index([email])
 }
 
@@ -145,6 +152,114 @@ model Price {
   @@index([active])
 }
 
+// ─── Social / FN Network (Phase 2a) ──────────────────────────────────────────
+
+model SocialGroup {
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  description String?         @db.Text
+  coverUrl    String?
+  type        GroupType       @default(GENERAL)
+  visibility  GroupVisibility @default(PUBLIC)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  members  GroupMember[]
+  posts    Post[]
+  requests GroupRequest[]
+
+  @@index([visibility])
+}
+
+model GroupMember {
+  id         String          @id @default(cuid())
+  groupId    String
+  userId     String
+  role       GroupMemberRole @default(MEMBER)
+  joinedAt   DateTime        @default(now())
+  lastReadAt DateTime?
+
+  group SocialGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupRequest {
+  id         String             @id @default(cuid())
+  groupId    String
+  userId     String
+  message    String?            @db.Text
+  status     GroupRequestStatus @default(PENDING)
+  reviewedAt DateTime?
+  reviewedBy String?
+  createdAt  DateTime           @default(now())
+
+  group    SocialGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?       @relation("ReviewedGroupRequests", fields: [reviewedBy], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([groupId, status])
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  groupId     String
+  authorId    String
+  body        String    @db.Text
+  attachments Json?
+  pinned      Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  group     SocialGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author    User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([groupId, createdAt])
+  @@index([authorId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  authorId  String
+  body      String    @db.Text
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+
+  @@index([postId])
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  userId    String
+  postId    String?
+  commentId String?
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
@@ -176,4 +291,32 @@ enum PriceInterval {
   MONTHLY
   ANNUAL
   ONE_TIME
+}
+
+enum GroupType {
+  GENERAL
+  AUTO_MEMBER
+  AUTO_AMBASSADOR
+  AUTO_PROVIDER
+}
+
+enum GroupVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum GroupMemberRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum GroupRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReactionType {
+  LIKE
 }
