@@ -1,10 +1,16 @@
-import * as postmark from "postmark";
+import nodemailer from "nodemailer";
 
-const client = process.env.POSTMARK_API_KEY
-  ? new postmark.ServerClient(process.env.POSTMARK_API_KEY)
-  : null;
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST ?? "localhost",
+  port: Number(process.env.SMTP_PORT ?? 587),
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
-const FROM = process.env.POSTMARK_FROM_EMAIL ?? "noreply@fixernation.org";
+const FROM = process.env.SMTP_FROM ?? "Fixer Nation <noreply@fixernation.org>";
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
 export async function sendEmail({
@@ -18,11 +24,11 @@ export async function sendEmail({
   html: string;
   text: string;
 }) {
-  if (!client) {
-    console.warn("[email] POSTMARK_API_KEY not set — skipping send to", to);
+  if (!process.env.SMTP_USER) {
+    console.warn("[email] SMTP_USER not set — skipping send to", to);
     return;
   }
-  await client.sendEmail({ From: FROM, To: to, Subject: subject, HtmlBody: html, TextBody: text });
+  await transporter.sendMail({ from: FROM, to, subject, html, text });
 }
 
 export async function sendVerificationEmail(to: string, token: string) {
