@@ -21,22 +21,26 @@ export function NetworkTabBar() {
 
   const isFeed = router.pathname === "/network";
   const isGroups = router.pathname.startsWith("/network/groups");
+  const isMembers = router.pathname.startsWith("/network/members");
   const isMessages = router.pathname.startsWith("/network/messages");
 
-  const tab = (active: boolean, label: React.ReactNode) =>
+  const tab = (active: boolean) =>
     active
       ? "border-b-[3px] border-amber pb-3 text-sm font-bold text-navy"
       : "border-b-[3px] border-transparent pb-3 text-sm font-bold text-ink-soft no-underline hover:text-navy";
 
   return (
     <div className="mt-8 flex gap-8">
-      <Link href="/network" className={tab(isFeed, null)}>
+      <Link href="/network" className={tab(isFeed)}>
         Feed
       </Link>
-      <Link href="/network/groups" className={tab(isGroups, null)}>
+      <Link href="/network/groups" className={tab(isGroups)}>
         Groups
       </Link>
-      <Link href="/network/messages" className={`relative ${tab(isMessages, null)}`}>
+      <Link href="/network/members" className={tab(isMembers)}>
+        Members
+      </Link>
+      <Link href="/network/messages" className={`relative ${tab(isMessages)}`}>
         Messages
         {session && unread > 0 && (
           <span className="absolute -right-3 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-bold text-navy-dark">

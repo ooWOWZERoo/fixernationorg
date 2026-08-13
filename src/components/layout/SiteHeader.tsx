@@ -92,6 +92,9 @@ export function SiteHeader() {
                     <Link href="/dashboard" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                       Dashboard
                     </Link>
+                    <Link href="/account/profile" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
+                      My Profile
+                    </Link>
                     <Link href="/account" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                       Account Settings
                     </Link>
@@ -170,6 +173,9 @@ export function SiteHeader() {
               <>
                 <Link href="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                   Dashboard
+                </Link>
+                <Link href="/account/profile" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
+                  My Profile
                 </Link>
                 {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
                   <Link href="/admin" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
