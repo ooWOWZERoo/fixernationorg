@@ -39,7 +39,6 @@ async function runMorningBoost(): Promise<{ message: string }> {
     where: {
       emailVerified: { not: null },
       morningBoostEmails: true,
-      email: { not: null },
     },
     select: { email: true, name: true },
   });
