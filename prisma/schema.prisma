@@ -377,6 +377,26 @@ model Resource {
   @@index([type])
 }
 
+// ─── Provider / Ambassador applications ──────────────────────────────────────
+
+model UserApplication {
+  id           String            @id @default(cuid())
+  type         ApplicationType
+  status       ApplicationStatus @default(PENDING)
+  name         String
+  email        String
+  message      String            @db.Text
+  businessName String?           // providers only
+  userId       String?           // set if applicant was signed in at submission
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  reviewNotes  String?           @db.Text
+  createdAt    DateTime          @default(now())
+
+  @@index([type, status])
+  @@index([email])
+}
+
 // ─── Contact form submissions ─────────────────────────────────────────────────
 
 model ContactMessage {
@@ -471,4 +491,15 @@ enum ContactStatus {
   NEW
   READ
   ARCHIVED
+}
+
+enum ApplicationType {
+  PROVIDER
+  AMBASSADOR
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

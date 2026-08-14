@@ -13,6 +13,8 @@ const FOOTER_LINKS = {
   Community: [
     { href: "/network", label: "FN Network" },
     { href: "/join", label: "Pro Network" },
+    { href: "/become-a-provider", label: "Become a Provider" },
+    { href: "/become-an-ambassador", label: "Become an Ambassador" },
   ],
   Membership: [
     { href: "/join", label: "Plans & Pricing" },
