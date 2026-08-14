@@ -398,6 +398,24 @@ model UserApplication {
   @@index([email])
 }
 
+// ─── Audit log ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String   // dot-notation: "application.approved", "user.role_changed"
+  resource   String   // model name: "UserApplication", "User"
+  resourceId String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
 // ─── Contact form submissions ─────────────────────────────────────────────────
 
 model ContactMessage {

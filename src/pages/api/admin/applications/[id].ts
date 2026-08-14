@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAction, getClientIp } from "@/lib/audit";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -11,7 +12,6 @@ const patchSchema = z.object({
   reviewNotes: z.string().max(1000).optional(),
 });
 
-// Maps application type to the UserRole to grant on approval
 const APPROVAL_ROLE: Record<string, "PROVIDER" | "AMBASSADOR"> = {
   PROVIDER: "PROVIDER",
   AMBASSADOR: "AMBASSADOR",
@@ -39,7 +39,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(409).json({ error: "Application has already been reviewed." });
     }
 
-    // Update the application
     const updated = await db.userApplication.update({
       where: { id },
       data: {
@@ -50,16 +49,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // If approved and we have a userId, update the user's role
     if (status === "APPROVED" && application.userId) {
       const newRole = APPROVAL_ROLE[application.type];
       if (newRole) {
-        await db.user.update({
-          where: { id: application.userId },
-          data: { role: newRole },
+        const prevUser = await db.user.findUnique({ where: { id: application.userId }, select: { role: true } });
+        await db.user.update({ where: { id: application.userId }, data: { role: newRole } });
+        await logAction({
+          actorId: session.user.id,
+          actorEmail: session.user.email,
+          action: "user.role_changed",
+          resource: "User",
+          resourceId: application.userId,
+          metadata: { from: prevUser?.role, to: newRole, reason: `Application ${id} approved` },
+          ip: getClientIp(req),
         });
       }
     }
+
+    await logAction({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      action: `application.${status.toLowerCase()}`,
+      resource: "UserApplication",
+      resourceId: id,
+      metadata: { type: application.type, applicantEmail: application.email, reviewNotes: reviewNotes ?? null },
+      ip: getClientIp(req),
+    });
 
     return res.status(200).json(updated);
   }

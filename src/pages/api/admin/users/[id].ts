@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
+import { logAction, getClientIp } from "@/lib/audit";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -36,14 +37,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { role } = parsed.data;
 
-  // Only SUPER_ADMIN can assign ADMIN or SUPER_ADMIN
   if (["ADMIN", "SUPER_ADMIN"].includes(role) && session.user.role !== "SUPER_ADMIN") {
     return res.status(403).json({ error: "Only super admins can assign admin roles." });
   }
 
   const target = await db.user.findUnique({
     where: { id },
-    select: { role: true },
+    select: { role: true, email: true },
   });
   if (!target) return res.status(404).json({ error: "User not found" });
 
@@ -55,6 +55,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: { id },
     data: { role },
     select: { id: true, role: true },
+  });
+
+  await logAction({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "user.role_changed",
+    resource: "User",
+    resourceId: id,
+    metadata: { from: target.role, to: role, targetEmail: target.email },
+    ip: getClientIp(req),
   });
 
   return res.status(200).json(updated);

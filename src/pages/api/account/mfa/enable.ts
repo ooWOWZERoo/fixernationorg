@@ -4,6 +4,7 @@ import { z } from "zod";
 import { verifyTOTP } from "@/lib/totp";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAction, getClientIp } from "@/lib/audit";
 
 const schema = z.object({ totpCode: z.string().length(6).regex(/^\d+$/) });
 
@@ -33,6 +34,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await db.user.update({
     where: { id: session.user.id },
     data: { mfaEnabled: true },
+  });
+
+  await logAction({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "mfa.enabled",
+    resource: "User",
+    resourceId: session.user.id,
+    ip: getClientIp(req),
   });
 
   return res.status(200).json({ ok: true });

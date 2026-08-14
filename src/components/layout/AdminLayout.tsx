@@ -14,6 +14,7 @@ const ADMIN_NAV = [
   { href: "/admin/contact", label: "Contact" },
   { href: "/admin/questions", label: "Ask The Fixer" },
   { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/audit", label: "Audit log" },
 ];
 
 interface AdminLayoutProps {
