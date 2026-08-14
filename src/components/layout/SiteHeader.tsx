@@ -4,8 +4,9 @@ import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
 
 const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
+  { href: "/", label: "Home", dropdown: [
+    { href: "/about", label: "About" },
+  ]},
   { href: "/books", label: "Books" },
   { href: "/blog", label: "FN Blogs" },
   { href: "/network", label: "FN Network" },
