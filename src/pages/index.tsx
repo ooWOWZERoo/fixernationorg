@@ -4,11 +4,6 @@ import Image from "next/image";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
-const TAGS = [
-  "Resilience", "Clarity", "Confidence", "Decision-Making",
-  "Positivity", "Boundaries", "Purpose", "Self-Trust",
-];
-
 const CHECK_CARDS = [
   {
     title: "Morning Boost™",
@@ -49,52 +44,28 @@ const BENEFITS = [
   },
   {
     title: "More confident decisions",
-    body: "The books' frameworks help members think things through before deciding.",
+    body: "Better thinking leads to better choices. Members use FN's daily content to work through decisions before making them.",
     accent: "bg-coral",
   },
 ];
-
-const WHY_CARDS = [
-  {
-    symbol: "✦",
-    title: "Real-life frameworks",
-    body: "Grounded in lived experience, not theory.",
-  },
-  {
-    symbol: "◎",
-    title: "Community support",
-    body: "The FN Network and Vetted Pro Network, in one place.",
-  },
-  {
-    symbol: "◷",
-    title: "Daily habits that fit",
-    body: "Short, repeatable routines that work with a real schedule.",
-  },
-  {
-    symbol: "✉",
-    title: "Ask The Fixer, anytime",
-    body: "Direct access when you need a real answer.",
-  },
-];
-
 
 const HomePage: NextPageWithLayout = () => {
   return (
     <>
       <Head>
-        <title>Fixer Nation — Positivity. Health. Wellness.</title>
+        <title>Fixer Nation — The Health Club for Your Mind, Body &amp; Soul™</title>
         <meta
           name="description"
-          content="Fixer Nation is a community built around real skills for everyday life. Daily tools, direct access to Anthony J. Placito's mentorship, and a private network for people who want actual answers."
+          content="Fixer Nation is a first-of-its-kind online health club and positive community built to strengthen your mindset, improve your well-being, and give your time online a real purpose."
         />
       </Head>
 
-      {/* Hero */}
+      {/* 1. Hero */}
       <section className="overflow-hidden px-6 pb-14 pt-16 lg:px-8">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <span className="eyebrow">Positivity · Health · Wellness</span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-navy lg:text-[52px]">
+            <h1 className="mt-4 font-display text-5xl font-normal leading-[1.1] tracking-tight text-navy lg:text-[64px]">
               The Health Club for Your Mind, Body &amp; Soul™
             </h1>
             <p className="mt-5 max-w-[520px] text-lg leading-relaxed text-ink-soft">
@@ -116,7 +87,6 @@ const HomePage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          {/* Hero image */}
           <div className="overflow-hidden rounded-[18px] shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
             <Image
               src="/images/hero-wellness.jpg"
@@ -130,7 +100,7 @@ const HomePage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Story / Video */}
+      {/* 2. Social media contrast */}
       <section className="bg-cream-panel px-6 py-16 lg:px-8">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div
@@ -151,7 +121,7 @@ const HomePage: NextPageWithLayout = () => {
           </div>
           <div>
             <span className="eyebrow">A Different Kind of Online</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">
+            <h2 className="mt-4 font-display text-4xl font-normal leading-[1.15] text-navy lg:text-5xl">
               This is what your time online can become
             </h2>
             <p className="mt-4 text-base leading-relaxed text-ink-soft">
@@ -161,8 +131,70 @@ const HomePage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* What's Inside */}
+      {/* 3. Anthony + philosophy */}
+      <section className="bg-navy px-6 py-20 lg:px-8">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
+          <Image
+            src="/images/anthony.png"
+            alt="Anthony J. Placito"
+            width={560}
+            height={420}
+            className="w-full rounded-[18px] object-cover shadow-[0_24px_50px_-20px_rgba(0,0,0,0.5)]"
+          />
+          <div>
+            <span
+              className="eyebrow"
+              style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
+            >
+              The founder
+            </span>
+            <h2 className="mt-4 font-display text-4xl font-normal leading-[1.15] text-white lg:text-5xl">
+              Built on Anthony J. Placito's real-life frameworks
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-white/75">
+              Every book, blog post, and Morning Boost email connects back to the same core idea: there are no problems in life, only issues and answers.
+            </p>
+            <Link
+              href="/about"
+              className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+            >
+              Meet Anthony
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Benefits */}
       <section className="px-6 py-20 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto mb-12 max-w-xl text-center">
+            <span className="eyebrow">How Members Benefit</span>
+            <h2 className="mt-4 text-3xl font-extrabold text-navy">
+              What changes for members
+            </h2>
+            <p className="mt-3 text-sm text-ink-soft">
+              Common themes from members who've built a daily habit with Fixer Nation.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {BENEFITS.map((card) => (
+              <div
+                key={card.title}
+                className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]"
+              >
+                <div className={`h-24 w-full opacity-15 ${card.accent}`} />
+                <div className="p-6">
+                  <h3 className="mb-2 text-lg font-bold text-navy">{card.title}</h3>
+                  <p className="text-sm leading-relaxed text-ink-soft">{card.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 5. What's Inside */}
+      <section className="bg-cream-panel px-6 py-20 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <span className="eyebrow">What's Inside</span>
@@ -187,93 +219,22 @@ const HomePage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Life Skills Tags */}
-      <section className="px-6 py-16 text-center lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <span className="eyebrow">Life Skills You'll Build</span>
-          <h2 className="mt-4 text-3xl font-extrabold text-navy">For every stage of the journey</h2>
-          <div className="mx-auto mt-10 flex max-w-3xl flex-wrap justify-center gap-3">
-            {TAGS.map((tag, i) => (
-              <span
-                key={tag}
-                className={`rounded-full px-5 py-2.5 text-sm font-bold ${
-                  i % 3 === 0
-                    ? "bg-amber text-navy-dark"
-                    : i % 3 === 1
-                    ? "bg-coral text-white"
-                    : "bg-navy text-white"
-                }`}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+      {/* 6. The Statement — signature section */}
+      <section className="bg-amber px-6 py-28 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-white">
+            "There are no problems in life...
+          </p>
+          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-white">
+            only issues and answers."
+          </p>
+          <p className="mt-8 text-xs font-bold uppercase tracking-[0.2em] text-navy-dark/60">
+            The Fixer Nation philosophy
+          </p>
         </div>
       </section>
 
-      {/* Benefits */}
-      <section className="bg-cream-panel px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto mb-12 max-w-xl text-center">
-            <span className="eyebrow">How Members Benefit</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">
-              What members say changes for them
-            </h2>
-            <p className="mt-3 text-sm text-ink-soft">
-              These are common themes members share after building a daily habit with Fixer Nation.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {BENEFITS.map((card) => (
-              <div
-                key={card.title}
-                className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]"
-              >
-                <div className={`h-24 w-full opacity-15 ${card.accent}`} />
-                <div className="p-6">
-                  <h3 className="mb-2 text-lg font-bold text-navy">{card.title}</h3>
-                  <p className="text-sm leading-relaxed text-ink-soft">{card.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Skills Block — navy bg */}
-      <section className="bg-navy px-6 py-20 lg:px-8">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          <Image
-            src="/images/anthony.png"
-            alt="Anthony J. Placito"
-            width={560}
-            height={420}
-            className="w-full rounded-[18px] object-cover shadow-[0_24px_50px_-20px_rgba(0,0,0,0.5)]"
-          />
-          <div>
-            <span
-              className="eyebrow"
-              style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
-            >
-              Skills That Power Growth
-            </span>
-            <h2 className="mt-4 text-3xl font-extrabold text-white">
-              Built on Anthony J. Placito's real-life frameworks
-            </h2>
-            <p className="mt-4 text-base leading-relaxed text-white/75">
-              Every book, blog post, and Morning Boost email connects back to the same core idea: there are no problems in life, only issues and answers.
-            </p>
-            <Link
-              href="/about"
-              className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-            >
-              Meet Anthony
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Member Story */}
+      {/* 7. Member Story */}
       <section className="px-6 py-20 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-10 max-w-xl text-center">
@@ -300,49 +261,28 @@ const HomePage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Why Choose */}
-      <section className="px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto mb-12 max-w-xl text-center">
-            <span className="eyebrow">Why Members Choose Fixer Nation</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">Simple to start, easy to stick with</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {WHY_CARDS.map((card) => (
-              <div key={card.title} className="text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cream-panel text-2xl font-bold text-navy">
-                  {card.symbol}
-                </div>
-                <h4 className="mb-2 text-base font-bold text-navy">{card.title}</h4>
-                <p className="text-sm text-ink-soft">{card.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Band */}
-      <section className="bg-amber px-6 py-20 text-center lg:px-8">
+      {/* 8. CTA Band */}
+      <section className="bg-navy px-6 py-20 text-center lg:px-8">
         <div className="mx-auto max-w-6xl">
           <span
             className="eyebrow"
-            style={{ background: "rgba(20,40,56,0.1)", color: "#142838" }}
+            style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
           >
-            Ready to Join?
+            Ready to join?
           </span>
-          <h2 className="mx-auto mt-4 max-w-xl text-3xl font-extrabold text-navy-dark">
+          <h2 className="mx-auto mt-4 max-w-xl text-3xl font-extrabold text-white">
             Stop mindlessly scrolling. Start purposefully growing.™
           </h2>
           <Link
             href="/join"
-            className="mt-6 inline-flex items-center justify-center rounded-[10px] bg-white px-8 py-3.5 text-sm font-bold text-navy no-underline transition-all hover:-translate-y-0.5 hover:shadow-lg"
+            className="mt-6 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
           >
             Join Fixer Nation
           </Link>
         </div>
       </section>
 
-      {/* Newsletter Band */}
+      {/* 9. Newsletter Band */}
       <section className="bg-navy-dark px-6 py-16 lg:px-8">
         <div className="mx-auto max-w-lg text-center">
           <span

@@ -60,6 +60,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-manrope)", "Manrope", "ui-sans-serif", "system-ui"],
+        display: ["var(--font-display)", "'DM Serif Display'", "Georgia", "serif"],
       },
       borderRadius: {
         "4xl": "2rem",
