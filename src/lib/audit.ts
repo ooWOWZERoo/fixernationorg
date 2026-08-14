@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { db } from "./db";
 
 interface LogActionOpts {
@@ -19,7 +20,7 @@ export async function logAction(opts: LogActionOpts): Promise<void> {
         action: opts.action,
         resource: opts.resource,
         resourceId: opts.resourceId ?? null,
-        metadata: opts.metadata ?? undefined,
+        metadata: opts.metadata ? (opts.metadata as Prisma.InputJsonValue) : undefined,
         ip: opts.ip ?? null,
       },
     });
