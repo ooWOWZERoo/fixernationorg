@@ -179,7 +179,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const jobKey = req.query.job as string | undefined;
-  const token = req.query.token as string | undefined;
+
+  // Accept token via Authorization: Bearer header (Vercel Cron) or ?token= query param (legacy)
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  const queryToken = req.query.token as string | undefined;
+  const token = bearerToken ?? queryToken;
 
   const expected = process.env.CRON_SECRET;
   if (!expected || token !== expected) {
