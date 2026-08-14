@@ -68,7 +68,8 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
           {[
             { label: "Morning Boost", desc: "One short read every morning to reset, refocus, and move forward.", href: "/morning-boost", soon: false },
             { label: "Ask The Fixer", desc: "Submit a question to our expert network.", href: "/ask-the-fixer", soon: false },
-            { label: "FN Blog & Library", desc: "Full access to all articles and resources.", href: "/blog", soon: false },
+            { label: "FN Blog", desc: "Full access to all articles.", href: "/blog", soon: false },
+            { label: "Resources Library", desc: "Guides, worksheets, and tools — members only.", href: "/resources", soon: false },
             { label: "Mobile App", desc: "Access Fixer Nation on the go.", soon: true },
           ].map((tile) => (
             <div

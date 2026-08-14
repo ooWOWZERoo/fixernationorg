@@ -6,7 +6,8 @@ const FOOTER_LINKS = {
     { href: "/books", label: "Library" },
   ],
   Resources: [
-    { href: "/blog", label: "FN Blogs" },
+    { href: "/blog", label: "FN Blog" },
+    { href: "/resources", label: "Member Library" },
     { href: "/ask-the-fixer", label: "Ask The Fixer" },
   ],
   Community: [
