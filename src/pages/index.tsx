@@ -6,7 +6,7 @@ import type { NextPageWithLayout } from "@/types/next";
 
 const CHECK_CARDS = [
   {
-    title: "FN Library",
+    title: "Books",
     href: "/books",
     body: "Books and resources selected to feed your mind, with new titles added regularly. Chosen content, not random content.",
   },
@@ -21,9 +21,9 @@ const CHECK_CARDS = [
     body: "A private community built around growth, encouragement, and people who believe their time online should mean something.",
   },
   {
-    title: "Events",
-    href: "/events",
-    body: "Workshops, meetups, and community conversations. Show up, connect, and walk away with something useful.",
+    title: "Morning Boost™",
+    href: "/morning-boost",
+    body: "Instead of letting your phone decide what gets your attention first thing in the morning, you decide. Start the day with something that actually helps you think.",
   },
   {
     title: "Find a Provider",
