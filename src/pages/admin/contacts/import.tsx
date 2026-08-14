@@ -82,17 +82,21 @@ function splitCSVLine(line: string): string[] {
 }
 
 function norm(s: string) {
-  return s.toLowerCase().replace(/[\s_\-\.]+/g, "");
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 type BasicField = "email" | "email2" | "firstName" | "lastName" | "phone" | "phone2" |
   "company" | "source" | "lastActivity" | "lastActivityAt" | "createdAt" | "emailSubscriberStatus";
 
 const COLUMN_MAP: Record<string, BasicField> = {
+  // primary email — Wix uses "Email 1", generic CSVs use "Email" or "Email Address"
   email: "email",
+  email1: "email",
   emailaddress: "email",
+  // secondary email
   email2: "email2",
   secondaryemail: "email2",
+  // name
   firstname: "firstName",
   first: "firstName",
   givenname: "firstName",
@@ -102,24 +106,34 @@ const COLUMN_MAP: Record<string, BasicField> = {
   familyname: "lastName",
   name: "firstName",
   fullname: "firstName",
+  // primary phone — Wix uses "Phone 1", generic CSVs use "Phone"
   phone: "phone",
+  phone1: "phone",
   phonenumber: "phone",
   mobile: "phone",
   cell: "phone",
   telephone: "phone",
+  // secondary phone
   phone2: "phone2",
   secondaryphone: "phone2",
   mobilephone: "phone2",
+  // company
   company: "company",
   companyname: "company",
   organization: "company",
   organisation: "company",
   org: "company",
   business: "company",
+  // other fields
   source: "source",
   lastactivity: "lastActivity",
+  // Wix: "Last Activity Date (UTC+0)" → norm → "lastactivitydateutc0"
   lastactivitydate: "lastActivityAt",
+  lastactivitydateutc0: "lastActivityAt",
+  // Wix: "Created At (UTC+0)" → norm → "createdatutc0"
   createdat: "createdAt",
+  createdatutc0: "createdAt",
+  // consent status
   emailsubscriberstatus: "emailSubscriberStatus",
   subscriberstatus: "emailSubscriberStatus",
 };
