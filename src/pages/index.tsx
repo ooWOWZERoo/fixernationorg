@@ -77,28 +77,6 @@ const WHY_CARDS = [
   },
 ];
 
-const BOOKS = [
-  {
-    src: "/images/cover-kill-the-bully.png",
-    alt: "Kill the Bully",
-    cls: "-rotate-2 translate-y-3",
-  },
-  {
-    src: "/images/cover-your-past.png",
-    alt: "Your Past Doesn't Define You",
-    cls: "rotate-2",
-  },
-  {
-    src: "/images/cover-5-brains.png",
-    alt: "Think with 5 Brains",
-    cls: "rotate-1",
-  },
-  {
-    src: "/images/cover-how-to-lie.png",
-    alt: "How to Lie & Get Away With It",
-    cls: "-rotate-1 -translate-y-3",
-  },
-];
 
 const HomePage: NextPageWithLayout = () => {
   return (
@@ -138,22 +116,16 @@ const HomePage: NextPageWithLayout = () => {
             </div>
           </div>
 
-          {/* Book cover grid */}
-          <div className="grid grid-cols-2 gap-4 lg:gap-5">
-            {BOOKS.map((book) => (
-              <div
-                key={book.src}
-                className={`${book.cls} overflow-hidden rounded-[14px] bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] transition-transform`}
-              >
-                <Image
-                  src={book.src}
-                  alt={book.alt}
-                  width={280}
-                  height={370}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
+          {/* Hero image */}
+          <div className="overflow-hidden rounded-[18px] shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
+            <Image
+              src="/images/hero-wellness.jpg"
+              alt="Morning calm — positivity, health, and wellness"
+              width={1200}
+              height={900}
+              className="w-full object-cover"
+              priority
+            />
           </div>
         </div>
       </section>
