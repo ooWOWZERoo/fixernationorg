@@ -16,17 +16,28 @@ type GroupItem = {
   memberCount: number;
 };
 
+type ProviderBusiness = {
+  businessName: string | null;
+  specialty: string | null;
+  services: string | null;
+  website: string | null;
+  phone: string | null;
+  serviceArea: string | null;
+} | null;
+
 interface Props {
   profile: {
     userId: string;
     name: string | null;
     username: string;
+    role: string;
     headline: string | null;
     bio: string | null;
     location: string | null;
     avatarUrl: string | null;
     joinedAt: string;
   };
+  providerBusiness: ProviderBusiness;
   groups: GroupItem[];
   isOwnProfile: boolean;
   currentUserId: string | null;
@@ -34,10 +45,12 @@ interface Props {
 
 const ProfilePage: NextPageWithLayout<Props> = ({
   profile,
+  providerBusiness,
   groups,
   isOwnProfile,
   currentUserId,
 }) => {
+  const isProvider = profile.role === "PROVIDER";
   const [messageLoading, setMessageLoading] = useState(false);
 
   async function startMessage() {
@@ -87,28 +100,52 @@ const ProfilePage: NextPageWithLayout<Props> = ({
               )}
 
               <div>
-                <h1 className="text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
-                  {profile.name ?? profile.username}
-                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
+                    {profile.name ?? profile.username}
+                  </h1>
+                  {isProvider && (
+                    <span className="rounded-full bg-amber/20 px-2.5 py-0.5 text-xs font-bold text-amber-dark">
+                      Service Provider
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm font-semibold text-ink-soft">@{profile.username}</p>
                 {profile.headline && (
                   <p className="mt-1 text-sm text-ink">{profile.headline}</p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
-                  {profile.location && <span>📍 {profile.location}</span>}
+                  {profile.location && (
+                    <span className="flex items-center gap-1">
+                      <svg className="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                      {profile.location}
+                    </span>
+                  )}
                   <span>Member since {joinYear}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex shrink-0 gap-2 sm:mt-1">
+            <div className="flex shrink-0 flex-wrap gap-2 sm:mt-1">
               {isOwnProfile ? (
-                <Link
-                  href="/account/profile"
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-ink no-underline hover:bg-cream-panel transition-colors"
-                >
-                  Edit profile
-                </Link>
+                <>
+                  <Link
+                    href="/account/profile"
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-ink no-underline hover:bg-cream-panel transition-colors"
+                  >
+                    Edit profile
+                  </Link>
+                  {isProvider && (
+                    <Link
+                      href="/account/business"
+                      className="rounded-lg border border-amber/40 bg-amber/8 px-4 py-2 text-sm font-semibold text-amber-dark no-underline hover:bg-amber/15 transition-colors"
+                    >
+                      Edit your listing
+                    </Link>
+                  )}
+                </>
               ) : currentUserId ? (
                 <button
                   onClick={startMessage}
@@ -138,6 +175,60 @@ const ProfilePage: NextPageWithLayout<Props> = ({
             </div>
           )}
 
+          {/* Provider business card */}
+          {isProvider && providerBusiness && (providerBusiness.specialty || providerBusiness.services || providerBusiness.website || providerBusiness.phone || providerBusiness.serviceArea) && (
+            <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-xs font-extrabold uppercase tracking-widest text-ink-soft">
+                Services
+              </h2>
+              {providerBusiness.specialty && (
+                <span className="mb-3 inline-block rounded-full bg-amber/15 px-3 py-1 text-sm font-semibold text-amber-dark">
+                  {providerBusiness.specialty}
+                </span>
+              )}
+              {providerBusiness.services && (
+                <p className="mt-2 text-sm leading-relaxed text-ink whitespace-pre-line">
+                  {providerBusiness.services}
+                </p>
+              )}
+              {(providerBusiness.serviceArea || providerBusiness.phone || providerBusiness.website) && (
+                <dl className="mt-5 space-y-2.5">
+                  {providerBusiness.serviceArea && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Service area</dt>
+                      <dd className="mt-0.5 text-sm text-ink">{providerBusiness.serviceArea}</dd>
+                    </div>
+                  )}
+                  {providerBusiness.phone && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Phone</dt>
+                      <dd className="mt-0.5 text-sm text-ink">
+                        <a href={`tel:${providerBusiness.phone}`} className="text-navy underline underline-offset-2 hover:text-navy-dark">
+                          {providerBusiness.phone}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                  {providerBusiness.website && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Website</dt>
+                      <dd className="mt-0.5 text-sm">
+                        <a
+                          href={providerBusiness.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-navy underline underline-offset-2 hover:text-navy-dark"
+                        >
+                          Visit website
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+            </div>
+          )}
+
           {/* Groups */}
           {groups.length > 0 && (
             <div className="mt-6">
@@ -159,7 +250,9 @@ const ProfilePage: NextPageWithLayout<Props> = ({
                         className="h-6 w-6 rounded-md object-cover"
                       />
                     ) : (
-                      <span className="text-base">👥</span>
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-navy/8 text-xs font-bold text-navy">
+                        {g.name[0]}
+                      </span>
                     )}
                     {g.name}
                   </Link>
@@ -185,8 +278,19 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       id: true,
       name: true,
       username: true,
+      role: true,
       createdAt: true,
       socialProfile: true,
+      providerProfile: {
+        select: {
+          businessName: true,
+          specialty: true,
+          services: true,
+          website: true,
+          phone: true,
+          serviceArea: true,
+        },
+      },
       groupMemberships: {
         select: {
           group: {
@@ -216,18 +320,31 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       memberCount: m.group._count.members,
     }));
 
+  const providerBusiness: ProviderBusiness = user.role === "PROVIDER" && user.providerProfile
+    ? {
+        businessName: user.providerProfile.businessName,
+        specialty: user.providerProfile.specialty,
+        services: user.providerProfile.services,
+        website: user.providerProfile.website,
+        phone: user.providerProfile.phone,
+        serviceArea: user.providerProfile.serviceArea,
+      }
+    : null;
+
   return {
     props: {
       profile: {
         userId: user.id,
         name: user.name,
         username: user.username!,
+        role: user.role,
         headline: user.socialProfile.headline,
         bio: user.socialProfile.bio,
         location: user.socialProfile.location,
         avatarUrl: user.socialProfile.avatarUrl,
         joinedAt: user.createdAt.toISOString(),
       },
+      providerBusiness,
       groups,
       isOwnProfile: session?.user.id === user.id,
       currentUserId: session?.user.id ?? null,
