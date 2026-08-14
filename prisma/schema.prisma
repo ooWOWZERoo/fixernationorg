@@ -47,7 +47,6 @@ model User {
   socialProfile            SocialProfile?
   providerProfile          ProviderProfile?
   ambassadorProfile        AmbassadorProfile?
-  referrals                Referral[]        @relation("AmbassadorReferrals")
   referredByReferral       Referral?         @relation("ReferredUser")
 
   @@index([email])
