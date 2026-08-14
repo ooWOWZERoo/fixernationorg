@@ -14,7 +14,7 @@ const updateSchema = z.object({
   category: z.string().optional().nullable(),
   imageUrl: z.string().url().optional().or(z.literal("")).nullable(),
   authorName: z.string().optional(),
-  publishedAt: z.string().datetime().optional().nullable(),
+  publishedAt: z.string().nullable().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
