@@ -103,21 +103,14 @@ const HomePage: NextPageWithLayout = () => {
       {/* 2. Social media contrast */}
       <section className="bg-cream-panel px-6 py-16 lg:px-8">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          <div
-            className="relative overflow-hidden rounded-[18px] bg-navy-dark shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]"
-            style={{ aspectRatio: "16/10" }}
-          >
+          <div className="overflow-hidden rounded-[18px] shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
             <Image
-              src="/images/anthony.png"
-              alt="Anthony J. Placito"
-              fill
-              className="object-cover object-top opacity-80"
+              src="/images/community.jpg"
+              alt="People helping each other reach the top — Fixer Nation community"
+              width={1586}
+              height={992}
+              className="w-full object-cover"
             />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber text-xl text-navy-dark shadow-[0_14px_30px_-8px_rgba(242,169,60,0.7)]">
-                ▶
-              </div>
-            </div>
           </div>
           <div>
             <span className="eyebrow">A Different Kind of Online</span>
