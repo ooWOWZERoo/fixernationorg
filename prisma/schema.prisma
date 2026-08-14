@@ -3,8 +3,9 @@
 // For MySQL, change provider to "mysql" and replace @db.Text with @db.LongText where needed.
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
