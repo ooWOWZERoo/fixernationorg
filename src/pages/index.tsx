@@ -11,8 +11,16 @@ const TAGS = [
 
 const CHECK_CARDS = [
   {
-    title: "Morning Boost Emails",
-    body: "A short daily email with something worth thinking about.",
+    title: "Morning Boost™",
+    body: "Instead of letting your phone decide what gets your attention first thing in the morning, you decide. Start the day with something that actually helps you think.",
+  },
+  {
+    title: "FN Network",
+    body: "A private community built around growth, encouragement, and people who believe their time online should mean something.",
+  },
+  {
+    title: "FN Library",
+    body: "Books and resources selected to feed your mind, with new titles added regularly. Chosen content, not random content.",
   },
   {
     title: "Ask The Fixer",
@@ -23,8 +31,8 @@ const CHECK_CARDS = [
     body: "A trusted directory of service providers for when you need real help.",
   },
   {
-    title: "Mobile App",
-    body: "Access the community and your content anywhere.",
+    title: "Mobile Access",
+    body: "Take Fixer Nation and your positive community with you wherever you go.",
   },
 ];
 
@@ -109,10 +117,10 @@ const HomePage: NextPageWithLayout = () => {
           <div>
             <span className="eyebrow">Positivity · Health · Wellness</span>
             <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-navy lg:text-[52px]">
-              Better Days. Better Decisions. Better You.
+              The Health Club for Your Mind, Body &amp; Soul™
             </h1>
             <p className="mt-5 max-w-[520px] text-lg leading-relaxed text-ink-soft">
-              Fixer Nation is a community built around real skills for everyday life. Daily tools, direct access to Anthony J. Placito's mentorship, and a private network for people who want actual answers.
+              What if the time you spend online actually helped you become better? Fixer Nation is a first-of-its-kind online health club and positive community built to strengthen your mindset, improve your well-being, and give your time online a real purpose.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
@@ -170,12 +178,12 @@ const HomePage: NextPageWithLayout = () => {
             </div>
           </div>
           <div>
-            <span className="eyebrow">See It In Action</span>
+            <span className="eyebrow">A Different Kind of Online</span>
             <h2 className="mt-4 text-3xl font-extrabold text-navy">
-              Fixer Nation works because it fits into real life
+              This is what your time online can become
             </h2>
             <p className="mt-4 text-base leading-relaxed text-ink-soft">
-              The Morning Boost email shows up every morning. Ask The Fixer is there when you need it. Members build small, repeatable habits out of both, and the books give those habits a framework that actually sticks.
+              Most platforms are designed to keep you scrolling. Fixer Nation is designed to help you grow. Open it and you're in a community where the people around you want to become better, and the content you consume is there to help you do the same.
             </p>
           </div>
         </div>
@@ -190,7 +198,7 @@ const HomePage: NextPageWithLayout = () => {
               What you get with a Fixer Nation membership
             </h2>
           </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {CHECK_CARDS.map((card) => (
               <div
                 key={card.title}
@@ -351,7 +359,7 @@ const HomePage: NextPageWithLayout = () => {
             Ready to Join?
           </span>
           <h2 className="mx-auto mt-4 max-w-xl text-3xl font-extrabold text-navy-dark">
-            Turn your issues into answers, starting today
+            Stop mindlessly scrolling. Start purposefully growing.™
           </h2>
           <Link
             href="/join"

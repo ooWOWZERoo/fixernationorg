@@ -72,7 +72,7 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
             Choose your path into Fixer Nation
           </h1>
           <p className="mt-5 text-lg leading-relaxed text-ink-soft">
-            Good mental health habits shouldn't cost much. A membership starts at $7/month. If you're dealing with something, Fixer Nation gives you a place to work through it.
+            Instead of asking what a membership costs, think about what it could be worth. For about the price of a couple of cups of coffee a month, you get a daily habit, a positive community, and resources designed to help you grow.
           </p>
         </div>
       </section>
@@ -199,11 +199,14 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
             className="eyebrow"
             style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
           >
-            You're worth it
+            Ready to start?
           </span>
           <h2 className="mt-4 text-3xl font-extrabold text-white">
-            We believe you, and your mental health, are worth the investment.
+            You don't have to make that journey alone.
           </h2>
+          <p className="mt-3 text-base text-white/75">
+            Surround yourself with people who want to grow. Give yourself a better place to spend your time online.
+          </p>
           <Link
             href="/signin"
             className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
