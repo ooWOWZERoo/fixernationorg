@@ -6,28 +6,34 @@ import type { NextPageWithLayout } from "@/types/next";
 
 const CHECK_CARDS = [
   {
-    title: "Morning Boost™",
-    body: "Instead of letting your phone decide what gets your attention first thing in the morning, you decide. Start the day with something that actually helps you think.",
-  },
-  {
-    title: "FN Network",
-    body: "A private community built around growth, encouragement, and people who believe their time online should mean something.",
-  },
-  {
     title: "FN Library",
+    href: "/books",
     body: "Books and resources selected to feed your mind, with new titles added regularly. Chosen content, not random content.",
   },
   {
+    title: "FN Blogs",
+    href: "/blog",
+    body: "Practical perspective on mindset, well-being, and getting unstuck — written for people who want to grow.",
+  },
+  {
+    title: "FN Network",
+    href: "/network",
+    body: "A private community built around growth, encouragement, and people who believe their time online should mean something.",
+  },
+  {
+    title: "Events",
+    href: "/events",
+    body: "Workshops, meetups, and community conversations. Show up, connect, and walk away with something useful.",
+  },
+  {
+    title: "Find a Provider",
+    href: "/providers",
+    body: "A trusted directory of vetted service providers for when you need real, qualified help.",
+  },
+  {
     title: "Ask The Fixer",
+    href: "/ask-the-fixer",
     body: "Direct access when you need help thinking through what you're facing.",
-  },
-  {
-    title: "Vetted Pro Network",
-    body: "A trusted directory of service providers for when you need real help.",
-  },
-  {
-    title: "Mobile Access",
-    body: "Take Fixer Nation and your positive community with you wherever you go.",
   },
 ];
 
@@ -197,16 +203,17 @@ const HomePage: NextPageWithLayout = () => {
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {CHECK_CARDS.map((card) => (
-              <div
+              <Link
                 key={card.title}
-                className="rounded-2xl bg-white p-6 shadow-[0_14px_30px_-22px_rgba(20,40,56,0.25)]"
+                href={card.href}
+                className="group rounded-2xl bg-white p-6 shadow-[0_14px_30px_-22px_rgba(20,40,56,0.25)] no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-20px_rgba(20,40,56,0.3)]"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-navy font-extrabold text-amber">
                   ✓
                 </div>
                 <h4 className="mb-2 text-base font-bold text-navy">{card.title}</h4>
                 <p className="text-sm leading-relaxed text-ink-soft">{card.body}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
