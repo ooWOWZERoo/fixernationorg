@@ -55,7 +55,7 @@ jobs:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete --mkpath \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
             .next/standalone/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/.next/standalone/
@@ -65,7 +65,7 @@ jobs:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete --mkpath \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
             .next/static/ \
             fixernat@${SSH_HOST}:~/public_html/.next/static/
@@ -75,7 +75,7 @@ jobs:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
-          rsync -avz \
+          rsync -avz --mkpath \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
             deploy.sh \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/deploy.sh
@@ -85,7 +85,7 @@ jobs:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
-          rsync -avz \
+          rsync -avz --mkpath \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
             prisma/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/prisma/
