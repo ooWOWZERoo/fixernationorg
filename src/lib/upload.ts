@@ -9,11 +9,12 @@ cloudinary.config({
 export async function uploadToR2(
   buffer: Buffer,
   originalName: string,
-  mimeType: string
+  mimeType: string,
+  folder = "social"
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     cloudinary.uploader
-      .upload_stream({ folder: "social", resource_type: "image" }, (error, result) => {
+      .upload_stream({ folder, resource_type: "image" }, (error, result) => {
         if (error || !result) return reject(error ?? new Error("Upload failed"));
         resolve(result.secure_url);
       })
