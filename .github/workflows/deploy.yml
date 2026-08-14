@@ -89,20 +89,6 @@ jobs:
             prisma/ \
             fixernat@${SSH_HOST}:~/repositories/fixernationorg/prisma/
 
-      - name: Restart app
-        env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
-        run: |
-          # Passenger watches tmp/restart.txt — updating it triggers a clean restart.
-          # This avoids running arbitrary SSH commands, which cPanel shared hosting blocks.
-          date -u > restart-trigger.txt
-          rsync -avz \
-            -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
-            restart-trigger.txt \
-            fixernat@${SSH_HOST}:~/repositories/fixernationorg/tmp/restart.txt
-          rm restart-trigger.txt
-
       - name: Run database migrations
         env:
           SSH_HOST: ${{ secrets.CPANEL_HOST }}
@@ -119,3 +105,17 @@ jobs:
                && export DATABASE_URL=$(grep -oP "(?<=SetEnv DATABASE_URL ).*" ~/public_html/.htaccess) \
                && node .next/standalone/node_modules/prisma/build/index.js migrate deploy' \
           || echo "::warning::Migration via SSH failed — run manually from cPanel Terminal if the schema changed."
+
+      - name: Restart app
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_HOST }}
+          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+        run: |
+          # Passenger watches tmp/restart.txt — updating it triggers a clean restart.
+          # This avoids running arbitrary SSH commands, which cPanel shared hosting blocks.
+          date -u > restart-trigger.txt
+          rsync -avz \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
+            restart-trigger.txt \
+            fixernat@${SSH_HOST}:~/repositories/fixernationorg/tmp/restart.txt
+          rm restart-trigger.txt
