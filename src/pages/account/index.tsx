@@ -258,8 +258,26 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { name: true, email: true, passwordHash: true, morningBoostEmails: true },
+    select: {
+      name: true,
+      email: true,
+      passwordHash: true,
+      morningBoostEmails: true,
+      crmContact: {
+        select: {
+          consents: {
+            where: { topic: "MORNING_BOOST" },
+            select: { optedIn: true },
+            take: 1,
+          },
+        },
+      },
+    },
   });
+
+  // Prefer ContactConsent value; fall back to legacy boolean for users not yet migrated
+  const consentRow = user?.crmContact?.consents?.[0];
+  const morningBoostOptIn = consentRow !== undefined ? consentRow.optedIn : (user?.morningBoostEmails ?? true);
 
   return {
     props: {
@@ -267,7 +285,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         name: user?.name ?? null,
         email: user?.email ?? session.user.email ?? "",
         hasPassword: !!user?.passwordHash,
-        morningBoostEmails: user?.morningBoostEmails ?? true,
+        morningBoostEmails: morningBoostOptIn,
         role: session.user.role ?? "CONSUMER",
       },
     },
