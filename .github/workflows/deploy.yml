@@ -24,7 +24,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           NEXTAUTH_URL: https://fixernation.org
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
@@ -41,9 +41,9 @@ jobs:
 
       - name: Set up SSH
         env:
-          SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
@@ -52,8 +52,8 @@ jobs:
 
       - name: Deploy standalone bundle
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
@@ -62,8 +62,8 @@ jobs:
 
       - name: Sync static files to public_html
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
@@ -72,8 +72,8 @@ jobs:
 
       - name: Sync deploy script
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           rsync -avz \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
@@ -82,8 +82,8 @@ jobs:
 
       - name: Sync prisma migrations
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           rsync -avz \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${SSH_PORT:-22} -o StrictHostKeyChecking=no" \
@@ -92,8 +92,8 @@ jobs:
 
       - name: Run database migrations
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           # SSH command execution may be blocked on this host. The step is best-effort.
           # If it fails, run migrations manually from cPanel Terminal (see CLAUDE.md).
@@ -109,8 +109,8 @@ jobs:
 
       - name: Restart app
         env:
-          SSH_HOST: ${{ secrets.CPANEL_HOST }}
-          SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
         run: |
           # Passenger watches tmp/restart.txt — updating it triggers a clean restart.
           # This avoids running arbitrary SSH commands, which cPanel shared hosting blocks.
