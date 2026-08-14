@@ -2,7 +2,10 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -145,6 +148,25 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   if (!post || !post.publishedAt) {
     return { notFound: true };
+  }
+
+  // Latest published post is always free. All others require membership.
+  const latest = await db.blogPost.findFirst({
+    where: { publishedAt: { not: null } },
+    orderBy: { publishedAt: "desc" },
+    select: { slug: true },
+  });
+
+  if (latest?.slug !== slug) {
+    const session = await getServerSession(context.req, context.res, authOptions);
+    if (!session || !isMember(session.user.role)) {
+      return {
+        redirect: {
+          destination: `/join?callbackUrl=${encodeURIComponent(`/blog/${slug}`)}`,
+          permanent: false,
+        },
+      };
+    }
   }
 
   return {
