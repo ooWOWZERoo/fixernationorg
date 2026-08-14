@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/books", label: "Books" },
   { href: "/blog", label: "FN Blogs" },
   { href: "/network", label: "FN Network" },
+  { href: "/events", label: "Events" },
   { href: "/providers", label: "Find a Provider" },
   { href: "/join", label: "Join Fixer Nation" },
   { href: "/ask-the-fixer", label: "Ask The Fixer" },

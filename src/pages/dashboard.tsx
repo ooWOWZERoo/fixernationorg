@@ -3,6 +3,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getTotalPoints } from "@/lib/loyalty";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -11,6 +12,7 @@ interface Props {
   email: string;
   role: string;
   pendingApplication: { type: "PROVIDER" | "AMBASSADOR"; submittedAt: string } | null;
+  totalPoints: number;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -22,7 +24,7 @@ const ROLE_LABEL: Record<string, string> = {
   CONSUMER: "Consumer",
 };
 
-const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingApplication }) => {
+const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingApplication, totalPoints }) => {
   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
   const roleLabel = ROLE_LABEL[role] ?? role;
 
@@ -132,6 +134,20 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingAp
           </div>
         )}
 
+        {/* Loyalty points */}
+        {totalPoints > 0 && (
+          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">Community points</p>
+            <div className="flex items-end gap-2">
+              <p className="text-3xl font-extrabold text-navy">{totalPoints}</p>
+              <p className="mb-0.5 text-sm text-ink-soft">pts</p>
+            </div>
+            <p className="mt-1 text-sm text-ink-soft">
+              Earned by showing up: posting, RSVPing, and referring people.
+            </p>
+          </div>
+        )}
+
         {/* Coming-soon feature tiles */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
@@ -179,16 +195,19 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
-  const pendingApp = await db.userApplication.findFirst({
-    where: {
-      OR: [
-        { userId: session.user.id },
-        { email: session.user.email ?? "" },
-      ],
-      status: "PENDING",
-    },
-    select: { type: true, createdAt: true },
-  });
+  const [pendingApp, totalPoints] = await Promise.all([
+    db.userApplication.findFirst({
+      where: {
+        OR: [
+          { userId: session.user.id },
+          { email: session.user.email ?? "" },
+        ],
+        status: "PENDING",
+      },
+      select: { type: true, createdAt: true },
+    }),
+    getTotalPoints(session.user.id),
+  ]);
 
   return {
     props: {
@@ -198,6 +217,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       pendingApplication: pendingApp
         ? { type: pendingApp.type as "PROVIDER" | "AMBASSADOR", submittedAt: pendingApp.createdAt.toISOString() }
         : null,
+      totalPoints,
     },
   };
 };

@@ -48,6 +48,9 @@ model User {
   providerProfile          ProviderProfile?
   ambassadorProfile        AmbassadorProfile?
   referredByReferral       Referral?         @relation("ReferredUser")
+  rsvps                    EventRsvp[]
+  giftCodesRedeemed        GiftCode[]
+  loyaltyPoints            LoyaltyPoint[]
 
   @@index([email])
 }
@@ -497,6 +500,80 @@ model FixerQuestion {
   @@index([status, createdAt])
 }
 
+// ─── Events (Phase 5) ────────────────────────────────────────────────────────
+
+model Event {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  description String?   @db.Text
+  coverUrl    String?
+  location    String?
+  isVirtual   Boolean   @default(false)
+  meetingUrl  String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  capacity    Int?
+  priceCents  Int       @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  rsvps EventRsvp[]
+
+  @@index([startsAt])
+  @@index([publishedAt])
+}
+
+model EventRsvp {
+  id        String     @id @default(cuid())
+  eventId   String
+  userId    String
+  status    RsvpStatus @default(REGISTERED)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+// ─── Gift Codes (Phase 5) ────────────────────────────────────────────────────
+
+model GiftCode {
+  id               String    @id @default(cuid())
+  code             String    @unique
+  grantedRole      UserRole  @default(MEMBER)
+  description      String?
+  redeemedByUserId String?
+  redeemedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  redeemedBy User? @relation(fields: [redeemedByUserId], references: [id])
+
+  @@index([code])
+}
+
+// ─── Loyalty Points (Phase 5) ────────────────────────────────────────────────
+
+model LoyaltyPoint {
+  id         String   @id @default(cuid())
+  userId     String
+  points     Int
+  reason     String
+  resourceId String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
@@ -567,6 +644,12 @@ enum ContactStatus {
 enum ApplicationType {
   PROVIDER
   AMBASSADOR
+}
+
+enum RsvpStatus {
+  REGISTERED
+  CANCELLED
+  WAITLISTED
 }
 
 enum ApplicationStatus {
