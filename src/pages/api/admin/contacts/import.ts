@@ -1,4 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+
+export const config = {
+  api: { bodyParser: { sizeLimit: "10mb" } },
+};
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { type ContactConsentTopic } from "@prisma/client";
