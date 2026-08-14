@@ -66,9 +66,9 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
         {/* Coming-soon feature tiles */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
-            { label: "Morning Boost Emails", desc: "Daily motivation delivered to your inbox.", soon: false },
+            { label: "Morning Boost", desc: "One short read every morning to reset, refocus, and move forward.", href: "/morning-boost", soon: false },
             { label: "Ask The Fixer", desc: "Submit a question to our expert network.", href: "/ask-the-fixer", soon: false },
-            { label: "FN Blog & Library", desc: "Full access to all articles and resources.", soon: true },
+            { label: "FN Blog & Library", desc: "Full access to all articles and resources.", href: "/blog", soon: false },
             { label: "Mobile App", desc: "Access Fixer Nation on the go.", soon: true },
           ].map((tile) => (
             <div

@@ -7,6 +7,7 @@ const ADMIN_NAV = [
   { href: "/admin/products", label: "Products" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/groups", label: "Groups" },
+  { href: "/admin/morning-boost", label: "Morning Boost" },
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/questions", label: "Ask The Fixer" },
   { href: "/admin/settings", label: "Settings" },
