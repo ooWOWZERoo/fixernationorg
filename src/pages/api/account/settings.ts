@@ -15,6 +15,10 @@ const PutSchema = z.union([
     currentPassword: z.string().min(1),
     newPassword: z.string().min(8, "Password must be at least 8 characters"),
   }),
+  z.object({
+    action: z.literal("emailPrefs"),
+    morningBoostEmails: z.boolean(),
+  }),
 ]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -52,6 +56,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const hash = await bcrypt.hash(parsed.data.newPassword, 12);
     await db.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+    return res.json({ ok: true });
+  }
+
+  if (parsed.data.action === "emailPrefs") {
+    await db.user.update({
+      where: { id: userId },
+      data: { morningBoostEmails: parsed.data.morningBoostEmails },
+    });
     return res.json({ ok: true });
   }
 }

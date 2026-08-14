@@ -1,16 +1,90 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
+import { sendEmail } from "@/lib/postmark";
+import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
 import { randomUUID } from "crypto";
 
 // cPanel calls this URL via HTTP:
-//   https://fixernation.org/api/cron?job=daily-digest&token=CRON_SECRET
+//   https://fixernation.org/api/cron?job=morning-boost&token=CRON_SECRET
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type JobHandler = () => Promise<{ message: string }>;
 
+async function runMorningBoost(): Promise<{ message: string }> {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+  const entry = await db.morningBoost.findFirst({
+    where: {
+      publishedAt: { gte: startOfDay, lt: endOfDay },
+    },
+    select: {
+      title: true,
+      body: true,
+      authorName: true,
+      publishedAt: true,
+      slug: true,
+      excerpt: true,
+      imageUrl: true,
+    },
+  });
+
+  if (!entry || !entry.publishedAt) {
+    return { message: "No Morning Boost entry scheduled for today — skipped" };
+  }
+
+  const members = await db.user.findMany({
+    where: {
+      emailVerified: { not: null },
+      morningBoostEmails: true,
+      email: { not: null },
+    },
+    select: { email: true, name: true },
+  });
+
+  if (members.length === 0) {
+    return { message: "No opted-in members to send to" };
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  // Send in batches of 50 to stay well within Postmark rate limits
+  const BATCH = 50;
+  for (let i = 0; i < members.length; i += BATCH) {
+    const batch = members.slice(i, i + BATCH);
+    await Promise.allSettled(
+      batch.map(async (member) => {
+        try {
+          const email = buildMorningBoostEmail(
+            { ...entry, publishedAt: new Date(entry.publishedAt!) },
+            member.name
+          );
+          await sendEmail({
+            to: member.email,
+            subject: email.subject,
+            htmlBody: email.htmlBody,
+            textBody: email.textBody,
+            messageStream: "broadcast",
+          });
+          sent++;
+        } catch {
+          failed++;
+        }
+      })
+    );
+  }
+
+  return {
+    message: `Morning Boost "${entry.title}" sent to ${sent} member${sent !== 1 ? "s" : ""}${failed > 0 ? ` (${failed} failed)` : ""}`,
+  };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
+  "morning-boost": runMorningBoost,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

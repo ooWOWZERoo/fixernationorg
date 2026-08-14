@@ -1,0 +1,1 @@
+ALTER TABLE "User" ADD COLUMN "morningBoostEmails" BOOLEAN NOT NULL DEFAULT true;

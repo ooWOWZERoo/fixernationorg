@@ -25,9 +25,10 @@ model User {
   // Extended — not part of Auth.js spec
   passwordHash String?
   role         UserRole @default(CONSUMER)
-  mfaEnabled   Boolean  @default(false)
-  mfaSecret    String?  // encrypted TOTP secret; null until MFA enrolled
-  createdAt    DateTime @default(now())
+  mfaEnabled          Boolean  @default(false)
+  mfaSecret           String?  // encrypted TOTP secret; null until MFA enrolled
+  morningBoostEmails  Boolean  @default(true)
+  createdAt           DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   username     String?  @unique

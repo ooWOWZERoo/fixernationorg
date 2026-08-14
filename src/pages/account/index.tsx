@@ -13,6 +13,7 @@ interface Props {
     name: string | null;
     email: string;
     hasPassword: boolean;
+    morningBoostEmails: boolean;
   };
 }
 
@@ -27,6 +28,10 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [morningBoostEmails, setMorningBoostEmails] = useState(user.morningBoostEmails);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsMsg, setPrefsMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
     setNameSaving(true);
@@ -39,6 +44,21 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
     const data = await res.json();
     setNameMsg(res.ok ? { ok: true, text: "Name updated." } : { ok: false, text: data.error ?? "Something went wrong." });
     setNameSaving(false);
+  }
+
+  async function saveEmailPrefs(checked: boolean) {
+    setPrefsSaving(true);
+    setPrefsMsg(null);
+    setMorningBoostEmails(checked);
+    const res = await fetch("/api/account/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "emailPrefs", morningBoostEmails: checked }),
+    });
+    const data = await res.json();
+    setPrefsMsg(res.ok ? { ok: true, text: "Saved." } : { ok: false, text: data.error ?? "Something went wrong." });
+    setTimeout(() => setPrefsMsg(null), 2500);
+    setPrefsSaving(false);
   }
 
   async function savePassword(e: React.FormEvent) {
@@ -113,6 +133,31 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
               {nameSaving ? "Saving…" : "Save name"}
             </button>
           </form>
+
+          {/* Email preferences */}
+          <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
+            <h2 className="text-base font-extrabold text-navy">Email preferences</h2>
+            <label className="mt-4 flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={morningBoostEmails}
+                disabled={prefsSaving}
+                onChange={(e) => saveEmailPrefs(e.target.checked)}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-navy"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-ink">Morning Boost</span>
+                <span className="block text-sm text-ink-soft">
+                  Get the daily Morning Boost email — a short read to start your day.
+                </span>
+              </span>
+            </label>
+            {prefsMsg && (
+              <p className={`mt-3 text-sm font-semibold ${prefsMsg.ok ? "text-green-700" : "text-red-600"}`}>
+                {prefsMsg.text}
+              </p>
+            )}
+          </div>
 
           {/* Password */}
           {user.hasPassword ? (
@@ -195,7 +240,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { name: true, email: true, passwordHash: true },
+    select: { name: true, email: true, passwordHash: true, morningBoostEmails: true },
   });
 
   return {
@@ -204,6 +249,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         name: user?.name ?? null,
         email: user?.email ?? session.user.email ?? "",
         hasPassword: !!user?.passwordHash,
+        morningBoostEmails: user?.morningBoostEmails ?? true,
       },
     },
   };
