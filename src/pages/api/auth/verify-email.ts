@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
+import { sendEmail } from "@/lib/postmark";
+import { buildWelcomeEmail } from "@/lib/emails/welcome";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -20,11 +22,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const userId = record.identifier.replace("verify:", "");
-  await db.user.update({
+  const user = await db.user.update({
     where: { id: userId },
     data: { emailVerified: new Date() },
+    select: { email: true, name: true },
   });
   await db.verificationToken.delete({ where: { token } });
+
+  // Welcome email — fire and forget
+  try {
+    const email = buildWelcomeEmail(user.name);
+    await sendEmail({ to: user.email, ...email });
+  } catch (err) {
+    console.error("[email] Failed to send welcome email:", err);
+  }
 
   return res.redirect("/signin?verified=1");
 }

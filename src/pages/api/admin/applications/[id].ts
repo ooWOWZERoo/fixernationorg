@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
+import { sendEmail } from "@/lib/postmark";
+import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -79,6 +81,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { type: application.type, applicantEmail: application.email, reviewNotes: reviewNotes ?? null },
       ip: getClientIp(req),
     });
+
+    // Notify the applicant — fire and forget
+    try {
+      const appType = application.type as "PROVIDER" | "AMBASSADOR";
+      const email =
+        status === "APPROVED"
+          ? buildApplicationApprovedEmail(application.name, appType)
+          : buildApplicationRejectedEmail(application.name, appType);
+      await sendEmail({ to: application.email, ...email });
+    } catch (err) {
+      console.error("[email] Failed to send application decision email:", err);
+    }
 
     return res.status(200).json(updated);
   }
