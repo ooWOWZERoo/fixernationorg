@@ -6,64 +6,57 @@ import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
-type ProviderCard = {
+type AmbassadorCard = {
   id: string;
   name: string | null;
   username: string;
   headline: string | null;
   location: string | null;
   avatarUrl: string | null;
-  businessName: string | null;
-  specialty: string | null;
-  serviceArea: string | null;
+  territory: string | null;
+  bio: string | null;
 };
 
 interface Props {
-  providers: ProviderCard[];
+  ambassadors: AmbassadorCard[];
 }
 
-const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
+const AmbassadorsPage: NextPageWithLayout<Props> = ({ ambassadors }) => {
   const [query, setQuery] = useState("");
 
   const filtered = query.trim()
-    ? providers.filter((p) => {
+    ? ambassadors.filter((a) => {
         const q = query.toLowerCase();
         return (
-          p.name?.toLowerCase().includes(q) ||
-          p.businessName?.toLowerCase().includes(q) ||
-          p.specialty?.toLowerCase().includes(q) ||
-          p.headline?.toLowerCase().includes(q) ||
-          p.serviceArea?.toLowerCase().includes(q) ||
-          p.location?.toLowerCase().includes(q)
+          a.name?.toLowerCase().includes(q) ||
+          a.territory?.toLowerCase().includes(q) ||
+          a.headline?.toLowerCase().includes(q) ||
+          a.location?.toLowerCase().includes(q)
         );
       })
-    : providers;
+    : ambassadors;
 
   return (
     <>
       <Head>
-        <title>Find a Provider — Fixer Nation</title>
-        <meta
-          name="description"
-          content="Browse vetted service providers in the Fixer Nation community."
-        />
+        <title>Find an Ambassador — Fixer Nation</title>
+        <meta name="description" content="Meet the Fixer Nation brand ambassadors in your area." />
       </Head>
       <main className="mx-auto max-w-5xl px-6 py-12 lg:px-8">
         <div className="mb-8">
           <p className="mb-2 text-sm font-bold uppercase tracking-widest text-amber-dark">
-            Service Providers
+            Brand Ambassadors
           </p>
-          <h1 className="mb-3 text-3xl font-extrabold text-navy">Find a Provider</h1>
+          <h1 className="mb-3 text-3xl font-extrabold text-navy">Find an Ambassador</h1>
           <p className="max-w-xl text-muted">
-            These are people who applied to join, went through our review, and got in.
-            Search by name or location, or just scroll through and see who&apos;s here.
+            Ambassadors are members who represent Fixer Nation in their communities. They applied, got reviewed, and said yes to helping others find us.
           </p>
         </div>
 
         <div className="mb-6">
           <input
             type="search"
-            placeholder="Search by name or location..."
+            placeholder="Search by name or area..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full max-w-sm rounded-xl border border-navy/12 px-4 py-2.5 text-sm text-ink placeholder-muted focus:border-navy/30 focus:outline-none"
@@ -72,10 +65,10 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
 
         <div className="mb-8 flex items-center justify-between gap-4 rounded-2xl border border-amber/30 bg-amber/8 px-5 py-4">
           <p className="text-sm text-ink">
-            Are you a service professional? Join our verified provider network and get in front of members who are actively looking for help.
+            Want to represent Fixer Nation in your area? We&apos;d love to hear from you.
           </p>
           <Link
-            href="/become-a-provider"
+            href="/become-an-ambassador"
             className="shrink-0 rounded-lg bg-amber px-4 py-2 text-sm font-bold text-navy-dark no-underline hover:bg-amber-dark transition-colors"
           >
             Apply to join
@@ -84,54 +77,46 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
 
         {filtered.length === 0 ? (
           <p className="text-sm text-muted">
-            {query ? "Nobody here matches that search." : "No providers are listed yet."}
+            {query ? "Nobody here matches that search." : "No ambassadors are listed yet."}
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((p) => (
+            {filtered.map((a) => (
               <Link
-                key={p.id}
-                href={`/profile/${p.username}`}
+                key={a.id}
+                href={`/profile/${a.username}`}
                 className="group rounded-2xl border border-navy/8 bg-white p-5 shadow-sm no-underline transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-start gap-4">
                   <div className="shrink-0">
-                    {p.avatarUrl ? (
+                    {a.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={p.avatarUrl}
-                        alt={p.name ?? "Provider"}
+                        src={a.avatarUrl}
+                        alt={a.name ?? "Ambassador"}
                         className="h-12 w-12 rounded-full object-cover"
                       />
                     ) : (
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-navy text-base font-bold text-amber">
-                        {p.name?.[0]?.toUpperCase() ?? "P"}
+                        {a.name?.[0]?.toUpperCase() ?? "A"}
                       </div>
                     )}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-bold text-navy group-hover:text-amber-dark">
-                      {p.businessName ?? p.name ?? p.username}
+                      {a.name ?? a.username}
                     </p>
-                    {p.specialty ? (
-                      <p className="mt-0.5 text-sm font-medium text-amber-dark truncate">{p.specialty}</p>
-                    ) : p.headline ? (
-                      <p className="mt-0.5 line-clamp-2 text-sm text-muted">{p.headline}</p>
+                    {a.territory ? (
+                      <p className="mt-0.5 text-sm font-medium text-amber-dark truncate">{a.territory}</p>
+                    ) : a.headline ? (
+                      <p className="mt-0.5 line-clamp-2 text-sm text-muted">{a.headline}</p>
                     ) : null}
-                    {(p.serviceArea ?? p.location) && (
+                    {(a.location) && (
                       <p className="mt-2 flex items-center gap-1 text-xs text-muted">
-                        <svg
-                          className="h-3 w-3 shrink-0"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                            clipRule="evenodd"
-                          />
+                        <svg className="h-3 w-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                         </svg>
-                        {p.serviceArea ?? p.location}
+                        {a.location}
                       </p>
                     )}
                   </div>
@@ -148,27 +133,27 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
   );
 };
 
-ProvidersPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
-export default ProvidersPage;
+AmbassadorsPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
+export default AmbassadorsPage;
 
 export const getServerSideProps: GetServerSideProps<Props> = async () => {
   const users = await db.user.findMany({
     where: {
-      role: "PROVIDER",
+      role: "AMBASSADOR",
       username: { not: null },
     },
     include: {
       socialProfile: {
         select: { headline: true, location: true, avatarUrl: true },
       },
-      providerProfile: {
-        select: { businessName: true, specialty: true, serviceArea: true },
+      ambassadorProfile: {
+        select: { territory: true, bio: true },
       },
     },
     orderBy: { name: "asc" },
   });
 
-  const providers: ProviderCard[] = users
+  const ambassadors: AmbassadorCard[] = users
     .filter((u) => u.username !== null)
     .map((u) => ({
       id: u.id,
@@ -177,10 +162,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
       headline: u.socialProfile?.headline ?? null,
       location: u.socialProfile?.location ?? null,
       avatarUrl: u.socialProfile?.avatarUrl ?? null,
-      businessName: u.providerProfile?.businessName ?? null,
-      specialty: u.providerProfile?.specialty ?? null,
-      serviceArea: u.providerProfile?.serviceArea ?? null,
+      territory: u.ambassadorProfile?.territory ?? null,
+      bio: u.ambassadorProfile?.bio ?? null,
     }));
 
-  return { props: { providers } };
+  return { props: { ambassadors } };
 };

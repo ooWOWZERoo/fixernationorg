@@ -9,6 +9,7 @@ const RegisterSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  ref: z.string().max(20).optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid input" });
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, ref } = parsed.data;
 
   const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
@@ -34,6 +35,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await db.user.create({
     data: { name, email, passwordHash },
   });
+
+  if (ref) {
+    try {
+      const ambassadorProfile = await db.ambassadorProfile.findUnique({ where: { referralCode: ref } });
+      if (ambassadorProfile) {
+        await db.referral.create({
+          data: {
+            ambassadorId: ambassadorProfile.id,
+            referralCode: ref,
+            referredUserId: user.id,
+            convertedAt: new Date(),
+          },
+        });
+      }
+    } catch {
+      // fire and forget — referral tracking never breaks signup
+    }
+  }
 
   const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours

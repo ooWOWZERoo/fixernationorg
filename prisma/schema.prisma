@@ -46,6 +46,9 @@ model User {
   sentMessages             DirectMessage[]
   socialProfile            SocialProfile?
   providerProfile          ProviderProfile?
+  ambassadorProfile        AmbassadorProfile?
+  referrals                Referral[]        @relation("AmbassadorReferrals")
+  referredByReferral       Referral?         @relation("ReferredUser")
 
   @@index([email])
 }
@@ -189,6 +192,38 @@ model ProviderProfile {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Ambassador Profile + Referral Tracking (Phase 4) ────────────────────────
+
+model AmbassadorProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  territory    String?
+  bio          String?  @db.Text
+  website      String?
+  phone        String?
+  referralCode String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+}
+
+model Referral {
+  id              String    @id @default(cuid())
+  ambassadorId    String
+  referralCode    String
+  referredUserId  String?   @unique
+  convertedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  ambassador   AmbassadorProfile @relation(fields: [ambassadorId], references: [id], onDelete: Cascade)
+  referredUser User?             @relation("ReferredUser", fields: [referredUserId], references: [id])
+
+  @@index([ambassadorId])
+  @@index([referralCode])
 }
 
 // ─── Direct Messages (Phase 2b) ──────────────────────────────────────────────

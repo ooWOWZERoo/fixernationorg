@@ -25,6 +25,13 @@ type ProviderBusiness = {
   serviceArea: string | null;
 } | null;
 
+type AmbassadorInfo = {
+  territory: string | null;
+  bio: string | null;
+  website: string | null;
+  phone: string | null;
+} | null;
+
 interface Props {
   profile: {
     userId: string;
@@ -38,6 +45,7 @@ interface Props {
     joinedAt: string;
   };
   providerBusiness: ProviderBusiness;
+  ambassadorInfo: AmbassadorInfo;
   groups: GroupItem[];
   isOwnProfile: boolean;
   currentUserId: string | null;
@@ -46,11 +54,13 @@ interface Props {
 const ProfilePage: NextPageWithLayout<Props> = ({
   profile,
   providerBusiness,
+  ambassadorInfo,
   groups,
   isOwnProfile,
   currentUserId,
 }) => {
   const isProvider = profile.role === "PROVIDER";
+  const isAmbassador = profile.role === "AMBASSADOR";
   const [messageLoading, setMessageLoading] = useState(false);
 
   async function startMessage() {
@@ -109,6 +119,11 @@ const ProfilePage: NextPageWithLayout<Props> = ({
                       Service Provider
                     </span>
                   )}
+                  {isAmbassador && (
+                    <span className="rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-bold text-navy">
+                      Ambassador
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-semibold text-ink-soft">@{profile.username}</p>
                 {profile.headline && (
@@ -141,6 +156,14 @@ const ProfilePage: NextPageWithLayout<Props> = ({
                     <Link
                       href="/account/business"
                       className="rounded-lg border border-amber/40 bg-amber/8 px-4 py-2 text-sm font-semibold text-amber-dark no-underline hover:bg-amber/15 transition-colors"
+                    >
+                      Edit your listing
+                    </Link>
+                  )}
+                  {isAmbassador && (
+                    <Link
+                      href="/account/ambassador"
+                      className="rounded-lg border border-navy/20 bg-navy/6 px-4 py-2 text-sm font-semibold text-navy no-underline hover:bg-navy/12 transition-colors"
                     >
                       Edit your listing
                     </Link>
@@ -229,6 +252,49 @@ const ProfilePage: NextPageWithLayout<Props> = ({
             </div>
           )}
 
+          {/* Ambassador info card */}
+          {isAmbassador && ambassadorInfo && (ambassadorInfo.territory || ambassadorInfo.bio || ambassadorInfo.phone || ambassadorInfo.website) && (
+            <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-xs font-extrabold uppercase tracking-widest text-ink-soft">
+                Ambassador
+              </h2>
+              {ambassadorInfo.territory && (
+                <span className="mb-3 inline-block rounded-full bg-navy/8 px-3 py-1 text-sm font-semibold text-navy">
+                  {ambassadorInfo.territory}
+                </span>
+              )}
+              {ambassadorInfo.bio && (
+                <p className="mt-2 text-sm leading-relaxed text-ink whitespace-pre-line">
+                  {ambassadorInfo.bio}
+                </p>
+              )}
+              {(ambassadorInfo.phone || ambassadorInfo.website) && (
+                <dl className="mt-5 space-y-2.5">
+                  {ambassadorInfo.phone && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Phone</dt>
+                      <dd className="mt-0.5 text-sm text-ink">
+                        <a href={`tel:${ambassadorInfo.phone}`} className="text-navy underline underline-offset-2 hover:text-navy-dark">
+                          {ambassadorInfo.phone}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                  {ambassadorInfo.website && (
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Website</dt>
+                      <dd className="mt-0.5 text-sm">
+                        <a href={ambassadorInfo.website} target="_blank" rel="noopener noreferrer" className="text-navy underline underline-offset-2 hover:text-navy-dark">
+                          Visit website
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+            </div>
+          )}
+
           {/* Groups */}
           {groups.length > 0 && (
             <div className="mt-6">
@@ -291,6 +357,14 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           serviceArea: true,
         },
       },
+      ambassadorProfile: {
+        select: {
+          territory: true,
+          bio: true,
+          website: true,
+          phone: true,
+        },
+      },
       groupMemberships: {
         select: {
           group: {
@@ -331,6 +405,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }
     : null;
 
+  const ambassadorInfo: AmbassadorInfo = user.role === "AMBASSADOR" && user.ambassadorProfile
+    ? {
+        territory: user.ambassadorProfile.territory,
+        bio: user.ambassadorProfile.bio,
+        website: user.ambassadorProfile.website,
+        phone: user.ambassadorProfile.phone,
+      }
+    : null;
+
   return {
     props: {
       profile: {
@@ -345,6 +428,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         joinedAt: user.createdAt.toISOString(),
       },
       providerBusiness,
+      ambassadorInfo,
       groups,
       isOwnProfile: session?.user.id === user.id,
       currentUserId: session?.user.id ?? null,

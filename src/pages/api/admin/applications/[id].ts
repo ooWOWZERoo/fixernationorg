@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
 import { sendEmail } from "@/lib/postmark";
+import { generateUniqueReferralCode } from "@/lib/referral";
 import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
@@ -57,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (newRole) {
         const prevUser = await db.user.findUnique({ where: { id: application.userId }, select: { role: true } });
         await db.user.update({ where: { id: application.userId }, data: { role: newRole } });
-        await Promise.all([
+        const roleChangeTasks: Promise<unknown>[] = [
           logAction({
             actorId: session.user.id,
             actorEmail: session.user.email,
@@ -68,7 +69,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             ip: getClientIp(req),
           }),
           autoJoinGroups(application.userId, newRole),
-        ]);
+        ];
+
+        if (newRole === "AMBASSADOR") {
+          roleChangeTasks.push(
+            generateUniqueReferralCode().then((referralCode) =>
+              db.ambassadorProfile.upsert({
+                where: { userId: application.userId! },
+                create: { userId: application.userId!, referralCode },
+                update: {},
+              })
+            )
+          );
+        }
+
+        await Promise.all(roleChangeTasks);
       }
     }
 

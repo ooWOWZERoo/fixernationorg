@@ -112,6 +112,14 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
                 </Link>
               </>
             )}
+            {user.role === "AMBASSADOR" && (
+              <>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  Ambassador profile
+                </Link>
+              </>
+            )}
           </div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Account Settings</h1>
           <p className="mt-1 text-sm text-ink-soft">{user.email}</p>

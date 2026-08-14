@@ -97,6 +97,14 @@ const EditProfilePage: NextPageWithLayout<Props> = ({ initial, role }) => {
                 </Link>
               </>
             )}
+            {role === "AMBASSADOR" && (
+              <>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  Ambassador profile
+                </Link>
+              </>
+            )}
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Your Profile</h1>
           <p className="mt-2 text-sm text-ink-soft">

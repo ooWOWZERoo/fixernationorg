@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  const ref = typeof router.query.ref === "string" ? router.query.ref : undefined;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -23,7 +25,7 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, ...(ref ? { ref } : {}) }),
     });
     const data = await res.json();
 

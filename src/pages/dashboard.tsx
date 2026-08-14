@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -9,6 +10,7 @@ interface Props {
   name: string | null;
   email: string;
   role: string;
+  pendingApplication: { type: "PROVIDER" | "AMBASSADOR"; submittedAt: string } | null;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,7 +22,7 @@ const ROLE_LABEL: Record<string, string> = {
   CONSUMER: "Consumer",
 };
 
-const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
+const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingApplication }) => {
   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
   const roleLabel = ROLE_LABEL[role] ?? role;
 
@@ -63,6 +65,21 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
           </div>
         )}
 
+        {pendingApplication && (
+          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">
+              Application pending
+            </p>
+            <p className="font-bold text-navy">
+              Your {pendingApplication.type === "PROVIDER" ? "service provider" : "ambassador"} application is under review
+            </p>
+            <p className="mt-1 text-sm text-ink-soft">
+              We review every application personally. We'll email you at {email} once a decision is made.
+              Submitted {new Date(pendingApplication.submittedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+            </p>
+          </div>
+        )}
+
         {role === "PROVIDER" && (
           <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
             <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">
@@ -82,6 +99,36 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
             >
               Set up your listing →
             </Link>
+          </div>
+        )}
+
+        {role === "AMBASSADOR" && (
+          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">
+              Brand Ambassador
+            </p>
+            <p className="font-bold text-navy">Your ambassador profile</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Set up your listing and get your personal referral link for the{" "}
+              <Link href="/ambassadors" className="underline underline-offset-2 hover:text-navy-dark">
+                ambassador directory
+              </Link>
+              .
+            </p>
+            <div className="mt-3 flex gap-4">
+              <Link
+                href="/account/ambassador"
+                className="text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
+              >
+                Set up your listing →
+              </Link>
+              <Link
+                href="/account/referrals"
+                className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
+              >
+                View referrals →
+              </Link>
+            </div>
           </div>
         )}
 
@@ -132,11 +179,25 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
+  const pendingApp = await db.userApplication.findFirst({
+    where: {
+      OR: [
+        { userId: session.user.id },
+        { email: session.user.email ?? "" },
+      ],
+      status: "PENDING",
+    },
+    select: { type: true, createdAt: true },
+  });
+
   return {
     props: {
       name: session.user.name ?? null,
       email: session.user.email ?? "",
       role: session.user.role,
+      pendingApplication: pendingApp
+        ? { type: pendingApp.type as "PROVIDER" | "AMBASSADOR", submittedAt: pendingApp.createdAt.toISOString() }
+        : null,
     },
   };
 };
