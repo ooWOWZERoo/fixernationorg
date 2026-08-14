@@ -14,10 +14,12 @@ interface Props {
     email: string;
     hasPassword: boolean;
     morningBoostEmails: boolean;
+    role: string;
   };
 }
 
 const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
+  const isProvider = user.role === "PROVIDER";
   const [name, setName] = useState(user.name ?? "");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMsg, setNameMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -94,7 +96,7 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2 flex items-center gap-3">
+          <div className="mb-2 flex items-center gap-3 flex-wrap">
             <Link href="/account/profile" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               ← My Profile
             </Link>
@@ -102,6 +104,14 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
             <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Security
             </Link>
+            {isProvider && (
+              <>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  Business profile
+                </Link>
+              </>
+            )}
           </div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Account Settings</h1>
           <p className="mt-1 text-sm text-ink-soft">{user.email}</p>
@@ -250,6 +260,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         email: user?.email ?? session.user.email ?? "",
         hasPassword: !!user?.passwordHash,
         morningBoostEmails: user?.morningBoostEmails ?? true,
+        role: session.user.role ?? "CONSUMER",
       },
     },
   };

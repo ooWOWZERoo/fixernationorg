@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useState, useRef } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -15,9 +16,11 @@ interface Props {
     location: string | null;
     avatarUrl: string | null;
   };
+  role: string;
 }
 
-const EditProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
+const EditProfilePage: NextPageWithLayout<Props> = ({ initial, role }) => {
+  const isProvider = role === "PROVIDER";
   const [username, setUsername] = useState(initial.username ?? "");
   const [headline, setHeadline] = useState(initial.headline ?? "");
   const [bio, setBio] = useState(initial.bio ?? "");
@@ -78,6 +81,23 @@ const EditProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
+          <div className="mb-6 flex items-center gap-3 flex-wrap">
+            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+              Settings
+            </Link>
+            <span className="text-ink-soft/40">·</span>
+            <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+              Security
+            </Link>
+            {isProvider && (
+              <>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  Business profile
+                </Link>
+              </>
+            )}
+          </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Your Profile</h1>
           <p className="mt-2 text-sm text-ink-soft">
             This is what other members see when they visit your profile.
@@ -260,6 +280,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         location: user?.socialProfile?.location ?? null,
         avatarUrl: user?.socialProfile?.avatarUrl ?? null,
       },
+      role: session.user.role ?? "CONSUMER",
     },
   };
 };

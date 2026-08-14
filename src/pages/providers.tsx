@@ -13,6 +13,9 @@ type ProviderCard = {
   headline: string | null;
   location: string | null;
   avatarUrl: string | null;
+  businessName: string | null;
+  specialty: string | null;
+  serviceArea: string | null;
 };
 
 interface Props {
@@ -27,7 +30,10 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
         const q = query.toLowerCase();
         return (
           p.name?.toLowerCase().includes(q) ||
+          p.businessName?.toLowerCase().includes(q) ||
+          p.specialty?.toLowerCase().includes(q) ||
           p.headline?.toLowerCase().includes(q) ||
+          p.serviceArea?.toLowerCase().includes(q) ||
           p.location?.toLowerCase().includes(q)
         );
       })
@@ -92,12 +98,14 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-bold text-navy group-hover:text-amber-dark">
-                      {p.name ?? p.username}
+                      {p.businessName ?? p.name ?? p.username}
                     </p>
-                    {p.headline && (
+                    {p.specialty ? (
+                      <p className="mt-0.5 text-sm font-medium text-amber-dark truncate">{p.specialty}</p>
+                    ) : p.headline ? (
                       <p className="mt-0.5 line-clamp-2 text-sm text-muted">{p.headline}</p>
-                    )}
-                    {p.location && (
+                    ) : null}
+                    {(p.serviceArea ?? p.location) && (
                       <p className="mt-2 flex items-center gap-1 text-xs text-muted">
                         <svg
                           className="h-3 w-3 shrink-0"
@@ -111,7 +119,7 @@ const ProvidersPage: NextPageWithLayout<Props> = ({ providers }) => {
                             clipRule="evenodd"
                           />
                         </svg>
-                        {p.location}
+                        {p.serviceArea ?? p.location}
                       </p>
                     )}
                   </div>
@@ -139,11 +147,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
     },
     include: {
       socialProfile: {
-        select: {
-          headline: true,
-          location: true,
-          avatarUrl: true,
-        },
+        select: { headline: true, location: true, avatarUrl: true },
+      },
+      providerProfile: {
+        select: { businessName: true, specialty: true, serviceArea: true },
       },
     },
     orderBy: { name: "asc" },
@@ -158,6 +165,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
       headline: u.socialProfile?.headline ?? null,
       location: u.socialProfile?.location ?? null,
       avatarUrl: u.socialProfile?.avatarUrl ?? null,
+      businessName: u.providerProfile?.businessName ?? null,
+      specialty: u.providerProfile?.specialty ?? null,
+      serviceArea: u.providerProfile?.serviceArea ?? null,
     }));
 
   return { props: { providers } };

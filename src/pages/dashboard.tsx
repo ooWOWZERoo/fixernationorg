@@ -63,6 +63,28 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role }) => {
           </div>
         )}
 
+        {role === "PROVIDER" && (
+          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">
+              Service Provider
+            </p>
+            <p className="font-bold text-navy">Your business profile</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Add your specialty, services, and contact info so members can find you on the{" "}
+              <Link href="/providers" className="underline underline-offset-2 hover:text-navy-dark">
+                provider directory
+              </Link>
+              .
+            </p>
+            <Link
+              href="/account/business"
+              className="mt-3 inline-block text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
+            >
+              Set up your listing →
+            </Link>
+          </div>
+        )}
+
         {/* Coming-soon feature tiles */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
