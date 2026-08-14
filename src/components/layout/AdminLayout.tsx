@@ -9,6 +9,7 @@ const ADMIN_NAV = [
   { href: "/admin/groups", label: "Groups" },
   { href: "/admin/morning-boost", label: "Morning Boost" },
   { href: "/admin/blog", label: "Blog" },
+  { href: "/admin/contact", label: "Contact" },
   { href: "/admin/questions", label: "Ask The Fixer" },
   { href: "/admin/settings", label: "Settings" },
 ];

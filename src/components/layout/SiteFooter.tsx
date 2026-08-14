@@ -19,6 +19,7 @@ const FOOTER_LINKS = {
   ],
   Support: [
     { href: "/about", label: "About" },
+    { href: "/contact", label: "Contact" },
     { href: "/signin", label: "Log In" },
   ],
 };

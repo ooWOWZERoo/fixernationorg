@@ -357,6 +357,20 @@ model MorningBoost {
   @@index([publishedAt])
 }
 
+// ─── Contact form submissions ─────────────────────────────────────────────────
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String        @db.Text
+  status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
 // ─── Ask The Fixer submissions ────────────────────────────────────────────────
 
 model FixerQuestion {
@@ -431,4 +445,10 @@ enum QuestionStatus {
   IN_REVIEW
   RESPONDED
   CLOSED
+}
+
+enum ContactStatus {
+  NEW
+  READ
+  ARCHIVED
 }
