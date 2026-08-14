@@ -31,7 +31,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
 
   const isActive = (href: string, exact?: boolean) =>
-    exact ? router.pathname === href : router.pathname.startsWith(href);
+    exact
+      ? router.pathname === href
+      : router.pathname === href || router.pathname.startsWith(href + "/");
 
   return (
     <div className="flex min-h-screen bg-slate-50">

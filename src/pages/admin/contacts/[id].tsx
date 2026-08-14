@@ -15,6 +15,7 @@ interface ConsentRow { topic: Topic; optedIn: boolean }
 interface NoteRow { id: string; body: string; createdAt: string }
 interface ListRow { id: string; name: string }
 interface SendRow { id: string; campaignName: string; status: string; sentAt: string | null }
+interface ListOption { id: string; name: string }
 
 interface Props {
   contact: {
@@ -33,14 +34,26 @@ interface Props {
     lists: ListRow[];
     sends: SendRow[];
   };
+  allLists: ListOption[];
 }
 
-const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial }) => {
+const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, allLists }) => {
   const router = useRouter();
   const [contact, setContact] = useState(initial);
   const [newNote, setNewNote] = useState("");
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: initial.firstName ?? "",
+    lastName: initial.lastName ?? "",
+    phone: initial.phone ?? "",
+    company: initial.company ?? "",
+  });
+
+  const [addToListId, setAddToListId] = useState("");
+  const [addingToList, setAddingToList] = useState(false);
 
   async function patch(action: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/admin/contacts/${contact.id}`, {
@@ -50,6 +63,44 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial })
     });
     if (!res.ok) throw new Error("Failed");
     return res;
+  }
+
+  async function saveEdit() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setContact((c) => ({
+        ...c,
+        firstName: editForm.firstName || null,
+        lastName: editForm.lastName || null,
+        phone: editForm.phone || null,
+        company: editForm.company || null,
+      }));
+      setEditing(false);
+    } catch { /* ignore */ } finally { setSaving(false); }
+  }
+
+  async function addToList() {
+    if (!addToListId) return;
+    setAddingToList(true);
+    try {
+      const res = await fetch(`/api/admin/lists/${addToListId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add-contacts", contactIds: [contact.id] }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const newList = allLists.find((l) => l.id === addToListId);
+      if (newList) {
+        setContact((c) => ({ ...c, lists: [...c.lists, { id: newList.id, name: newList.name }] }));
+      }
+      setAddToListId("");
+    } catch { /* ignore */ } finally { setAddingToList(false); }
   }
 
   async function addNote() {
@@ -91,6 +142,7 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial })
   }
 
   const consentMap = Object.fromEntries(contact.consents.map((c) => [c.topic, c.optedIn]));
+  const availableLists = allLists.filter((l) => !contact.lists.some((cl) => cl.id === l.id));
 
   return (
     <>
@@ -107,25 +159,74 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial })
 
           {/* Profile card */}
           <div className="rounded-2xl border border-navy/8 bg-white p-6">
-            <div className="mb-4 flex items-start justify-between">
-              <div>
-                <h1 className="text-xl font-extrabold text-navy">
-                  {contact.firstName || contact.lastName ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() : contact.email}
-                </h1>
-                <p className="text-sm text-ink-soft">{contact.email}</p>
-                {contact.company && <p className="text-sm text-ink-soft">{contact.company}</p>}
-                {contact.phone && <p className="text-sm text-ink-soft">{contact.phone}</p>}
+            {editing ? (
+              <>
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">First name</label>
+                    <input type="text" value={editForm.firstName}
+                      onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Last name</label>
+                    <input type="text" value={editForm.lastName}
+                      onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Phone</label>
+                    <input type="text" value={editForm.phone}
+                      onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Company</label>
+                    <input type="text" value={editForm.company}
+                      onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} disabled={saving}
+                    className="rounded-xl bg-navy px-4 py-1.5 text-sm font-bold text-white hover:bg-navy-dark disabled:opacity-60">
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                  <button onClick={() => setEditing(false)}
+                    className="rounded-xl border border-navy/15 px-4 py-1.5 text-sm font-semibold text-ink-soft hover:bg-cream-panel">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mb-4 flex items-start justify-between">
+                <div>
+                  <h1 className="text-xl font-extrabold text-navy">
+                    {contact.firstName || contact.lastName ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() : contact.email}
+                  </h1>
+                  <p className="text-sm text-ink-soft">{contact.email}</p>
+                  {contact.company && <p className="text-sm text-ink-soft">{contact.company}</p>}
+                  {contact.phone && <p className="text-sm text-ink-soft">{contact.phone}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditing(true)}
+                    className="rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel">
+                    Edit
+                  </button>
+                  <button onClick={deleteContact}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
+                    Delete
+                  </button>
+                </div>
               </div>
-              <button onClick={deleteContact}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
-                Delete
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-ink-soft">
-              <span>Source: {contact.source ?? "—"}</span>
-              <span>Added: {new Date(contact.createdAt).toLocaleDateString()}</span>
-              {contact.userId && <span className="text-green-700">Linked to account</span>}
-            </div>
+            )}
+            {!editing && (
+              <div className="flex flex-wrap gap-3 text-xs text-ink-soft">
+                <span>Source: {contact.source ?? "—"}</span>
+                <span>Added: {new Date(contact.createdAt).toLocaleDateString()}</span>
+                {contact.userId && <span className="text-green-700">Linked to account</span>}
+              </div>
+            )}
           </div>
 
           {/* Tags */}
@@ -246,14 +347,35 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial })
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Lists</h2>
             {contact.lists.length === 0 ? (
-              <p className="text-sm text-ink-soft">Not on any lists.</p>
+              <p className="mb-3 text-sm text-ink-soft">Not on any lists.</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="mb-3 space-y-1.5">
                 {contact.lists.map((l) => (
                   <div key={l.id} className="text-sm">
                     <a href={`/admin/lists/${l.id}`} className="font-medium text-navy hover:underline">{l.name}</a>
                   </div>
                 ))}
+              </div>
+            )}
+            {availableLists.length > 0 && (
+              <div className="mt-3 border-t border-navy/8 pt-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-soft">Add to list</p>
+                <div className="flex gap-2">
+                  <select
+                    value={addToListId}
+                    onChange={(e) => setAddToListId(e.target.value)}
+                    className="flex-1 rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+                  >
+                    <option value="">— Select —</option>
+                    {availableLists.map((l) => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={addToList} disabled={!addToListId || addingToList}
+                    className="rounded-xl bg-navy/8 px-3 py-1.5 text-sm font-semibold text-navy hover:bg-navy/15 disabled:opacity-60">
+                    Add
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -273,20 +395,28 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   }
 
   const { id } = ctx.params as { id: string };
-  const contact = await db.contact.findUnique({
-    where: { id },
-    include: {
-      consents: true,
-      tags: { orderBy: { tag: "asc" } },
-      notes: { orderBy: { createdAt: "desc" } },
-      listMemberships: { include: { list: { select: { id: true, name: true } } } },
-      campaignSends: {
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        include: { campaign: { select: { name: true } } },
+
+  const [contact, allLists] = await Promise.all([
+    db.contact.findUnique({
+      where: { id },
+      include: {
+        consents: true,
+        tags: { orderBy: { tag: "asc" } },
+        notes: { orderBy: { createdAt: "desc" } },
+        listMemberships: { include: { list: { select: { id: true, name: true } } } },
+        campaignSends: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: { campaign: { select: { name: true } } },
+        },
       },
-    },
-  });
+    }),
+    db.contactList.findMany({
+      where: { ownerType: "FN_ADMIN" },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   if (!contact) return { notFound: true };
 
@@ -313,6 +443,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           sentAt: s.sentAt?.toISOString() ?? null,
         })),
       },
+      allLists,
     },
   };
 };
