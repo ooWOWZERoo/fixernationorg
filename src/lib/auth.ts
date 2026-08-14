@@ -2,6 +2,7 @@ import type { NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
+import { authenticator } from "otplib";
 import { z } from "zod";
 import { db } from "./db";
 
@@ -30,6 +31,7 @@ declare module "next-auth/jwt" {
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  totpCode: z.string().optional(),
 });
 
 // ─── Auth options ─────────────────────────────────────────────────────────────
@@ -52,6 +54,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        totpCode: { label: "Authenticator code", type: "text" },
       },
       async authorize(credentials) {
         const parsed = credentialsSchema.safeParse(credentials);
@@ -66,6 +69,8 @@ export const authOptions: NextAuthOptions = {
             role: true,
             passwordHash: true,
             emailVerified: true,
+            mfaEnabled: true,
+            mfaSecret: true,
           },
         });
 
@@ -76,6 +81,17 @@ export const authOptions: NextAuthOptions = {
 
         const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!valid) return null;
+
+        // MFA check — if enabled and no code provided, signal the client to show the TOTP step
+        if (user.mfaEnabled && user.mfaSecret) {
+          if (!parsed.data.totpCode) {
+            throw new Error("MFA_REQUIRED");
+          }
+          const totpValid = authenticator.check(parsed.data.totpCode, user.mfaSecret);
+          if (!totpValid) {
+            throw new Error("InvalidMFACode");
+          }
+        }
 
         return {
           id: user.id,
