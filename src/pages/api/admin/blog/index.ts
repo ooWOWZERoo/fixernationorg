@@ -17,7 +17,7 @@ const createSchema = z.object({
   category: z.string().optional(),
   imageUrl: z.string().url().optional().or(z.literal("")),
   authorName: z.string().default("Anthony J. Placito"),
-  publishedAt: z.string().datetime().optional().nullable(),
+  publishedAt: z.string().nullable().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
