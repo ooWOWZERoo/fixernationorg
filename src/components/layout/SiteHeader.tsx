@@ -23,7 +23,6 @@ export function SiteHeader() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [joinDropdownOpen, setJoinDropdownOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -62,43 +61,29 @@ export function SiteHeader() {
           {NAV_LINKS.map((link) => {
             if (link.dropdown) {
               return (
-                <div key={link.href} className="relative">
-                  <button
-                    onClick={() => setJoinDropdownOpen((o) => !o)}
+                <div key={link.href} className="group relative">
+                  <Link
+                    href={link.href}
                     className={[
-                      "flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-bold transition-colors",
+                      "block rounded-lg px-3 py-2 text-sm font-bold transition-colors no-underline",
                       isActive(link.href) ? "text-amber-dark" : "text-navy hover:text-navy/70",
                     ].join(" ")}
                   >
                     {link.label}
-                    <svg className={`h-3.5 w-3.5 transition-transform ${joinDropdownOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  {joinDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setJoinDropdownOpen(false)} />
-                      <div className="absolute left-0 z-20 mt-1 w-52 overflow-hidden rounded-2xl border border-navy/6 bg-white shadow-[0_24px_50px_-20px_rgba(20,40,56,0.35)]">
+                  </Link>
+                  <div className="absolute left-0 top-full hidden pt-1 group-hover:block z-20">
+                    <div className="w-52 overflow-hidden rounded-2xl border border-navy/6 bg-white shadow-[0_24px_50px_-20px_rgba(20,40,56,0.35)]">
+                      {link.dropdown.map((sub) => (
                         <Link
-                          href={link.href}
-                          className="block border-b border-navy/8 px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel"
-                          onClick={() => setJoinDropdownOpen(false)}
+                          key={sub.href}
+                          href={sub.href}
+                          className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel"
                         >
-                          {link.label}
+                          {sub.label}
                         </Link>
-                        {link.dropdown.map((sub) => (
-                          <Link
-                            key={sub.href}
-                            href={sub.href}
-                            className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel"
-                            onClick={() => setJoinDropdownOpen(false)}
-                          >
-                            {sub.label}
-                          </Link>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                      ))}
+                    </div>
+                  </div>
                 </div>
               );
             }
