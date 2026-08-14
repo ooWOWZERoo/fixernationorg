@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
-import { authenticator } from "otplib";
 import { z } from "zod";
+import { verifyTOTP } from "@/lib/totp";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (user.mfaEnabled) return res.status(409).json({ error: "MFA is already enabled." });
   if (!user.mfaSecret) return res.status(400).json({ error: "No pending MFA setup found. Start setup again." });
 
-  const valid = authenticator.check(parsed.data.totpCode, user.mfaSecret);
+  const valid = verifyTOTP(user.mfaSecret, parsed.data.totpCode);
   if (!valid) return res.status(400).json({ error: "That code is incorrect. Make sure your app is synced and try again." });
 
   await db.user.update({

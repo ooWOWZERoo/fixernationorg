@@ -2,7 +2,7 @@ import type { NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
-import { authenticator } from "otplib";
+import { verifyTOTP } from "./totp";
 import { z } from "zod";
 import { db } from "./db";
 
@@ -87,7 +87,7 @@ export const authOptions: NextAuthOptions = {
           if (!parsed.data.totpCode) {
             throw new Error("MFA_REQUIRED");
           }
-          const totpValid = authenticator.check(parsed.data.totpCode, user.mfaSecret);
+          const totpValid = verifyTOTP(user.mfaSecret, parsed.data.totpCode);
           if (!totpValid) {
             throw new Error("InvalidMFACode");
           }
