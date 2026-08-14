@@ -1,0 +1,1 @@
+ALTER TABLE "FixerQuestion" ADD COLUMN IF NOT EXISTS "reply" TEXT;

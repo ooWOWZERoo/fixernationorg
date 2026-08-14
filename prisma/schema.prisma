@@ -495,6 +495,7 @@ model FixerQuestion {
   subject     String?
   body        String         @db.Text
   status      QuestionStatus @default(NEW)
+  reply       String?        @db.Text
   respondedAt DateTime?
   createdAt   DateTime       @default(now())
 

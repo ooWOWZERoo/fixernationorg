@@ -13,6 +13,7 @@ type QuestionRow = {
   subject: string | null;
   body: string;
   status: string;
+  reply: string | null;
   respondedAt: string | null;
   createdAt: string;
 };
@@ -41,6 +42,9 @@ const AdminQuestionsPage: NextPageWithLayout<Props> = ({ questions: initial }) =
   const [questions, setQuestions] = useState(initial);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [sendingReply, setSendingReply] = useState<string | null>(null);
+  const [replySuccess, setReplySuccess] = useState<string | null>(null);
 
   async function updateStatus(id: string, status: string) {
     setSaving(id);
@@ -63,6 +67,33 @@ const AdminQuestionsPage: NextPageWithLayout<Props> = ({ questions: initial }) =
     }
   }
 
+  async function sendReply(q: QuestionRow) {
+    const reply = replyText[q.id]?.trim();
+    if (!reply) return;
+    setSendingReply(q.id);
+    try {
+      const res = await fetch(`/api/admin/questions/${q.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reply }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setQuestions((prev) =>
+          prev.map((row) =>
+            row.id === q.id
+              ? { ...row, status: updated.status, reply: updated.reply, respondedAt: updated.respondedAt }
+              : row
+          )
+        );
+        setReplySuccess(q.id);
+        setTimeout(() => setReplySuccess(null), 3000);
+      }
+    } finally {
+      setSendingReply(null);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -82,24 +113,12 @@ const AdminQuestionsPage: NextPageWithLayout<Props> = ({ questions: initial }) =
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Email
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Subject
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Submitted
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Actions
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Subject</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Submitted</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -116,9 +135,7 @@ const AdminQuestionsPage: NextPageWithLayout<Props> = ({ questions: initial }) =
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[q.status] ?? "bg-slate-100 text-slate-500"}`}
-                      >
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[q.status] ?? "bg-slate-100 text-slate-500"}`}>
                         {STATUS_LABEL[q.status] ?? q.status}
                       </span>
                     </td>
@@ -140,20 +157,60 @@ const AdminQuestionsPage: NextPageWithLayout<Props> = ({ questions: initial }) =
                           className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-navy focus:outline-none disabled:opacity-50"
                         >
                           {STATUS_OPTIONS.map((s) => (
-                            <option key={s} value={s}>
-                              {STATUS_LABEL[s]}
-                            </option>
+                            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                           ))}
                         </select>
                       </div>
                     </td>
                   </tr>
+
                   {expanded === q.id && (
                     <tr className="bg-slate-50">
-                      <td colSpan={6} className="px-4 py-4">
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                          {q.body}
-                        </p>
+                      <td colSpan={6} className="px-6 py-5">
+                        {/* Original question */}
+                        <div className="mb-5">
+                          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Question</p>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{q.body}</p>
+                        </div>
+
+                        {/* Previous reply (if any) */}
+                        {q.reply && (
+                          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 p-4">
+                            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-green-600">Reply sent</p>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{q.reply}</p>
+                            {q.respondedAt && (
+                              <p className="mt-2 text-xs text-slate-400">
+                                Sent {new Date(q.respondedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Reply form */}
+                        <div>
+                          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            {q.reply ? "Send a follow-up" : "Reply"} — email will go to {q.email}
+                          </p>
+                          <textarea
+                            rows={5}
+                            value={replyText[q.id] ?? ""}
+                            onChange={(e) => setReplyText((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                            placeholder="Type your reply here..."
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                          />
+                          <div className="mt-2 flex items-center gap-3">
+                            <button
+                              onClick={() => sendReply(q)}
+                              disabled={sendingReply === q.id || !replyText[q.id]?.trim()}
+                              className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-dark disabled:opacity-40"
+                            >
+                              {sendingReply === q.id ? "Sending…" : "Send Reply"}
+                            </button>
+                            {replySuccess === q.id && (
+                              <span className="text-sm font-medium text-green-600">Reply sent.</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   )}
