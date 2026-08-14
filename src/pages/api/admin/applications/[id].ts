@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
+import { autoJoinGroups } from "@/lib/groups";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -54,15 +55,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (newRole) {
         const prevUser = await db.user.findUnique({ where: { id: application.userId }, select: { role: true } });
         await db.user.update({ where: { id: application.userId }, data: { role: newRole } });
-        await logAction({
-          actorId: session.user.id,
-          actorEmail: session.user.email,
-          action: "user.role_changed",
-          resource: "User",
-          resourceId: application.userId,
-          metadata: { from: prevUser?.role, to: newRole, reason: `Application ${id} approved` },
-          ip: getClientIp(req),
-        });
+        await Promise.all([
+          logAction({
+            actorId: session.user.id,
+            actorEmail: session.user.email,
+            action: "user.role_changed",
+            resource: "User",
+            resourceId: application.userId,
+            metadata: { from: prevUser?.role, to: newRole, reason: `Application ${id} approved` },
+            ip: getClientIp(req),
+          }),
+          autoJoinGroups(application.userId, newRole),
+        ]);
       }
     }
 

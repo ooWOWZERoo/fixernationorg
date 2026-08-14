@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { logAction, getClientIp } from "@/lib/audit";
+import { autoJoinGroups } from "@/lib/groups";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -57,15 +58,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     select: { id: true, role: true },
   });
 
-  await logAction({
-    actorId: session.user.id,
-    actorEmail: session.user.email,
-    action: "user.role_changed",
-    resource: "User",
-    resourceId: id,
-    metadata: { from: target.role, to: role, targetEmail: target.email },
-    ip: getClientIp(req),
-  });
+  await Promise.all([
+    logAction({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      action: "user.role_changed",
+      resource: "User",
+      resourceId: id,
+      metadata: { from: target.role, to: role, targetEmail: target.email },
+      ip: getClientIp(req),
+    }),
+    autoJoinGroups(id, role),
+  ]);
 
   return res.status(200).json(updated);
 }
