@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const updateSchema = z.object({
+  email: z.string().email().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
@@ -62,7 +63,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "PUT") {
     const parsed = updateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-    const updated = await db.contact.update({ where: { id }, data: parsed.data });
+
+    const { email, ...rest } = parsed.data;
+    const normalizedEmail = email?.toLowerCase().trim();
+
+    if (normalizedEmail && normalizedEmail !== contact.email) {
+      const conflict = await db.contact.findUnique({ where: { email: normalizedEmail } });
+      if (conflict) return res.status(409).json({ error: "A contact with this email already exists" });
+    }
+
+    const updated = await db.contact.update({
+      where: { id },
+      data: { ...rest, ...(normalizedEmail ? { email: normalizedEmail } : {}) },
+    });
     return res.status(200).json(updated);
   }
 
