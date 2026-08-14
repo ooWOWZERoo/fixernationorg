@@ -2,7 +2,7 @@ const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 const BRAND_NAVY = "#0f2460";
 const BRAND_ORANGE = "#E8620A";
 
-export function buildWelcomeEmail(name: string | null): { subject: string; htmlBody: string; textBody: string } {
+export function buildWelcomeEmail(name: string | null): { subject: string; html: string; text: string } {
   const first = name?.split(" ")[0] ?? "there";
   const dashboardUrl = `${BASE_URL}/dashboard`;
 
@@ -60,5 +60,5 @@ Go to your dashboard: ${dashboardUrl}
 Fixer Nation · ${BASE_URL}
 `;
 
-  return { subject: "Welcome to Fixer Nation", htmlBody, textBody };
+  return { subject: "Welcome to Fixer Nation", html: htmlBody, text: textBody };
 }

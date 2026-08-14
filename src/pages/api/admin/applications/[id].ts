@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
-import { sendEmail } from "@/lib/postmark";
+import { sendEmail } from "@/lib/email";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
 

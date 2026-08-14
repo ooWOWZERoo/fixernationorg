@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/postmark";
+import { sendEmail } from "@/lib/email";
 import { buildWelcomeEmail } from "@/lib/emails/welcome";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

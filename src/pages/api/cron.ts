@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/postmark";
+import { sendEmail } from "@/lib/email";
 import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
 import { randomUUID } from "crypto";
 
@@ -35,13 +35,31 @@ async function runMorningBoost(): Promise<{ message: string }> {
     return { message: "No Morning Boost entry scheduled for today — skipped" };
   }
 
-  const members = await db.user.findMany({
+  // Primary: contacts with MORNING_BOOST consent (CRM model).
+  // Fallback union: users with morningBoostEmails=true who don't have a Contact yet.
+  const consentedContacts = await db.contact.findMany({
+    where: {
+      consents: { some: { topic: "MORNING_BOOST", optedIn: true } },
+      user: { emailVerified: { not: null } },
+    },
+    select: { email: true, user: { select: { name: true } } },
+  });
+
+  const contactEmails = new Set(consentedContacts.map((c) => c.email));
+
+  const legacyUsers = await db.user.findMany({
     where: {
       emailVerified: { not: null },
       morningBoostEmails: true,
+      crmContact: null,
     },
     select: { email: true, name: true },
   });
+
+  const members = [
+    ...consentedContacts.map((c) => ({ email: c.email, name: c.user?.name ?? null })),
+    ...legacyUsers.filter((u) => !contactEmails.has(u.email)),
+  ];
 
   if (members.length === 0) {
     return { message: "No opted-in members to send to" };
@@ -50,7 +68,6 @@ async function runMorningBoost(): Promise<{ message: string }> {
   let sent = 0;
   let failed = 0;
 
-  // Send in batches of 50 to stay well within Postmark rate limits
   const BATCH = 50;
   for (let i = 0; i < members.length; i += BATCH) {
     const batch = members.slice(i, i + BATCH);
@@ -64,9 +81,8 @@ async function runMorningBoost(): Promise<{ message: string }> {
           await sendEmail({
             to: member.email,
             subject: email.subject,
-            htmlBody: email.htmlBody,
-            textBody: email.textBody,
-            messageStream: "broadcast",
+            html: email.html,
+            text: email.text,
           });
           sent++;
         } catch {
@@ -81,9 +97,80 @@ async function runMorningBoost(): Promise<{ message: string }> {
   };
 }
 
+async function runCampaignScheduler(): Promise<{ message: string }> {
+  const now = new Date();
+
+  const campaigns = await db.campaign.findMany({
+    where: { status: "SCHEDULED", scheduledAt: { lte: now } },
+    select: { id: true, name: true },
+  });
+
+  if (campaigns.length === 0) return { message: "No campaigns due to send" };
+
+  for (const campaign of campaigns) {
+    // Delegate to the send endpoint logic inline
+    const full = await db.campaign.findUnique({
+      where: { id: campaign.id },
+      include: { list: true },
+    });
+    if (!full?.listId) continue;
+
+    const members = await db.contactListMember.findMany({
+      where: { listId: full.listId },
+      include: {
+        contact: {
+          select: { id: true, email: true, firstName: true },
+        },
+      },
+    });
+
+    const eligible = members.filter(() => true); // consent filtering handled by subscribe/unsub
+    if (eligible.length === 0) continue;
+
+    await db.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING" } });
+    await db.campaignSend.createMany({
+      data: eligible.map((m) => ({ campaignId: campaign.id, contactId: m.contactId })),
+      skipDuplicates: true,
+    });
+
+    let sent = 0;
+    const BATCH = 20;
+    for (let i = 0; i < eligible.length; i += BATCH) {
+      const batch = eligible.slice(i, i + BATCH);
+      await Promise.allSettled(
+        batch.map(async (m) => {
+          try {
+            await sendEmail({
+              to: m.contact.email,
+              subject: full.subject,
+              html: full.htmlBody,
+              text: full.textBody ?? full.subject,
+            });
+            await db.campaignSend.update({
+              where: { campaignId_contactId: { campaignId: campaign.id, contactId: m.contactId } },
+              data: { status: "SENT", sentAt: now },
+            });
+            sent++;
+          } catch {
+            // mark as failed but don't block others
+          }
+        })
+      );
+    }
+
+    await db.campaign.update({
+      where: { id: campaign.id },
+      data: { status: "SENT", sentAt: now },
+    });
+  }
+
+  return { message: `Processed ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
+  "campaign-scheduler": runCampaignScheduler,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

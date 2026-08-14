@@ -19,9 +19,6 @@ const serverSchema = z.object({
   // ── Required: Phase 1 (stubs until then) ───────────────────────────────────
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  POSTMARK_SERVER_TOKEN: z.string().optional(),
-  POSTMARK_FROM_ADDRESS: z.string().optional().default("noreply@fixernation.org"),
-  POSTMARK_FROM_NAME: z.string().optional().default("Fixer Nation"),
 
   // ── Optional: Phase 1+ ─────────────────────────────────────────────────────
   SENTRY_DSN: z.string().optional(),

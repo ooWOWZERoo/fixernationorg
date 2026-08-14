@@ -51,6 +51,7 @@ model User {
   rsvps                    EventRsvp[]
   giftCodesRedeemed        GiftCode[]
   loyaltyPoints            LoyaltyPoint[]
+  crmContact               Contact?
 
   @@index([email])
 }
@@ -656,4 +657,207 @@ enum ApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ─── CRM (Phase CRM-1) ────────────────────────────────────────────────────────
+
+model Contact {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  phone     String?
+  company   String?
+  source    String?  // "signup", "import", "subscribe", "application"
+  userId    String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  address          ContactAddress?
+  consents         ContactConsent[]
+  tags             ContactTag[]
+  notes            ContactNote[]
+  listMemberships  ContactListMember[]
+  campaignSends    CampaignSend[]
+
+  @@index([email])
+  @@index([userId])
+}
+
+model ContactAddress {
+  id        String   @id @default(cuid())
+  contactId String   @unique
+  street    String?
+  city      String?
+  state     String?
+  zip       String?
+  country   String?
+  updatedAt DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+model ContactConsent {
+  id         String              @id @default(cuid())
+  contactId  String
+  topic      ContactConsentTopic
+  optedIn    Boolean             @default(true)
+  optedInAt  DateTime?
+  optedOutAt DateTime?
+  source     String?             // "signup", "import", "unsubscribe-link", "admin"
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, topic])
+  @@index([contactId])
+  @@index([topic, optedIn])
+}
+
+model ContactTag {
+  id        String   @id @default(cuid())
+  contactId String
+  tag       String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tag])
+  @@index([contactId])
+  @@index([tag])
+}
+
+model ContactNote {
+  id        String   @id @default(cuid())
+  contactId String
+  authorId  String?  // admin user id
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+}
+
+model ContactList {
+  id          String               @id @default(cuid())
+  name        String
+  description String?
+  ownerType   ContactListOwnerType @default(FN_ADMIN)
+  ownerUserId String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  members   ContactListMember[]
+  campaigns Campaign[]
+
+  @@index([ownerType, ownerUserId])
+}
+
+model ContactListMember {
+  id        String   @id @default(cuid())
+  listId    String
+  contactId String
+  addedAt   DateTime @default(now())
+
+  list    ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  contact Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, contactId])
+  @@index([listId])
+  @@index([contactId])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  htmlBody  String   @db.Text
+  textBody  String?  @db.Text
+  createdBy String?  // admin user id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  status      CampaignStatus @default(DRAFT)
+  subject     String
+  fromName    String         @default("Fixer Nation")
+  fromEmail   String         @default("campaigns@fixernation.org")
+  htmlBody    String         @db.Text
+  textBody    String?        @db.Text
+  templateId  String?
+  listId      String?
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdBy   String?        // admin user id
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  template EmailTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  list     ContactList?    @relation(fields: [listId], references: [id], onDelete: SetNull)
+  sends    CampaignSend[]
+
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model CampaignSend {
+  id          String             @id @default(cuid())
+  campaignId  String
+  contactId   String
+  status      CampaignSendStatus @default(QUEUED)
+  sentAt      DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  unsubAt     DateTime?
+  createdAt   DateTime           @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId])
+  @@index([contactId])
+  @@index([status])
+}
+
+// ─── CRM enums ────────────────────────────────────────────────────────────────
+
+enum ContactConsentTopic {
+  MORNING_BOOST
+  CAMPAIGNS
+  NEWSLETTERS
+  PRODUCT_UPDATES
+}
+
+enum ContactListOwnerType {
+  FN_ADMIN
+  AMBASSADOR
+  PROVIDER
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  CANCELLED
+}
+
+enum CampaignSendStatus {
+  QUEUED
+  SENT
+  OPENED
+  CLICKED
+  BOUNCED
+  UNSUBSCRIBED
 }

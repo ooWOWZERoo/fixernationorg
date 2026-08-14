@@ -15,7 +15,7 @@ interface Entry {
 export function buildMorningBoostEmail(
   entry: Entry,
   recipientName: string | null
-): { subject: string; htmlBody: string; textBody: string } {
+): { subject: string; html: string; text: string } {
   const dateStr = entry.publishedAt.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -119,8 +119,8 @@ Manage email preferences: ${unsubscribeUrl}
 
   return {
     subject: `Morning Boost: ${entry.title}`,
-    htmlBody,
-    textBody,
+    html: htmlBody,
+    text: textBody,
   };
 }
 

@@ -12,7 +12,7 @@ const TYPE_LABEL: Record<ApplicationType, string> = {
 export function buildApplicationApprovedEmail(
   name: string,
   type: ApplicationType
-): { subject: string; htmlBody: string; textBody: string } {
+): { subject: string; html: string; text: string } {
   const label = TYPE_LABEL[type];
   const dashboardUrl = `${BASE_URL}/dashboard`;
   const first = name.split(" ")[0];
@@ -73,15 +73,15 @@ Fixer Nation · ${BASE_URL}
 
   return {
     subject: `Good news: your ${label.toLowerCase()} application is approved`,
-    htmlBody,
-    textBody,
+    html: htmlBody,
+    text: textBody,
   };
 }
 
 export function buildApplicationRejectedEmail(
   name: string,
   type: ApplicationType
-): { subject: string; htmlBody: string; textBody: string } {
+): { subject: string; html: string; text: string } {
   const label = TYPE_LABEL[type];
   const first = name.split(" ")[0];
   const dashboardUrl = `${BASE_URL}/dashboard`;
@@ -140,5 +140,5 @@ Go to your account: ${dashboardUrl}
 Fixer Nation · ${BASE_URL}
 `;
 
-  return { subject: "Your Fixer Nation application", htmlBody, textBody };
+  return { subject: "Your Fixer Nation application", html: htmlBody, text: textBody };
 }
