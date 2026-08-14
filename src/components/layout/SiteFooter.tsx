@@ -66,8 +66,13 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-11 border-t border-white/12 pt-6 text-center text-[12.5px] text-white/60">
-          &copy; {new Date().getFullYear()} Fixer Nation Issues and Answers. All Rights Reserved.
+        <div className="mt-11 border-t border-white/12 pt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between text-[12.5px] text-white/60">
+          <span>&copy; {new Date().getFullYear()} Fixer Nation Issues and Answers. All Rights Reserved.</span>
+          <div className="flex gap-5">
+            <Link href="/privacy" className="no-underline transition-colors hover:text-amber">Privacy policy</Link>
+            <Link href="/terms" className="no-underline transition-colors hover:text-amber">Terms of service</Link>
+            <Link href="/cookie-policy" className="no-underline transition-colors hover:text-amber">Cookies</Link>
+          </div>
         </div>
       </div>
     </footer>

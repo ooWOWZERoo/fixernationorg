@@ -59,4 +59,32 @@
     @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-extrabold uppercase tracking-widest text-navy;
     background-color: rgba(31, 58, 84, 0.08);
   }
+
+  .prose-legal {
+    @apply text-[15.5px] leading-relaxed text-ink;
+  }
+
+  .prose-legal p {
+    @apply mb-5;
+  }
+
+  .prose-legal h2 {
+    @apply mb-3 mt-10 text-xl font-extrabold text-navy;
+  }
+
+  .prose-legal h3 {
+    @apply mb-2 mt-6 text-base font-bold text-navy;
+  }
+
+  .prose-legal ul {
+    @apply mb-5 ml-5 list-disc space-y-1.5;
+  }
+
+  .prose-legal li {
+    @apply text-ink;
+  }
+
+  .prose-legal a {
+    @apply font-semibold text-navy underline underline-offset-2 hover:text-navy-dark;
+  }
 }
