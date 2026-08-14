@@ -10,6 +10,8 @@ const updateSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
+  phone2: z.string().optional(),
+  email2: z.string().optional(),
   company: z.string().optional(),
   source: z.string().optional(),
 });
@@ -38,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const contact = await db.contact.findUnique({
     where: { id },
     include: {
-      address: true,
+      addresses: true,
       consents: true,
       tags: { orderBy: { tag: "asc" } },
       notes: { orderBy: { createdAt: "desc" } },

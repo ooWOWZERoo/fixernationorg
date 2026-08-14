@@ -16,16 +16,31 @@ interface NoteRow { id: string; body: string; createdAt: string }
 interface ListRow { id: string; name: string }
 interface SendRow { id: string; campaignName: string; status: string; sentAt: string | null }
 interface ListOption { id: string; name: string }
+interface AddressRow {
+  id: string;
+  type: string | null;
+  street: string | null;
+  street2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
+  isPrimary: boolean;
+}
 
 interface Props {
   contact: {
     id: string;
     email: string;
+    email2: string | null;
     firstName: string | null;
     lastName: string | null;
     phone: string | null;
+    phone2: string | null;
     company: string | null;
     source: string | null;
+    lastActivity: string | null;
+    lastActivityAt: string | null;
     createdAt: string;
     userId: string | null;
     consents: ConsentRow[];
@@ -33,6 +48,7 @@ interface Props {
     notes: NoteRow[];
     lists: ListRow[];
     sends: SendRow[];
+    addresses: AddressRow[];
   };
   allLists: ListOption[];
 }
@@ -49,6 +65,8 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
     firstName: initial.firstName ?? "",
     lastName: initial.lastName ?? "",
     phone: initial.phone ?? "",
+    phone2: initial.phone2 ?? "",
+    email2: initial.email2 ?? "",
     company: initial.company ?? "",
   });
 
@@ -79,6 +97,8 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
         firstName: editForm.firstName || null,
         lastName: editForm.lastName || null,
         phone: editForm.phone || null,
+        phone2: editForm.phone2 || null,
+        email2: editForm.email2 || null,
         company: editForm.company || null,
       }));
       setEditing(false);
@@ -181,6 +201,18 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
                       className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
                   </div>
                   <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Phone 2</label>
+                    <input type="text" value={editForm.phone2}
+                      onChange={(e) => setEditForm((f) => ({ ...f, phone2: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Email 2</label>
+                    <input type="email" value={editForm.email2}
+                      onChange={(e) => setEditForm((f) => ({ ...f, email2: e.target.value }))}
+                      className="w-full rounded-xl border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  </div>
+                  <div>
                     <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Company</label>
                     <input type="text" value={editForm.company}
                       onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))}
@@ -205,8 +237,10 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
                     {contact.firstName || contact.lastName ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() : contact.email}
                   </h1>
                   <p className="text-sm text-ink-soft">{contact.email}</p>
+                  {contact.email2 && <p className="text-sm text-ink-soft">{contact.email2}</p>}
                   {contact.company && <p className="text-sm text-ink-soft">{contact.company}</p>}
                   {contact.phone && <p className="text-sm text-ink-soft">{contact.phone}</p>}
+                  {contact.phone2 && <p className="text-sm text-ink-soft">{contact.phone2}</p>}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setEditing(true)}
@@ -224,6 +258,7 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
               <div className="flex flex-wrap gap-3 text-xs text-ink-soft">
                 <span>Source: {contact.source ?? "—"}</span>
                 <span>Added: {new Date(contact.createdAt).toLocaleDateString()}</span>
+                {contact.lastActivity && <span>Last activity: {contact.lastActivity}{contact.lastActivityAt ? ` · ${new Date(contact.lastActivityAt).toLocaleDateString()}` : ""}</span>}
                 {contact.userId && <span className="text-green-700">Linked to account</span>}
               </div>
             )}
@@ -343,6 +378,28 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
             </div>
           </div>
 
+          {/* Addresses */}
+          {contact.addresses.length > 0 && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Addresses</h2>
+              <div className="space-y-3">
+                {contact.addresses.map((a) => (
+                  <div key={a.id} className="text-xs text-ink-soft">
+                    {a.type && (
+                      <p className="mb-0.5 font-semibold uppercase tracking-widest text-ink-soft/70">{a.type}</p>
+                    )}
+                    {a.street && <p>{a.street}</p>}
+                    {a.street2 && <p>{a.street2}</p>}
+                    {(a.city || a.state || a.zip) && (
+                      <p>{[a.city, a.state, a.zip].filter(Boolean).join(", ")}</p>
+                    )}
+                    {a.country && <p>{a.country}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Lists */}
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Lists</h2>
@@ -400,6 +457,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     db.contact.findUnique({
       where: { id },
       include: {
+        addresses: { orderBy: [{ isPrimary: "desc" }, { id: "asc" }] },
         consents: true,
         tags: { orderBy: { tag: "asc" } },
         notes: { orderBy: { createdAt: "desc" } },
@@ -425,13 +483,28 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       contact: {
         id: contact.id,
         email: contact.email,
+        email2: contact.email2,
         firstName: contact.firstName,
         lastName: contact.lastName,
         phone: contact.phone,
+        phone2: contact.phone2,
         company: contact.company,
         source: contact.source,
+        lastActivity: contact.lastActivity,
+        lastActivityAt: contact.lastActivityAt?.toISOString() ?? null,
         createdAt: contact.createdAt.toISOString(),
         userId: contact.userId,
+        addresses: contact.addresses.map((a) => ({
+          id: a.id,
+          type: a.type,
+          street: a.street,
+          street2: a.street2,
+          city: a.city,
+          state: a.state,
+          zip: a.zip,
+          country: a.country,
+          isPrimary: a.isPrimary,
+        })),
         consents: contact.consents.map((c) => ({ topic: c.topic, optedIn: c.optedIn })),
         tags: contact.tags.map((t) => t.tag),
         notes: contact.notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString() })),

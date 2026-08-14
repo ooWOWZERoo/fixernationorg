@@ -13,19 +13,41 @@ const TOPICS = [
   { key: "PRODUCT_UPDATES", label: "Product Updates" },
 ] as const;
 
+interface ParsedAddress {
+  type: string;
+  street: string;
+  street2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  isPrimary: boolean;
+}
+
 interface ParsedContact {
   email: string;
+  email2: string;
   firstName: string;
   lastName: string;
   phone: string;
+  phone2: string;
   company: string;
   source: string;
+  lastActivity: string;
+  lastActivityAt: string;
+  createdAt: string;
+  emailSubscriberStatus: string;
+  labels: string[];
+  addresses: ParsedAddress[];
 }
 
 interface ParseResult {
   contacts: ParsedContact[];
   skippedRows: number;
   detectedColumns: string[];
+  hasSubscriberStatus: boolean;
+  hasLabels: boolean;
+  hasAddresses: boolean;
 }
 
 interface ImportResult {
@@ -33,6 +55,8 @@ interface ImportResult {
   existing: number;
   total: number;
   consentAdded: number;
+  addressesCreated: number;
+  listMembershipsAdded: number;
 }
 
 // ─── CSV parser ─────────────────────────────────────────────────────────────
@@ -61,9 +85,14 @@ function norm(s: string) {
   return s.toLowerCase().replace(/[\s_\-\.]+/g, "");
 }
 
-const COLUMN_MAP: Record<string, keyof ParsedContact> = {
+type BasicField = "email" | "email2" | "firstName" | "lastName" | "phone" | "phone2" |
+  "company" | "source" | "lastActivity" | "lastActivityAt" | "createdAt" | "emailSubscriberStatus";
+
+const COLUMN_MAP: Record<string, BasicField> = {
   email: "email",
   emailaddress: "email",
+  email2: "email2",
+  secondaryemail: "email2",
   firstname: "firstName",
   first: "firstName",
   givenname: "firstName",
@@ -78,54 +107,145 @@ const COLUMN_MAP: Record<string, keyof ParsedContact> = {
   mobile: "phone",
   cell: "phone",
   telephone: "phone",
+  phone2: "phone2",
+  secondaryphone: "phone2",
+  mobilephone: "phone2",
   company: "company",
+  companyname: "company",
   organization: "company",
   organisation: "company",
   org: "company",
   business: "company",
   source: "source",
+  lastactivity: "lastActivity",
+  lastactivitydate: "lastActivityAt",
+  createdat: "createdAt",
+  emailsubscriberstatus: "emailSubscriberStatus",
+  subscriberstatus: "emailSubscriberStatus",
 };
+
+interface AddrCols {
+  type: number; street: number; street2: number;
+  city: number; state: number; zip: number; country: number;
+}
+
+function buildAddressCols(rawHeaders: string[]): AddrCols[] {
+  return Array.from({ length: 8 }, (_, i) => {
+    const n = i + 1;
+    const find = (suffix: string) =>
+      rawHeaders.findIndex((h) =>
+        h.trim().toLowerCase() === `address ${n} - ${suffix}`.toLowerCase()
+      );
+    return {
+      type: find("type"),
+      street: find("street"),
+      street2: find("street line 2"),
+      city: find("city"),
+      state: find("state/region"),
+      zip: find("zip"),
+      country: find("country"),
+    };
+  });
+}
+
+function extractAddresses(addrCols: AddrCols[], values: string[]): ParsedAddress[] {
+  const addresses: ParsedAddress[] = [];
+  for (let i = 0; i < addrCols.length; i++) {
+    const cols = addrCols[i];
+    const get = (idx: number) => (idx >= 0 ? values[idx]?.trim() ?? "" : "");
+    const hasData = [cols.type, cols.street, cols.city, cols.state, cols.zip, cols.country]
+      .some((idx) => idx >= 0 && values[idx]?.trim());
+    if (!hasData) continue;
+    addresses.push({
+      type: get(cols.type),
+      street: get(cols.street),
+      street2: get(cols.street2),
+      city: get(cols.city),
+      state: get(cols.state),
+      zip: get(cols.zip),
+      country: get(cols.country),
+      isPrimary: i === 0,
+    });
+  }
+  return addresses;
+}
 
 function parseCSV(text: string): ParseResult {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return { contacts: [], skippedRows: 0, detectedColumns: [] };
+  if (lines.length < 2) return { contacts: [], skippedRows: 0, detectedColumns: [], hasSubscriberStatus: false, hasLabels: false, hasAddresses: false };
 
   const rawHeaders = splitCSVLine(lines[0]).map((h) => h.trim().replace(/^"|"$/g, ""));
   const fieldMap = rawHeaders.map((h) => COLUMN_MAP[norm(h)] ?? null);
-  const detectedColumns = rawHeaders.filter((_, i) => fieldMap[i] !== null);
+  const addrCols = buildAddressCols(rawHeaders);
+
+  const labelsIdx = rawHeaders.findIndex((h) => norm(h) === "labels");
+  const hasLabels = labelsIdx >= 0;
+  const hasSubscriberStatus = rawHeaders.some((h) => norm(h) === "emailsubscriberstatus");
+  const hasAddresses = addrCols.some(
+    (a) => [a.type, a.street, a.city, a.state, a.zip, a.country].some((i) => i >= 0)
+  );
+
+  const detectedBasic = rawHeaders.filter((_, i) => fieldMap[i] !== null);
+  const detectedColumns = [
+    ...detectedBasic,
+    ...(hasLabels ? ["Labels"] : []),
+    ...(hasSubscriberStatus ? ["Email subscriber status"] : []),
+    ...(hasAddresses ? ["Addresses"] : []),
+  ];
 
   let skippedRows = 0;
   const contacts: ParsedContact[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const values = splitCSVLine(lines[i]).map((v) => v.trim().replace(/^"|"$/g, ""));
-    const row: Partial<ParsedContact> = {};
-    rawHeaders.forEach((_, j) => {
+    const row: Partial<Record<BasicField, string>> = {};
+
+    rawHeaders.forEach((h, j) => {
       const field = fieldMap[j];
-      if (field && values[j]) {
-        if (field === "firstName" && rawHeaders[j] && norm(rawHeaders[j]) === "fullname") {
-          // Split "Full Name" into first + last
-          const parts = values[j].trim().split(/\s+/);
-          row.firstName = parts[0] ?? "";
-          row.lastName = parts.slice(1).join(" ");
-        } else {
-          row[field] = values[j];
-        }
+      if (!field) return;
+      const val = values[j]?.trim() ?? "";
+      if (!val) return;
+
+      if (field === "firstName" && norm(h) === "fullname") {
+        const parts = val.split(/\s+/);
+        row.firstName = parts[0] ?? "";
+        row.lastName = parts.slice(1).join(" ") || row.lastName;
+      } else {
+        row[field] = val;
       }
     });
 
     if (!row.email) { skippedRows++; continue; }
+
+    const labels: string[] =
+      labelsIdx >= 0 && values[labelsIdx]?.trim()
+        ? values[labelsIdx]
+            .split(";")
+            .map((l) => l.trim())
+            .filter((l) => l && l.toLowerCase() !== "ask the fixer")
+        : [];
+
+    const addresses = extractAddresses(addrCols, values);
+
     contacts.push({
       email: row.email.toLowerCase(),
+      email2: row.email2 ?? "",
       firstName: row.firstName ?? "",
       lastName: row.lastName ?? "",
       phone: row.phone ?? "",
+      phone2: row.phone2 ?? "",
       company: row.company ?? "",
       source: row.source ?? "",
+      lastActivity: row.lastActivity ?? "",
+      lastActivityAt: row.lastActivityAt ?? "",
+      createdAt: row.createdAt ?? "",
+      emailSubscriberStatus: row.emailSubscriberStatus ?? "",
+      labels,
+      addresses,
     });
   }
 
-  return { contacts, skippedRows, detectedColumns };
+  return { contacts, skippedRows, detectedColumns, hasSubscriberStatus, hasLabels, hasAddresses };
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -206,13 +326,9 @@ const AdminContactImportPage: NextPageWithLayout = () => {
         <div className="rounded-2xl border border-navy/8 bg-white p-6">
           <h2 className="mb-1 text-sm font-bold text-navy">Select CSV file</h2>
           <p className="mb-4 text-sm text-ink-soft">
-            Required column: <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">email</code>.
-            Optional: <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">first_name</code>,{" "}
-            <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">last_name</code>,{" "}
-            <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">phone</code>,{" "}
-            <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">company</code>,{" "}
-            <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">source</code>.
-            Column names are flexible — spaces, underscores, and casing don't matter.
+            Works with Wix contact exports and general CSVs. Required column:{" "}
+            <code className="rounded bg-navy/8 px-1.5 py-0.5 text-xs">email</code>.
+            Column names are flexible — spaces, underscores, and capitalization are all fine.
           </p>
           <input
             ref={fileRef}
@@ -230,20 +346,35 @@ const AdminContactImportPage: NextPageWithLayout = () => {
         {parseResult && (
           <>
             <div className="rounded-2xl border border-navy/8 bg-white p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-navy">
-                    {parseResult.contacts.length} contacts ready to import
-                  </h2>
-                  {parseResult.skippedRows > 0 && (
-                    <p className="text-xs text-amber-dark">
-                      {parseResult.skippedRows} row{parseResult.skippedRows !== 1 ? "s" : ""} skipped (missing email)
-                    </p>
+              <div className="mb-4">
+                <h2 className="text-sm font-bold text-navy">
+                  {parseResult.contacts.length} contacts ready to import
+                </h2>
+                {parseResult.skippedRows > 0 && (
+                  <p className="text-xs text-amber-dark">
+                    {parseResult.skippedRows} row{parseResult.skippedRows !== 1 ? "s" : ""} skipped (no email)
+                  </p>
+                )}
+                {parseResult.detectedColumns.length > 0 && (
+                  <p className="mt-1 text-xs text-ink-soft">
+                    Detected: {parseResult.detectedColumns.join(", ")}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {parseResult.hasSubscriberStatus && (
+                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                      Subscriber status detected — consent auto-set
+                    </span>
                   )}
-                  {parseResult.detectedColumns.length > 0 && (
-                    <p className="mt-1 text-xs text-ink-soft">
-                      Columns mapped: {parseResult.detectedColumns.join(", ")}
-                    </p>
+                  {parseResult.hasLabels && (
+                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
+                      Labels detected — will create lists
+                    </span>
+                  )}
+                  {parseResult.hasAddresses && (
+                    <span className="rounded-full bg-navy/8 px-2.5 py-0.5 text-xs font-semibold text-navy">
+                      Addresses detected
+                    </span>
                   )}
                 </div>
               </div>
@@ -255,8 +386,9 @@ const AdminContactImportPage: NextPageWithLayout = () => {
                       <tr className="border-b border-navy/8 text-left font-bold uppercase tracking-widest text-ink-soft">
                         <th className="pb-2 pr-4">Email</th>
                         <th className="pb-2 pr-4">Name</th>
-                        <th className="pb-2 pr-4">Company</th>
-                        <th className="pb-2">Phone</th>
+                        <th className="pb-2 pr-4">Status</th>
+                        <th className="pb-2 pr-4">Lists</th>
+                        <th className="pb-2">Addresses</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -266,8 +398,15 @@ const AdminContactImportPage: NextPageWithLayout = () => {
                           <td className="py-1.5 pr-4 text-ink-soft">
                             {[c.firstName, c.lastName].filter(Boolean).join(" ") || "—"}
                           </td>
-                          <td className="py-1.5 pr-4 text-ink-soft">{c.company || "—"}</td>
-                          <td className="py-1.5 text-ink-soft">{c.phone || "—"}</td>
+                          <td className="py-1.5 pr-4 text-ink-soft">
+                            {c.emailSubscriberStatus || "—"}
+                          </td>
+                          <td className="py-1.5 pr-4 text-ink-soft">
+                            {c.labels.length > 0 ? c.labels.length : "—"}
+                          </td>
+                          <td className="py-1.5 text-ink-soft">
+                            {c.addresses.length > 0 ? c.addresses.length : "—"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -281,26 +420,28 @@ const AdminContactImportPage: NextPageWithLayout = () => {
               )}
             </div>
 
-            {/* Consent */}
-            <div className="rounded-2xl border border-navy/8 bg-white p-6">
-              <h2 className="mb-1 text-sm font-bold text-navy">Opt in to email lists (optional)</h2>
-              <p className="mb-4 text-xs text-ink-soft">
-                Check any topics to record consent for all imported contacts. Contacts who already have a consent record for a topic won't be changed.
-              </p>
-              <div className="space-y-2">
-                {TOPICS.map(({ key, label }) => (
-                  <label key={key} className="flex cursor-pointer items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={consentTopics.includes(key)}
-                      onChange={() => toggleTopic(key)}
-                      className="h-4 w-4 cursor-pointer accent-navy"
-                    />
-                    <span className="text-sm font-medium text-ink">{label}</span>
-                  </label>
-                ))}
+            {/* Consent checkboxes — only relevant if CSV has no subscriber status */}
+            {!parseResult.hasSubscriberStatus && (
+              <div className="rounded-2xl border border-navy/8 bg-white p-6">
+                <h2 className="mb-1 text-sm font-bold text-navy">Opt in to email lists (optional)</h2>
+                <p className="mb-4 text-xs text-ink-soft">
+                  Check topics to record consent for all imported contacts. Existing consent records won't be changed.
+                </p>
+                <div className="space-y-2">
+                  {TOPICS.map(({ key, label }) => (
+                    <label key={key} className="flex cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={consentTopics.includes(key)}
+                        onChange={() => toggleTopic(key)}
+                        className="h-4 w-4 cursor-pointer accent-navy"
+                      />
+                      <span className="text-sm font-medium text-ink">{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
@@ -336,7 +477,13 @@ const AdminContactImportPage: NextPageWithLayout = () => {
                 <p>{result.existing} skipped — email already in contacts</p>
               )}
               {result.consentAdded > 0 && (
-                <p>{result.consentAdded} consent record{result.consentAdded !== 1 ? "s" : ""} added</p>
+                <p>{result.consentAdded} consent record{result.consentAdded !== 1 ? "s" : ""} set</p>
+              )}
+              {result.addressesCreated > 0 && (
+                <p>{result.addressesCreated} address{result.addressesCreated !== 1 ? "es" : ""} saved</p>
+              )}
+              {result.listMembershipsAdded > 0 && (
+                <p>{result.listMembershipsAdded} list membership{result.listMembershipsAdded !== 1 ? "s" : ""} added</p>
               )}
             </div>
             <a

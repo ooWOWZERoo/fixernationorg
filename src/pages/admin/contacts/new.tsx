@@ -9,7 +9,7 @@ import type { NextPageWithLayout } from "@/types/next";
 
 const AdminNewContactPage: NextPageWithLayout = () => {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", company: "", source: "admin" });
+  const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "", phone2: "", email2: "", company: "", source: "admin" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,9 +66,21 @@ const AdminNewContactPage: NextPageWithLayout = () => {
                 className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Phone</label>
+              <input type="tel" value={form.phone} onChange={set("phone")}
+                className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Phone 2</label>
+              <input type="tel" value={form.phone2} onChange={set("phone2")}
+                className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+            </div>
+          </div>
           <div>
-            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Phone</label>
-            <input type="tel" value={form.phone} onChange={set("phone")}
+            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Email 2</label>
+            <input type="email" value={form.email2} onChange={set("email2")}
               className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
           </div>
           <div>

@@ -11,6 +11,8 @@ const createSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
+  phone2: z.string().optional(),
+  email2: z.string().optional(),
   company: z.string().optional(),
   source: z.string().optional(),
 });
