@@ -10,7 +10,8 @@ export type ApplicationEventType =
   | "TERRITORY_ASSIGNED"
   | "TERRITORY_REVOKED"
   | "AFFILIATE_PROVISIONED"
-  | "ACCOUNT_CREATED";
+  | "ACCOUNT_CREATED"
+  | "FIELDS_EDITED";
 
 export async function recordEvent(
   applicationId: string,

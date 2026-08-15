@@ -303,6 +303,165 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(updated);
   }
 
-  res.setHeader("Allow", "GET, PATCH");
+  // ── PUT — field edits with audit trail ───────────────────────────────────────
+  if (req.method === "PUT") {
+    const putSchema = z.object({
+      reason: z.string().min(3, "Reason is required").max(500),
+      name: z.string().max(200).optional(),
+      email: z.string().email().max(200).optional(),
+      phone: z.string().max(30).nullish(),
+      businessName: z.string().max(200).nullish(),
+      referralCode: z.string().max(100).nullish(),
+      campaignSource: z.string().max(200).nullish(),
+      serviceCategory: z.string().max(200).nullish(),
+      serviceAreas: z.array(z.string().max(100)).optional(),
+      businessType: z.string().max(100).nullish(),
+      licenseNumber: z.string().max(200).nullish(),
+      website: z.string().max(300).nullish(),
+      city: z.string().max(100).nullish(),
+      state: z.string().max(60).nullish(),
+      platformsUsed: z.array(z.string().max(100)).optional(),
+    });
+
+    const parsed = putSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+    }
+
+    const application = await db.userApplication.findUnique({
+      where: { id },
+      include: { providerDetail: true, ambassadorDetail: true },
+    });
+    if (!application) return res.status(404).json({ error: "Not found" });
+
+    const { reason, name, email, phone, businessName, referralCode, campaignSource,
+            serviceCategory, serviceAreas, businessType, licenseNumber, website,
+            city, state, platformsUsed } = parsed.data;
+
+    // Build change log — only include fields that actually changed
+    type Change = { field: string; from: unknown; to: unknown };
+    const changes: Change[] = [];
+
+    const appUpdate: Record<string, unknown> = {};
+    const emailChanged = email !== undefined && email !== application.email;
+
+    if (name !== undefined && name !== application.name) {
+      changes.push({ field: "name", from: application.name, to: name });
+      appUpdate.name = name;
+    }
+    if (emailChanged) {
+      changes.push({ field: "email", from: application.email, to: email });
+      appUpdate.email = email;
+      appUpdate.emailVerifiedAt = null;
+    }
+    if (phone !== undefined && phone !== application.phone) {
+      changes.push({ field: "phone", from: application.phone, to: phone ?? null });
+      appUpdate.phone = phone ?? null;
+    }
+    if (businessName !== undefined && businessName !== application.businessName) {
+      changes.push({ field: "businessName", from: application.businessName, to: businessName ?? null });
+      appUpdate.businessName = businessName ?? null;
+    }
+    if (referralCode !== undefined && referralCode !== application.referralCode) {
+      changes.push({ field: "referralCode", from: application.referralCode, to: referralCode ?? null });
+      appUpdate.referralCode = referralCode ?? null;
+    }
+    if (campaignSource !== undefined && campaignSource !== application.campaignSource) {
+      changes.push({ field: "campaignSource", from: application.campaignSource, to: campaignSource ?? null });
+      appUpdate.campaignSource = campaignSource ?? null;
+    }
+
+    // Provider detail updates
+    const pd = application.providerDetail;
+    const pdUpdate: Record<string, unknown> = {};
+    if (pd) {
+      if (serviceCategory !== undefined && serviceCategory !== pd.serviceCategory) {
+        changes.push({ field: "serviceCategory", from: pd.serviceCategory, to: serviceCategory ?? null });
+        pdUpdate.serviceCategory = serviceCategory ?? null;
+      }
+      if (serviceAreas !== undefined) {
+        const prev = [...pd.serviceAreas].sort().join(",");
+        const next = [...serviceAreas].sort().join(",");
+        if (prev !== next) {
+          changes.push({ field: "serviceAreas", from: pd.serviceAreas, to: serviceAreas });
+          pdUpdate.serviceAreas = serviceAreas;
+        }
+      }
+      if (businessType !== undefined && businessType !== pd.businessType) {
+        changes.push({ field: "businessType", from: pd.businessType, to: businessType ?? null });
+        pdUpdate.businessType = businessType ?? null;
+      }
+      if (licenseNumber !== undefined && licenseNumber !== pd.licenseNumber) {
+        changes.push({ field: "licenseNumber", from: pd.licenseNumber, to: licenseNumber ?? null });
+        pdUpdate.licenseNumber = licenseNumber ?? null;
+      }
+      if (website !== undefined && website !== pd.website) {
+        changes.push({ field: "website", from: pd.website, to: website ?? null });
+        pdUpdate.website = website ?? null;
+      }
+    }
+
+    // Ambassador detail updates
+    const amd = application.ambassadorDetail;
+    const amdUpdate: Record<string, unknown> = {};
+    if (amd) {
+      if (city !== undefined && city !== amd.city) {
+        changes.push({ field: "city", from: amd.city, to: city ?? null });
+        amdUpdate.city = city ?? null;
+      }
+      if (state !== undefined && state !== amd.state) {
+        changes.push({ field: "state", from: amd.state, to: state ?? null });
+        amdUpdate.state = state ?? null;
+      }
+      if (platformsUsed !== undefined) {
+        const prev = [...amd.platformsUsed].sort().join(",");
+        const next = [...platformsUsed].sort().join(",");
+        if (prev !== next) {
+          changes.push({ field: "platformsUsed", from: amd.platformsUsed, to: platformsUsed });
+          amdUpdate.platformsUsed = platformsUsed;
+        }
+      }
+    }
+
+    if (changes.length === 0) {
+      return res.status(200).json({ message: "No changes detected." });
+    }
+
+    // Apply all updates in parallel
+    await Promise.all([
+      Object.keys(appUpdate).length > 0
+        ? db.userApplication.update({ where: { id }, data: appUpdate })
+        : Promise.resolve(),
+      Object.keys(pdUpdate).length > 0 && pd
+        ? db.providerApplicationDetail.update({ where: { applicationId: id }, data: pdUpdate })
+        : Promise.resolve(),
+      Object.keys(amdUpdate).length > 0 && amd
+        ? db.ambassadorApplicationDetail.update({ where: { applicationId: id }, data: amdUpdate })
+        : Promise.resolve(),
+    ]);
+
+    await logAction({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      action: "application.fields_edited",
+      resource: "UserApplication",
+      resourceId: id,
+      metadata: { reason, changes, emailChanged },
+      ip: getClientIp(req),
+    });
+
+    recordEvent(id, "FIELDS_EDITED", session.user.email, { reason, changes }).catch(
+      (err) => console.error("[events] FIELDS_EDITED record failed:", err)
+    );
+
+    // Return the full updated application so the client can sync state
+    const refreshed = await db.userApplication.findUnique({
+      where: { id },
+      include: { providerDetail: true, ambassadorDetail: true },
+    });
+    return res.status(200).json(refreshed);
+  }
+
+  res.setHeader("Allow", "GET, PATCH, PUT");
   return res.status(405).json({ error: "Method not allowed" });
 }

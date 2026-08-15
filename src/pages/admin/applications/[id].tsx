@@ -311,6 +311,7 @@ const EVENT_DOT: Record<string, string> = {
   TERRITORY_REVOKED:     "border-orange-300 bg-orange-50",
   AFFILIATE_PROVISIONED: "border-green-400 bg-green-100",
   ACCOUNT_CREATED:       "border-green-500 bg-green-200",
+  FIELDS_EDITED:         "border-slate-400 bg-slate-100",
 };
 
 function formatEventLabel(ev: AppEvent): string {
@@ -334,6 +335,10 @@ function formatEventLabel(ev: AppEvent): string {
       return "Affiliate provisioned";
     case "ACCOUNT_CREATED":
       return "Account created via invite";
+    case "FIELDS_EDITED": {
+      const count = Array.isArray(m.changes) ? (m.changes as unknown[]).length : 0;
+      return `${count} field${count !== 1 ? "s" : ""} edited${m.reason ? ` — ${m.reason}` : ""}`;
+    }
     default:
       return ev.type.replace(/_/g, " ").toLowerCase();
   }
@@ -467,6 +472,114 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     body: string;
     loading: boolean;
   } | null>(null);
+
+  // Field edit state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: initial.name ?? "",
+    email: initial.email,
+    phone: initial.phone ?? "",
+    businessName: initial.businessName ?? "",
+    referralCode: initial.referralCode ?? "",
+    campaignSource: initial.campaignSource ?? "",
+    serviceCategory: initial.providerDetail?.serviceCategory ?? "",
+    serviceAreas: initial.providerDetail?.serviceAreas.join(", ") ?? "",
+    businessType: initial.providerDetail?.businessType ?? "",
+    licenseNumber: initial.providerDetail?.licenseNumber ?? "",
+    website: initial.providerDetail?.website ?? "",
+    city: initial.ambassadorDetail?.city ?? "",
+    state: initial.ambassadorDetail?.state ?? "",
+    platformsUsed: initial.ambassadorDetail?.platformsUsed.join(", ") ?? "",
+  });
+  const [editReason, setEditReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editResult, setEditResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const openEditPanel = () => {
+    setEditForm({
+      name: application.name ?? "",
+      email: application.email,
+      phone: application.phone ?? "",
+      businessName: application.businessName ?? "",
+      referralCode: application.referralCode ?? "",
+      campaignSource: application.campaignSource ?? "",
+      serviceCategory: application.providerDetail?.serviceCategory ?? "",
+      serviceAreas: application.providerDetail?.serviceAreas.join(", ") ?? "",
+      businessType: application.providerDetail?.businessType ?? "",
+      licenseNumber: application.providerDetail?.licenseNumber ?? "",
+      website: application.providerDetail?.website ?? "",
+      city: application.ambassadorDetail?.city ?? "",
+      state: application.ambassadorDetail?.state ?? "",
+      platformsUsed: application.ambassadorDetail?.platformsUsed.join(", ") ?? "",
+    });
+    setEditReason("");
+    setEditResult(null);
+    setEditOpen(true);
+  };
+
+  const saveFieldEdits = async () => {
+    if (!editReason.trim()) {
+      setEditResult({ ok: false, message: "A reason for the edit is required." });
+      return;
+    }
+    setSaving(true);
+    setEditResult(null);
+    try {
+      const payload = {
+        reason: editReason.trim(),
+        name: editForm.name.trim() || undefined,
+        email: editForm.email.trim() || undefined,
+        phone: editForm.phone.trim() || null,
+        businessName: editForm.businessName.trim() || null,
+        referralCode: editForm.referralCode.trim() || null,
+        campaignSource: editForm.campaignSource.trim() || null,
+        ...(application.providerDetail ? {
+          serviceCategory: editForm.serviceCategory.trim() || null,
+          serviceAreas: editForm.serviceAreas.split(",").map((s) => s.trim()).filter(Boolean),
+          businessType: editForm.businessType.trim() || null,
+          licenseNumber: editForm.licenseNumber.trim() || null,
+          website: editForm.website.trim() || null,
+        } : {}),
+        ...(application.ambassadorDetail ? {
+          city: editForm.city.trim() || null,
+          state: editForm.state.trim() || null,
+          platformsUsed: editForm.platformsUsed.split(",").map((s) => s.trim()).filter(Boolean),
+        } : {}),
+      };
+      const res = await fetch(`/api/admin/applications/${application.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.message === "No changes detected.") {
+          setEditResult({ ok: true, message: "No changes to save." });
+        } else {
+          setApplication((prev) => ({ ...prev, ...data }));
+          setEditResult({ ok: true, message: "Fields updated." });
+          setEditOpen(false);
+          const newEvent: AppEvent = {
+            id: `local-${Date.now()}`,
+            type: "FIELDS_EDITED",
+            actor: null,
+            meta: {
+              reason: editReason.trim(),
+              changes: [],
+            },
+            createdAt: new Date().toISOString(),
+          };
+          setEvents((prev) => [newEvent, ...prev]);
+        }
+      } else {
+        setEditResult({ ok: false, message: data.error ?? "Save failed." });
+      }
+    } catch {
+      setEditResult({ ok: false, message: "Network error." });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Account invite state
   const [inviteSentAt, setInviteSentAt] = useState<string | null>(initial.accountInviteSentAt);
@@ -811,6 +924,225 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
             {application.userId && <Row label="Has FN account" value="Yes" />}
             {application.campaignSource && <Row label="Campaign source" value={application.campaignSource} />}
           </Section>
+
+          {/* Edit fields panel */}
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => (editOpen ? setEditOpen(false) : openEditPanel())}
+              className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50"
+            >
+              <span className="text-sm font-bold text-slate-800">Edit application fields</span>
+              <span className="text-slate-400 text-xs">{editOpen ? "▲" : "▼"}</span>
+            </button>
+            {editOpen && (
+              <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+                <p className="text-xs text-slate-500">
+                  Changes are logged to the activity timeline. Email changes clear email verification.
+                </p>
+
+                {/* Contact fields */}
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Contact</legend>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Full name</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                        Email
+                        {editForm.email !== application.email && (
+                          <span className="ml-1.5 text-amber-600">(verification will be cleared)</span>
+                        )}
+                      </label>
+                      <input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Phone</label>
+                      <input
+                        type="text"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Business name</label>
+                      <input
+                        type="text"
+                        value={editForm.businessName}
+                        onChange={(e) => setEditForm((f) => ({ ...f, businessName: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                  </div>
+                </fieldset>
+
+                {/* Attribution */}
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Attribution</legend>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Referral code</label>
+                      <input
+                        type="text"
+                        value={editForm.referralCode}
+                        onChange={(e) => setEditForm((f) => ({ ...f, referralCode: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">Campaign source</label>
+                      <input
+                        type="text"
+                        value={editForm.campaignSource}
+                        onChange={(e) => setEditForm((f) => ({ ...f, campaignSource: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                  </div>
+                </fieldset>
+
+                {/* Provider-specific fields */}
+                {application.providerDetail && (
+                  <fieldset className="space-y-3">
+                    <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Provider details</legend>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">Service category</label>
+                        <input
+                          type="text"
+                          value={editForm.serviceCategory}
+                          onChange={(e) => setEditForm((f) => ({ ...f, serviceCategory: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">Business type</label>
+                        <input
+                          type="text"
+                          value={editForm.businessType}
+                          onChange={(e) => setEditForm((f) => ({ ...f, businessType: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">License number</label>
+                        <input
+                          type="text"
+                          value={editForm.licenseNumber}
+                          onChange={(e) => setEditForm((f) => ({ ...f, licenseNumber: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">Website</label>
+                        <input
+                          type="text"
+                          value={editForm.website}
+                          onChange={(e) => setEditForm((f) => ({ ...f, website: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">Service areas <span className="font-normal text-slate-400">(comma-separated)</span></label>
+                        <input
+                          type="text"
+                          value={editForm.serviceAreas}
+                          onChange={(e) => setEditForm((f) => ({ ...f, serviceAreas: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                )}
+
+                {/* Ambassador-specific fields */}
+                {application.ambassadorDetail && (
+                  <fieldset className="space-y-3">
+                    <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Ambassador details</legend>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">City</label>
+                        <input
+                          type="text"
+                          value={editForm.city}
+                          onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">State</label>
+                        <input
+                          type="text"
+                          value={editForm.state}
+                          onChange={(e) => setEditForm((f) => ({ ...f, state: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs font-semibold text-slate-500">Platforms used <span className="font-normal text-slate-400">(comma-separated)</span></label>
+                        <input
+                          type="text"
+                          value={editForm.platformsUsed}
+                          onChange={(e) => setEditForm((f) => ({ ...f, platformsUsed: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                )}
+
+                {/* Reason (required) */}
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">
+                    Reason for edit <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Applicant reported typo in email address"
+                    className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                  />
+                </div>
+
+                {editResult && (
+                  <p className={`text-xs font-semibold ${editResult.ok ? "text-green-600" : "text-red-600"}`}>
+                    {editResult.message}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveFieldEdits}
+                    disabled={saving}
+                    className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-dark disabled:opacity-50"
+                  >
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                  <button
+                    onClick={() => setEditOpen(false)}
+                    disabled={saving}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Provider sections */}
           {pd && (
