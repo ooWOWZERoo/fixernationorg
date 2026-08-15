@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/email";
+import { enrollInJourneys } from "@/lib/automation";
 
 const RegisterSchema = z.object({
   name: z.string().min(1).max(100),
@@ -63,6 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   await sendVerificationEmail(email, token);
+
+  // Fire-and-forget — never block registration on automation errors
+  enrollInJourneys({ trigger: "SIGNUP", userId: user.id }).catch(() => {});
 
   return res.json({ ok: true });
 }

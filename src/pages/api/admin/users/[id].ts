@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
+import { enrollInJourneys } from "@/lib/automation";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -69,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ip: getClientIp(req),
     }),
     autoJoinGroups(id, role),
+    enrollInJourneys({ trigger: "ROLE_CHANGE", userId: id, triggerConfig: { role } }).catch(() => {}),
   ]);
 
   return res.status(200).json(updated);

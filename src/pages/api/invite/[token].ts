@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { autoJoinGroups } from "@/lib/groups";
 import { recordEvent } from "@/lib/application-events";
+import { enrollInJourneys } from "@/lib/automation";
 
 const postSchema = z.object({
   name: z.string().min(2).max(100),
@@ -124,12 +125,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       role: newRole,
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
 
-    // Auto-join role-based groups
+    // Auto-join role-based groups and fire automation triggers
     try {
       await autoJoinGroups(user.id, newRole);
     } catch (err) {
       console.error("[invite] autoJoinGroups failed:", err);
     }
+
+    // SIGNUP fires first (new account), then ROLE_CHANGE for the specific role granted
+    enrollInJourneys({ trigger: "SIGNUP", userId: user.id }).catch(() => {});
+    enrollInJourneys({ trigger: "ROLE_CHANGE", userId: user.id, triggerConfig: { role: newRole } }).catch(() => {});
 
     return res.status(201).json({ ok: true });
   }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { enrollInJourneys } from "@/lib/automation";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -105,6 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         create: { contactId: id, tag: parsed.data.tag },
         update: {},
       });
+      enrollInJourneys({ trigger: "TAG_ADDED", contactId: id, triggerConfig: { tag: parsed.data.tag } }).catch(() => {});
       return res.status(200).json(tag);
     }
 
