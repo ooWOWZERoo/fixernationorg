@@ -7,6 +7,7 @@ import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
 import { sendEmail } from "@/lib/email";
 import { generateUniqueReferralCode } from "@/lib/referral";
+import { provisionAffiliate } from "@/lib/affiliate";
 import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
 import {
   buildUnderReviewEmail,
@@ -125,6 +126,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 update: {},
               })
             )
+          );
+          // Auto-provision affiliate assignment (PENDING) for ambassadors
+          tasks.push(
+            provisionAffiliate({
+              userId: application.userId!,
+              applicationId: id,
+              affiliateType: "AMBASSADOR",
+              assignedBy: session.user.email ?? session.user.id,
+            })
           );
         }
 

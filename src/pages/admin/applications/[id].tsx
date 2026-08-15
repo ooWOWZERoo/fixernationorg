@@ -94,6 +94,16 @@ type Application = {
   territoryAssignments: TerritoryAssignmentRow[];
 };
 
+type AffiliateSnippet = {
+  id: string;
+  status: string;
+  affiliateType: string;
+  taxOnboardingDone: boolean;
+  payoutOnboardingDone: boolean;
+  activatedAt: string | null;
+  createdAt: string;
+};
+
 type TerritoryOption = {
   id: string;
   name: string;
@@ -122,6 +132,7 @@ type TerritoryAssignmentRow = {
 interface Props {
   application: Application;
   availableTerritories: TerritoryOption[];
+  affiliateAssignment: AffiliateSnippet | null;
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -240,7 +251,16 @@ function ExternalLink({ href, label }: { href?: string | null; label: string }) 
 
 // ── main page ─────────────────────────────────────────────────────────────────
 
-const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial, availableTerritories }) => {
+const AFFILIATE_STATUS_BADGE: Record<string, string> = {
+  PENDING: "bg-amber/20 text-amber-dark",
+  ACTIVE: "bg-green-100 text-green-700",
+  ON_HOLD: "bg-blue-100 text-blue-700",
+  SUSPENDED: "bg-orange-100 text-orange-700",
+  REVOKED: "bg-slate-100 text-slate-500",
+  CLOSED: "bg-slate-100 text-slate-400",
+};
+
+const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial, availableTerritories, affiliateAssignment: initialAffiliate }) => {
   const [application, setApplication] = useState(initial);
   const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
   const [infoRequestNotes, setInfoRequestNotes] = useState(initial.infoRequestNotes ?? "");
@@ -254,6 +274,11 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
+
+  // Affiliate state
+  const [affiliate, setAffiliate] = useState<AffiliateSnippet | null>(initialAffiliate);
+  const [provisioning, setProvisioning] = useState(false);
+  const [provisionResult, setProvisionResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const isReviewable = REVIEWABLE_FROM.has(application.status);
   const pd = application.providerDetail;
@@ -314,6 +339,35 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
       }
     } finally {
       setRevoking(null);
+    }
+  };
+
+  const provisionAffiliate = async () => {
+    if (!application.userId) return;
+    setProvisioning(true);
+    setProvisionResult(null);
+    try {
+      const res = await fetch("/api/admin/affiliates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: application.userId,
+          applicationId: application.id,
+          affiliateType: application.type,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAffiliate(data);
+        setProvisionResult({ ok: true, message: "Affiliate provisioned." });
+        setTimeout(() => setProvisionResult(null), 3000);
+      } else {
+        setProvisionResult({ ok: false, message: data.error ?? "Failed to provision." });
+      }
+    } catch {
+      setProvisionResult({ ok: false, message: "Network error." });
+    } finally {
+      setProvisioning(false);
     }
   };
 
@@ -783,6 +837,71 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
             </div>
           )}
 
+          {/* Affiliate panel — ambassador only */}
+          {application.type === "AMBASSADOR" && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-800">Affiliate</p>
+                {affiliate && (
+                  <Link href={`/admin/affiliates/${affiliate.id}`} className="text-xs font-semibold text-navy hover:underline underline-offset-2">
+                    Manage →
+                  </Link>
+                )}
+              </div>
+
+              {provisionResult && (
+                <div className={`rounded-lg px-3 py-2 text-sm font-medium ${provisionResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  {provisionResult.message}
+                </div>
+              )}
+
+              {affiliate ? (
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Status</span>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${AFFILIATE_STATUS_BADGE[affiliate.status] ?? "bg-slate-100 text-slate-500"}`}>
+                      {affiliate.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>Tax onboarding</span>
+                    <span className={affiliate.taxOnboardingDone ? "text-green-600 font-semibold" : "text-slate-400"}>
+                      {affiliate.taxOnboardingDone ? "Done" : "Pending"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>Payout onboarding</span>
+                    <span className={affiliate.payoutOnboardingDone ? "text-green-600 font-semibold" : "text-slate-400"}>
+                      {affiliate.payoutOnboardingDone ? "Done" : "Pending"}
+                    </span>
+                  </div>
+                  {affiliate.activatedAt && (
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>Activated</span>
+                      <span>{new Date(affiliate.activatedAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-400">
+                    No affiliate record yet. This is created automatically when you accept the application.
+                    {application.userId ? " You can also provision it manually below." : " Requires an account."}
+                  </p>
+                  {application.userId && (
+                    <button
+                      onClick={provisionAffiliate}
+                      disabled={provisioning}
+                      className="w-full rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-50 disabled:opacity-40"
+                    >
+                      {provisioning ? "Provisioning…" : "Provision affiliate manually"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Application metadata */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-400 space-y-1">
             <div className="flex justify-between"><span>ID</span><span className="font-mono">{application.id.slice(0, 12)}…</span></div>
@@ -839,10 +958,24 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     return { notFound: true };
   }
 
+  const affiliateAssignment = await db.affiliateAssignment.findUnique({
+    where: { applicationId: id },
+    select: {
+      id: true,
+      status: true,
+      affiliateType: true,
+      taxOnboardingDone: true,
+      payoutOnboardingDone: true,
+      activatedAt: true,
+      createdAt: true,
+    },
+  });
+
   return {
     props: {
       application: JSON.parse(JSON.stringify(application)),
       availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
+      affiliateAssignment: JSON.parse(JSON.stringify(affiliateAssignment ?? null)),
     },
   };
 };

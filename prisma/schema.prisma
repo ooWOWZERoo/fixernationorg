@@ -54,6 +54,7 @@ model User {
   loyaltyPoints            LoyaltyPoint[]
   crmContact               Contact?
   territoryAssignments     TerritoryAssignment[]
+  affiliateAssignments     AffiliateAssignment[]
 
   @@index([email])
 }
@@ -465,6 +466,7 @@ model UserApplication {
   providerDetail        ProviderApplicationDetail?
   ambassadorDetail      AmbassadorApplicationDetail?
   territoryAssignments  TerritoryAssignment[]
+  affiliateAssignment   AffiliateAssignment?
 
   @@index([type, status])
   @@index([email])
@@ -1054,4 +1056,145 @@ model TerritoryAssignment {
   @@index([territoryId])
   @@index([applicationId])
   @@index([status])
+}
+
+// ─── Affiliate Integration (SP-4) ────────────────────────────────────────────
+
+enum AffiliateStatus {
+  PENDING
+  ACTIVE
+  ON_HOLD
+  SUSPENDED
+  REVOKED
+  CLOSED
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FLAT
+}
+
+enum CommissionLedgerStatus {
+  PENDING
+  APPROVED
+  PAID
+  REVERSED
+  ON_HOLD
+  CANCELLED
+}
+
+enum PromoCodeStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+model AffiliateAssignment {
+  id            String          @id @default(cuid())
+  userId        String
+  applicationId String?         @unique
+  affiliateType String          // "AMBASSADOR" | "PROVIDER"
+  status        AffiliateStatus @default(PENDING)
+
+  // Attribution
+  attributionWindowDays Int     @default(30)
+
+  // Payout
+  payoutThreshold      Decimal? @db.Decimal(10, 2)
+  payoutCycle          String   @default("MONTHLY")
+  taxOnboardingDone    Boolean  @default(false)
+  payoutOnboardingDone Boolean  @default(false)
+  stripeConnectId      String?
+
+  // Lifecycle
+  activatedAt     DateTime?
+  suspendedAt     DateTime?
+  suspendedReason String?
+  revokedAt       DateTime?
+  revokedBy       String?
+  notes           String?   @db.Text
+  assignedBy      String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id])
+  application  UserApplication? @relation(fields: [applicationId], references: [id])
+  promoCodes   PromoCode[]
+  commissionRules CommissionRule[]
+  ledgerEntries   CommissionLedger[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model PromoCode {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  affiliateId   String
+  status        PromoCodeStatus @default(ACTIVE)
+  discountType  String          @default("PERCENTAGE") // "PERCENTAGE" | "FLAT"
+  discountValue Decimal         @db.Decimal(10, 2)
+  maxUses       Int?
+  usedCount     Int             @default(0)
+  validFrom     DateTime        @default(now())
+  validUntil    DateTime?
+  notes         String?
+  createdAt     DateTime        @default(now())
+
+  affiliate     AffiliateAssignment @relation(fields: [affiliateId], references: [id])
+
+  @@index([code])
+  @@index([affiliateId])
+}
+
+model CommissionRule {
+  id          String         @id @default(cuid())
+  affiliateId String
+  name        String
+  type        CommissionType @default(PERCENTAGE)
+  rate        Decimal        @db.Decimal(8, 4)
+  pendingDays Int            @default(30)
+  appliesTo   String?        // product type filter; null = all
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+
+  affiliate   AffiliateAssignment @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId])
+}
+
+model CommissionLedger {
+  id               String                 @id @default(cuid())
+  affiliateId      String
+  status           CommissionLedgerStatus @default(PENDING)
+
+  // Source
+  sourceType       String   // "REFERRAL" | "PROMO_CODE" | "MANUAL" | "BONUS" | "REVERSAL"
+  sourceRef        String?
+  description      String?
+
+  // Amounts
+  grossAmount      Decimal  @db.Decimal(10, 2)
+  commissionRate   Decimal? @db.Decimal(8, 4)
+  commissionAmount Decimal  @db.Decimal(10, 2)
+  currency         String   @default("USD")
+
+  // Lifecycle
+  pendingUntil     DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  paidAt           DateTime?
+  payoutBatchId    String?
+  reversedAt       DateTime?
+  reversedBy       String?
+  reversalReason   String?
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  affiliate        AffiliateAssignment @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId])
+  @@index([status])
+  @@index([pendingUntil])
 }
