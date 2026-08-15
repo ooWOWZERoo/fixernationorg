@@ -94,6 +94,19 @@ type Application = {
   territoryAssignments: TerritoryAssignmentRow[];
 };
 
+type OnboardingRecord = {
+  id: string;
+  pricingType: string;
+  quotedAmount: string | null;
+  finalAmount: string | null;
+  discountPercent: string | null;
+  paymentStatus: string;
+  paidAt: string | null;
+  stripePaymentLinkUrl: string | null;
+  waiverReason: string | null;
+  notes: string | null;
+};
+
 type AffiliateSnippet = {
   id: string;
   status: string;
@@ -133,6 +146,7 @@ interface Props {
   application: Application;
   availableTerritories: TerritoryOption[];
   affiliateAssignment: AffiliateSnippet | null;
+  onboardingRecord: OnboardingRecord | null;
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -260,7 +274,28 @@ const AFFILIATE_STATUS_BADGE: Record<string, string> = {
   CLOSED: "bg-slate-100 text-slate-400",
 };
 
-const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial, availableTerritories, affiliateAssignment: initialAffiliate }) => {
+const ONBOARDING_STATUSES = new Set([
+  "ACCEPTED_ONBOARDING_REQUIRED",
+  "ONBOARDING_IN_PROGRESS",
+  "PAYMENT_PENDING",
+]);
+
+const PRICING_LABELS: Record<string, string> = {
+  CURRENT: "Current price",
+  QUOTED: "Quoted price",
+  PROMOTIONAL: "Promotional",
+  PARTIAL_DISCOUNT: "Partial discount",
+  FULL_WAIVER: "Full waiver",
+  TRIAL: "Trial",
+  COMPLIMENTARY: "Complimentary",
+};
+
+const ApplicationDetailPage: NextPageWithLayout<Props> = ({
+  application: initial,
+  availableTerritories,
+  affiliateAssignment: initialAffiliate,
+  onboardingRecord: initialOnboarding,
+}) => {
   const [application, setApplication] = useState(initial);
   const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
   const [infoRequestNotes, setInfoRequestNotes] = useState(initial.infoRequestNotes ?? "");
@@ -280,7 +315,28 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
   const [provisioning, setProvisioning] = useState(false);
   const [provisionResult, setProvisionResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Onboarding record state
+  const [onboarding, setOnboarding] = useState<OnboardingRecord | null>(initialOnboarding);
+  const [onboardingForm, setOnboardingForm] = useState({
+    pricingType: initialOnboarding?.pricingType ?? "CURRENT",
+    quotedAmount: initialOnboarding?.quotedAmount ?? "",
+    finalAmount: initialOnboarding?.finalAmount ?? "",
+    discountPercent: initialOnboarding?.discountPercent ?? "",
+    paymentStatus: initialOnboarding?.paymentStatus ?? "PENDING",
+    paidAt: initialOnboarding?.paidAt ? new Date(initialOnboarding.paidAt).toISOString().slice(0, 10) : "",
+    stripePaymentLinkUrl: initialOnboarding?.stripePaymentLinkUrl ?? "",
+    waiverReason: initialOnboarding?.waiverReason ?? "",
+    notes: initialOnboarding?.notes ?? "",
+  });
+  const [savingOnboarding, setSavingOnboarding] = useState(false);
+  const [onboardingResult, setOnboardingResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [activating, setActivating] = useState(false);
+
   const isReviewable = REVIEWABLE_FROM.has(application.status);
+  const isOnboarding = ONBOARDING_STATUSES.has(application.status);
+  const isActive = application.status === "ACTIVE";
+  const paymentReady =
+    onboarding?.paymentStatus === "COMPLETED" || onboarding?.paymentStatus === "WAIVED";
   const pd = application.providerDetail;
   const ad = application.ambassadorDetail;
   const checklistItems = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
@@ -368,6 +424,66 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
       setProvisionResult({ ok: false, message: "Network error." });
     } finally {
       setProvisioning(false);
+    }
+  };
+
+  const saveOnboarding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingOnboarding(true);
+    setOnboardingResult(null);
+    try {
+      const body: Record<string, unknown> = {
+        pricingType: onboardingForm.pricingType,
+        paymentStatus: onboardingForm.paymentStatus,
+      };
+      if (onboardingForm.quotedAmount) body.quotedAmount = parseFloat(onboardingForm.quotedAmount as string);
+      if (onboardingForm.finalAmount) body.finalAmount = parseFloat(onboardingForm.finalAmount as string);
+      if (onboardingForm.discountPercent) body.discountPercent = parseFloat(onboardingForm.discountPercent as string);
+      if (onboardingForm.paidAt) body.paidAt = onboardingForm.paidAt;
+      if (onboardingForm.stripePaymentLinkUrl) body.stripePaymentLinkUrl = onboardingForm.stripePaymentLinkUrl.trim() || null;
+      if (onboardingForm.waiverReason) body.waiverReason = onboardingForm.waiverReason.trim() || null;
+      if (onboardingForm.notes) body.notes = onboardingForm.notes.trim() || null;
+
+      const res = await fetch(`/api/admin/onboarding/${application.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOnboarding(data);
+        setOnboardingResult({ ok: true, message: "Pricing saved." });
+        setTimeout(() => setOnboardingResult(null), 3000);
+      } else {
+        setOnboardingResult({ ok: false, message: data.error ?? "Save failed." });
+      }
+    } catch {
+      setOnboardingResult({ ok: false, message: "Network error." });
+    } finally {
+      setSavingOnboarding(false);
+    }
+  };
+
+  const activate = async () => {
+    setActivating(true);
+    try {
+      const res = await fetch(`/api/admin/applications/${application.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACTIVE", reviewNotes: reviewNotes.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApplication((prev) => ({ ...prev, ...data }));
+        setActionResult({ ok: true, message: "Applicant activated. Welcome email sent." });
+        setTimeout(() => setActionResult(null), 5000);
+      } else {
+        setActionResult({ ok: false, message: data.error ?? "Activation failed." });
+      }
+    } catch {
+      setActionResult({ ok: false, message: "Network error." });
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -726,6 +842,193 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
                 <p className="mt-1 text-xs text-slate-400">Sends decline email. This cannot be undone.</p>
               </div>
             </div>
+          ) : isOnboarding ? (
+            /* ── Onboarding & payment panel ────────────────────────────────── */
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-800">Onboarding &amp; payment</p>
+                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[application.status] ?? "bg-slate-100 text-slate-500"}`}>
+                  {STATUS_LABEL[application.status] ?? application.status}
+                </span>
+              </div>
+
+              {/* Stage quick-set */}
+              <div className="flex flex-wrap gap-2">
+                {(["ONBOARDING_IN_PROGRESS", "PAYMENT_PENDING"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => act(s)}
+                    disabled={acting || application.status === s}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-30 ${application.status === s ? "border-navy bg-navy/10 text-navy" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                  >
+                    {STATUS_LABEL[s] ?? s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Pricing form */}
+              <form onSubmit={saveOnboarding} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Pricing type</label>
+                  <select
+                    value={onboardingForm.pricingType}
+                    onChange={(e) => setOnboardingForm((f) => ({ ...f, pricingType: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                  >
+                    {Object.entries(PRICING_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {!["FULL_WAIVER", "COMPLIMENTARY"].includes(onboardingForm.pricingType) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        {onboardingForm.pricingType === "PARTIAL_DISCOUNT" ? "Original $" : "Amount $"}
+                      </label>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={onboardingForm.quotedAmount as string}
+                        onChange={(e) => setOnboardingForm((f) => ({ ...f, quotedAmount: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      />
+                    </div>
+                    {onboardingForm.pricingType === "PARTIAL_DISCOUNT" ? (
+                      <>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Discount %</label>
+                          <input
+                            type="number" min="0" max="100" step="0.1"
+                            value={onboardingForm.discountPercent as string}
+                            onChange={(e) => setOnboardingForm((f) => ({ ...f, discountPercent: e.target.value }))}
+                            placeholder="e.g. 25"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Final amount $</label>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={onboardingForm.finalAmount as string}
+                            onChange={(e) => setOnboardingForm((f) => ({ ...f, finalAmount: e.target.value }))}
+                            placeholder="0.00"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Final amount $</label>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={onboardingForm.finalAmount as string}
+                          onChange={(e) => setOnboardingForm((f) => ({ ...f, finalAmount: e.target.value }))}
+                          placeholder="= amount if same"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Payment status</label>
+                  <select
+                    value={onboardingForm.paymentStatus}
+                    onChange={(e) => setOnboardingForm((f) => ({ ...f, paymentStatus: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                  >
+                    <option value="PENDING">Pending</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="WAIVED">Waived</option>
+                    <option value="FAILED">Failed</option>
+                  </select>
+                </div>
+
+                {onboardingForm.paymentStatus === "COMPLETED" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Payment date</label>
+                    <input
+                      type="date"
+                      value={onboardingForm.paidAt}
+                      onChange={(e) => setOnboardingForm((f) => ({ ...f, paidAt: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                    />
+                  </div>
+                )}
+
+                {onboardingForm.paymentStatus === "WAIVED" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Waiver reason</label>
+                    <textarea
+                      value={onboardingForm.waiverReason}
+                      onChange={(e) => setOnboardingForm((f) => ({ ...f, waiverReason: e.target.value }))}
+                      rows={2}
+                      className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                    />
+                  </div>
+                )}
+
+                {onboardingResult && (
+                  <div className={`rounded-lg px-3 py-2 text-sm font-medium ${onboardingResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                    {onboardingResult.message}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={savingOnboarding}
+                  className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  {savingOnboarding ? "Saving…" : "Save pricing"}
+                </button>
+              </form>
+
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                {actionResult && (
+                  <div className={`rounded-lg px-3 py-2.5 text-sm font-medium ${actionResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                    {actionResult.message}
+                  </div>
+                )}
+
+                {application.type === "AMBASSADOR" && !affiliate && (
+                  <p className="text-xs text-amber-600 font-semibold">No affiliate record yet — provision one before activating.</p>
+                )}
+
+                {!paymentReady && (
+                  <p className="text-xs text-slate-400">Payment must be completed or waived before activation.</p>
+                )}
+
+                <button
+                  onClick={activate}
+                  disabled={activating || !paymentReady}
+                  className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                >
+                  {activating ? "Activating…" : "Activate"}
+                </button>
+                <p className="text-xs text-slate-400 text-center">Marks as Active and sends welcome email.</p>
+              </div>
+            </div>
+          ) : isActive ? (
+            <div className="rounded-xl border border-green-200 bg-green-50 p-5 text-center space-y-1">
+              <p className="text-sm font-bold text-green-800">Active</p>
+              <p className="text-xs text-green-600">
+                {application.type === "PROVIDER" ? "Service provider" : "Ambassador"} account is live.
+              </p>
+              {application.reviewedBy && (
+                <p className="text-xs text-green-600">
+                  Activated by {application.reviewedBy} on{" "}
+                  {application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : "—"}
+                </p>
+              )}
+              {onboarding && (
+                <p className="text-xs text-green-600 pt-1">
+                  {PRICING_LABELS[onboarding.pricingType] ?? onboarding.pricingType} &middot; payment {onboarding.paymentStatus.toLowerCase()}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-5 text-center">
               <p className="text-sm font-semibold text-slate-500">
@@ -958,24 +1261,30 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     return { notFound: true };
   }
 
-  const affiliateAssignment = await db.affiliateAssignment.findUnique({
-    where: { applicationId: id },
-    select: {
-      id: true,
-      status: true,
-      affiliateType: true,
-      taxOnboardingDone: true,
-      payoutOnboardingDone: true,
-      activatedAt: true,
-      createdAt: true,
-    },
-  });
+  const [affiliateAssignment, onboardingRecord] = await Promise.all([
+    db.affiliateAssignment.findUnique({
+      where: { applicationId: id },
+      select: {
+        id: true,
+        status: true,
+        affiliateType: true,
+        taxOnboardingDone: true,
+        payoutOnboardingDone: true,
+        activatedAt: true,
+        createdAt: true,
+      },
+    }),
+    db.onboardingRecord.findUnique({
+      where: { applicationId: id },
+    }),
+  ]);
 
   return {
     props: {
       application: JSON.parse(JSON.stringify(application)),
       availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
       affiliateAssignment: JSON.parse(JSON.stringify(affiliateAssignment ?? null)),
+      onboardingRecord: JSON.parse(JSON.stringify(onboardingRecord ?? null)),
     },
   };
 };

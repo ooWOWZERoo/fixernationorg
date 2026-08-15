@@ -467,6 +467,7 @@ model UserApplication {
   ambassadorDetail      AmbassadorApplicationDetail?
   territoryAssignments  TerritoryAssignment[]
   affiliateAssignment   AffiliateAssignment?
+  onboardingRecord      OnboardingRecord?
 
   @@index([type, status])
   @@index([email])
@@ -1197,4 +1198,43 @@ model CommissionLedger {
   @@index([affiliateId])
   @@index([status])
   @@index([pendingUntil])
+}
+
+// ─── SP-5: Onboarding Record ──────────────────────────────────────────────────
+
+enum PricingType {
+  CURRENT
+  QUOTED
+  PROMOTIONAL
+  PARTIAL_DISCOUNT
+  FULL_WAIVER
+  TRIAL
+  COMPLIMENTARY
+}
+
+enum OnboardingPaymentStatus {
+  PENDING
+  COMPLETED
+  WAIVED
+  FAILED
+}
+
+model OnboardingRecord {
+  id                    String                  @id @default(cuid())
+  applicationId         String                  @unique
+  pricingType           PricingType             @default(CURRENT)
+  quotedAmount          Decimal?                @db.Decimal(10, 2)
+  finalAmount           Decimal?                @db.Decimal(10, 2)
+  discountPercent       Decimal?                @db.Decimal(5, 2)
+  paymentStatus         OnboardingPaymentStatus @default(PENDING)
+  paidAt                DateTime?
+  stripePaymentIntentId String?
+  stripePaymentLinkUrl  String?
+  waiverReason          String?                 @db.Text
+  notes                 String?                 @db.Text
+  createdBy             String
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  application           UserApplication         @relation(fields: [applicationId], references: [id])
 }

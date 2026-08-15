@@ -1,64 +1,101 @@
-const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
-const BRAND_NAVY = "#0f2460";
-const BRAND_ORANGE = "#E8620A";
+type WelcomeEmail = { subject: string; html: string; text: string };
 
-export function buildWelcomeEmail(name: string | null): { subject: string; html: string; text: string } {
-  const first = name?.split(" ")[0] ?? "there";
-  const dashboardUrl = `${BASE_URL}/dashboard`;
+function display(name: string | null | undefined): string {
+  return name?.trim() || "there";
+}
 
-  const htmlBody = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Welcome to Fixer Nation</title></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+// Generic welcome — sent when a new member verifies their email
+export function buildWelcomeEmail(name: string | null | undefined): WelcomeEmail {
+  const n = display(name);
+  return {
+    subject: "Welcome to Fixer Nation",
+    html: `
+      <p>Hi ${n},</p>
+      <p>Your email is verified and your Fixer Nation account is ready.</p>
+      <p>Log in any time at fixernation.org.</p>
+      <p>The Fixer Nation Team</p>
+    `.trim(),
+    text: [
+      `Hi ${n},`,
+      "",
+      "Your email is verified and your Fixer Nation account is ready.",
+      "",
+      "Log in any time at fixernation.org.",
+      "",
+      "The Fixer Nation Team",
+    ].join("\n"),
+  };
+}
 
-        <tr>
-          <td style="background-color:${BRAND_NAVY};border-radius:16px 16px 0 0;padding:24px 32px;">
-            <p style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND_ORANGE};">Fixer Nation</p>
-            <p style="margin:8px 0 0 0;font-size:22px;font-weight:800;color:#ffffff;">Welcome, ${first}.</p>
-          </td>
-        </tr>
+export function buildWelcomeProviderEmail(name: string | null | undefined): WelcomeEmail {
+  const n = display(name);
+  return {
+    subject: "You're in — welcome to the Fixer Nation provider network",
+    html: `
+      <p>Hi ${n},</p>
+      <p>Your Fixer Nation service provider account is now active. You're part of a network built to connect skilled professionals with homeowners who need real help.</p>
+      <p>Here's where to start:</p>
+      <ul>
+        <li>Log in and complete your provider profile</li>
+        <li>Review your territory and service settings</li>
+        <li>Check your dashboard for any next steps from our team</li>
+      </ul>
+      <p>If you have questions or run into anything, reply to this email — a real person reads it.</p>
+      <p>Welcome aboard.<br/>The Fixer Nation Team</p>
+    `.trim(),
+    text: [
+      `Hi ${n},`,
+      "",
+      "Your Fixer Nation service provider account is now active. You're part of a network built to connect skilled professionals with homeowners who need real help.",
+      "",
+      "Here's where to start:",
+      "- Log in and complete your provider profile",
+      "- Review your territory and service settings",
+      "- Check your dashboard for any next steps from our team",
+      "",
+      "If you have questions or run into anything, reply to this email — a real person reads it.",
+      "",
+      "Welcome aboard.",
+      "The Fixer Nation Team",
+    ].join("\n"),
+  };
+}
 
-        <tr>
-          <td style="background-color:#ffffff;padding:32px 32px 8px 32px;">
-            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.7;color:#1e293b;">Your email is verified and your account is active. Sign in whenever you're ready. Your dashboard, the Morning Boost, and the community are all there.</p>
-            <p style="margin:0 0 28px 0;font-size:16px;line-height:1.7;color:#1e293b;">Good to have you.</p>
-          </td>
-        </tr>
-
-        <tr>
-          <td style="background-color:#ffffff;padding:8px 32px 32px 32px;">
-            <a href="${dashboardUrl}" style="display:inline-block;background-color:${BRAND_NAVY};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:10px;">Go to my dashboard</a>
-          </td>
-        </tr>
-
-        <tr><td style="background-color:#ffffff;padding:0 32px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:0;"></td></tr>
-
-        <tr>
-          <td style="background-color:#ffffff;border-radius:0 0 16px 16px;padding:20px 32px 24px 32px;">
-            <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">Fixer Nation &middot; <a href="${BASE_URL}" style="color:#94a3b8;">fixernation.org</a></p>
-          </td>
-        </tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-
-  const textBody = `Welcome, ${first}.
-
-Your email is verified and your account is active. Sign in whenever you're ready. Your dashboard, the Morning Boost, and the community are all there.
-
-Good to have you.
-
-Go to your dashboard: ${dashboardUrl}
-
----
-Fixer Nation · ${BASE_URL}
-`;
-
-  return { subject: "Welcome to Fixer Nation", html: htmlBody, text: textBody };
+export function buildWelcomeAmbassadorEmail(name: string | null | undefined): WelcomeEmail {
+  const n = display(name);
+  return {
+    subject: "You're officially a Fixer Nation Ambassador",
+    html: `
+      <p>Hi ${n},</p>
+      <p>Your ambassador account is active. We're glad you're here.</p>
+      <p>As a Fixer Nation Ambassador, you'll help connect people in your community with trusted home service professionals — and earn commissions when they do.</p>
+      <p>A few things to take care of first:</p>
+      <ul>
+        <li>Log in and check your ambassador dashboard</li>
+        <li>Make sure your promo code is set up (if you don't see one, reach out)</li>
+        <li>Complete tax and payout onboarding so you can get paid</li>
+        <li>Review your territory assignment</li>
+      </ul>
+      <p>Our team will be in touch with more details. In the meantime, reply here with any questions.</p>
+      <p>Thanks for joining us.<br/>The Fixer Nation Team</p>
+    `.trim(),
+    text: [
+      `Hi ${n},`,
+      "",
+      "Your ambassador account is active. We're glad you're here.",
+      "",
+      "As a Fixer Nation Ambassador, you'll help connect people in your community with trusted home service professionals — and earn commissions when they do.",
+      "",
+      "A few things to take care of first:",
+      "- Log in and check your ambassador dashboard",
+      "- Make sure your promo code is set up (if you don't see one, reach out)",
+      "- Complete tax and payout onboarding so you can get paid",
+      "- Review your territory assignment",
+      "",
+      "Our team will be in touch with more details. In the meantime, reply here with any questions.",
+      "",
+      "Thanks for joining us.",
+      "The Fixer Nation Team",
+    ].join("\n"),
+  };
 }

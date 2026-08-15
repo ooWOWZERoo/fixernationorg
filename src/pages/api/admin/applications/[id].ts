@@ -14,6 +14,7 @@ import {
   buildInfoRequestEmail,
   buildConditionalAcceptanceEmail,
 } from "@/lib/emails/application-status";
+import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail } from "@/lib/emails/welcome";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -23,7 +24,10 @@ const ACCEPT_STATUSES = [
   "RESUBMITTED",
   "CONDITIONALLY_ACCEPTED",
   "ACCEPTED_ONBOARDING_REQUIRED",
+  "ONBOARDING_IN_PROGRESS",
+  "PAYMENT_PENDING",
   "APPROVED",
+  "ACTIVE",
   "DECLINED",
   "REJECTED",
   "WITHDRAWN",
@@ -41,6 +45,7 @@ const REJECTION_STATUSES = new Set(["DECLINED", "REJECTED"]);
 const REVIEWABLE_FROM = new Set([
   "PENDING", "SUBMITTED", "UNDER_REVIEW",
   "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED",
+  "ACCEPTED_ONBOARDING_REQUIRED", "ONBOARDING_IN_PROGRESS", "PAYMENT_PENDING",
 ]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -187,6 +192,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           to: application.email,
           ...buildApplicationRejectedEmail(displayName, appType),
         });
+      } else if (status === "ACTIVE") {
+        const welcomeEmail = appType === "AMBASSADOR"
+          ? buildWelcomeAmbassadorEmail(displayName)
+          : buildWelcomeProviderEmail(displayName);
+        await sendEmail({ to: application.email, ...welcomeEmail });
       }
     } catch (err) {
       console.error("[application] Failed to send status email:", err);
