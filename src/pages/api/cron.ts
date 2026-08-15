@@ -1,11 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { randomBytes, randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
 import { buildApplicationExpiredEmail } from "@/lib/emails/expiration";
 import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
+import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
+import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
-import { randomUUID } from "crypto";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
 // cPanel calls this URL via HTTP:
 //   https://fixernation.org/api/cron?job=morning-boost&token=CRON_SECRET
@@ -265,12 +269,62 @@ async function runApplicationExpirationReminders(): Promise<{ message: string }>
   return { message: `Sent ${sent} expiration reminder${sent !== 1 ? "s" : ""}` };
 }
 
+// Resend account invites for accepted apps where userId is still null and invite is 7+ days old.
+async function runAccountInvitationReminders(): Promise<{ message: string }> {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const apps = await db.userApplication.findMany({
+    where: {
+      userId: null,
+      accountInviteToken: { not: null },
+      accountInviteExpiresAt: { gt: now }, // not yet expired
+      accountInviteSentAt: { lte: sevenDaysAgo }, // sent 7+ days ago
+    },
+    select: { id: true, email: true, name: true, type: true },
+  });
+
+  let sent = 0;
+  for (const app of apps) {
+    const newToken = randomBytes(32).toString("hex");
+    const newExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    await db.userApplication.update({
+      where: { id: app.id },
+      data: {
+        accountInviteToken: newToken,
+        accountInviteExpiresAt: newExpiry,
+        accountInviteSentAt: now,
+      },
+    });
+
+    const appType = app.type as "PROVIDER" | "AMBASSADOR";
+    const firstName = (app.name ?? "").split(" ")[0] || "there";
+    const role = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+    const inviteUrl = `${APP_URL}/invite/${newToken}`;
+
+    const email =
+      (await loadTemplate("account.invitation", { first_name: firstName, role, invite_url: inviteUrl }))
+      ?? buildAccountInviteEmail(app.name, appType, inviteUrl);
+
+    try {
+      await sendEmail({ to: app.email, ...email });
+      sent++;
+    } catch (err) {
+      console.error(`[account-invitation-reminders] Email failed for ${app.id}:`, err);
+    }
+  }
+
+  return { message: `Sent ${sent} account invitation reminder${sent !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
   "application-expiration": runApplicationExpiration,
   "application-expiration-reminders": runApplicationExpirationReminders,
+  "account-invitation-reminders": runAccountInvitationReminders,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

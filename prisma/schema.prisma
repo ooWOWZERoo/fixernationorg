@@ -461,9 +461,12 @@ model UserApplication {
   reviewedAt              DateTime?
   reviewedBy              String?
   reviewNotes             String?           @db.Text
-  previousApplicationId   String?
+  previousApplicationId    String?
   expirationReminderSentAt DateTime?
-  createdAt               DateTime          @default(now())
+  accountInviteToken       String?           @unique
+  accountInviteExpiresAt   DateTime?
+  accountInviteSentAt      DateTime?
+  createdAt                DateTime          @default(now())
 
   providerDetail        ProviderApplicationDetail?
   ambassadorDetail      AmbassadorApplicationDetail?

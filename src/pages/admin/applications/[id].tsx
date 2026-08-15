@@ -89,6 +89,9 @@ type Application = {
   reviewNotes: string | null;
   infoRequestNotes: string | null;
   createdAt: string;
+  accountInviteToken: string | null;
+  accountInviteExpiresAt: string | null;
+  accountInviteSentAt: string | null;
   providerDetail: ProviderDetail | null;
   ambassadorDetail: AmbassadorDetail | null;
   territoryAssignments: TerritoryAssignmentRow[];
@@ -416,6 +419,14 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     loading: boolean;
   } | null>(null);
 
+  // Account invite state
+  const [inviteSentAt, setInviteSentAt] = useState<string | null>(initial.accountInviteSentAt);
+  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(initial.accountInviteExpiresAt);
+  const [inviteHasToken, setInviteHasToken] = useState<boolean>(!!initial.accountInviteToken);
+  const [inviting, setInviting] = useState(false);
+  const [revoking2, setRevoking2] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   const isReviewable = REVIEWABLE_FROM.has(application.status);
   const isOnboarding = ONBOARDING_STATUSES.has(application.status);
   const isActive = application.status === "ACTIVE";
@@ -647,6 +658,50 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     } catch {
       setSendPreview(null);
       act(status);
+    }
+  };
+
+  const sendInvite = async () => {
+    setInviting(true);
+    setInviteResult(null);
+    try {
+      const res = await fetch(`/api/admin/applications/invite/${application.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteSentAt(data.accountInviteSentAt);
+        setInviteExpiresAt(data.accountInviteExpiresAt);
+        setInviteHasToken(true);
+        setInviteResult({ ok: true, message: inviteHasToken ? "Invite resent." : "Invite sent." });
+        setTimeout(() => setInviteResult(null), 4000);
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? "Failed to send invite." });
+      }
+    } catch {
+      setInviteResult({ ok: false, message: "Network error." });
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const revokeInvite = async () => {
+    setRevoking2(true);
+    setInviteResult(null);
+    try {
+      const res = await fetch(`/api/admin/applications/invite/${application.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteSentAt(null);
+        setInviteExpiresAt(null);
+        setInviteHasToken(false);
+        setInviteResult({ ok: true, message: "Invite revoked." });
+        setTimeout(() => setInviteResult(null), 3000);
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? "Failed to revoke." });
+      }
+    } catch {
+      setInviteResult({ ok: false, message: "Network error." });
+    } finally {
+      setRevoking2(false);
     }
   };
 
@@ -1199,6 +1254,60 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {application.reviewNotes && (
                 <p className="mt-2 text-xs italic text-slate-500">{application.reviewNotes}</p>
               )}
+            </div>
+          )}
+
+          {/* Account invite panel — shown when accepted/onboarding but no account yet */}
+          {!application.userId && isOnboarding && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <p className="text-sm font-bold text-slate-800">Account invite</p>
+
+              {application.userId ? (
+                <p className="text-xs text-green-600 font-semibold">Account linked.</p>
+              ) : inviteHasToken ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-600">
+                    Invite sent{" "}
+                    {inviteSentAt
+                      ? new Date(inviteSentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                      : "—"}
+                  </p>
+                  {inviteExpiresAt && (
+                    <p className={`text-xs ${new Date(inviteExpiresAt) < new Date() ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+                      {new Date(inviteExpiresAt) < new Date()
+                        ? "Expired — resend to issue a new link"
+                        : `Expires ${new Date(inviteExpiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">No invite sent yet. Send one so they can create their account.</p>
+              )}
+
+              {inviteResult && (
+                <div className={`rounded-lg px-3 py-2 text-sm font-medium ${inviteResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  {inviteResult.message}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={sendInvite}
+                  disabled={inviting || revoking2}
+                  className="w-full rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-navy-dark disabled:opacity-40"
+                >
+                  {inviting ? "Sending…" : inviteHasToken ? "Resend invite" : "Send invite"}
+                </button>
+                {inviteHasToken && (
+                  <button
+                    onClick={revokeInvite}
+                    disabled={inviting || revoking2}
+                    className="w-full rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                  >
+                    {revoking2 ? "Revoking…" : "Revoke invite"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

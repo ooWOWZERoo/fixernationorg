@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -18,6 +19,9 @@ import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail } from "@/lib/em
 import { buildApplicationExpiredEmail, buildApplicationWithdrawnEmail } from "@/lib/emails/expiration";
 import { applyApplicationTags } from "@/lib/application-crm";
 import { loadTemplate } from "@/lib/template-engine";
+import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -100,6 +104,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         infoRequestNotes: infoRequestNotes?.trim() || null,
       },
     });
+
+    // Account invite on acceptance when no userId yet
+    if (ACCEPTANCE_STATUSES.has(status) && !application.userId) {
+      const inviteToken = randomBytes(32).toString("hex");
+      const inviteExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await db.userApplication.update({
+        where: { id },
+        data: {
+          accountInviteToken: inviteToken,
+          accountInviteExpiresAt: inviteExpiresAt,
+          accountInviteSentAt: new Date(),
+        },
+      });
+      const appType = application.type as "PROVIDER" | "AMBASSADOR";
+      const firstName = (application.name ?? "").split(" ")[0] || "there";
+      const role = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+      const inviteUrl = `${APP_URL}/invite/${inviteToken}`;
+      const inviteEmail =
+        (await loadTemplate("account.invitation", { first_name: firstName, role, invite_url: inviteUrl }))
+        ?? buildAccountInviteEmail(application.name, appType, inviteUrl);
+      try {
+        await sendEmail({ to: application.email, ...inviteEmail });
+      } catch (err) {
+        console.error("[application] Failed to send invite email:", err);
+      }
+    }
 
     // Role promotion on acceptance
     if (ACCEPTANCE_STATUSES.has(status) && application.userId) {
