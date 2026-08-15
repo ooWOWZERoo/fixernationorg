@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { BlockComposer } from "@/components/email/BlockComposer";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface ListOption { id: string; name: string; _count: { members: number } }
@@ -34,6 +35,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   const [subject, setSubject] = useState("");
   const [htmlBody, setHtmlBody] = useState("");
   const [textBody, setTextBody] = useState("");
+  const [useComposer, setUseComposer] = useState(true);
 
   // Step 3: Audience & Schedule
   const [listId, setListId] = useState("");
@@ -207,14 +209,30 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">HTML body *</label>
-              <textarea
-                value={htmlBody}
-                onChange={(e) => setHtmlBody(e.target.value)}
-                rows={12}
-                placeholder="Paste your HTML email body here…"
-                className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy/30"
-              />
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-widest text-ink-soft">Email body *</label>
+                <div className="flex rounded-lg border border-navy/15 overflow-hidden text-xs font-medium">
+                  <button type="button" onClick={() => setUseComposer(true)}
+                    className={`px-3 py-1 ${useComposer ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>
+                    Visual
+                  </button>
+                  <button type="button" onClick={() => setUseComposer(false)}
+                    className={`px-3 py-1 ${!useComposer ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>
+                    HTML
+                  </button>
+                </div>
+              </div>
+              {useComposer ? (
+                <BlockComposer onChange={setHtmlBody} />
+              ) : (
+                <textarea
+                  value={htmlBody}
+                  onChange={(e) => setHtmlBody(e.target.value)}
+                  rows={12}
+                  placeholder="Paste your HTML email body here…"
+                  className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy/30"
+                />
+              )}
             </div>
 
             <div>

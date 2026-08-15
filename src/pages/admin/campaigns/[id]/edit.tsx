@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { BlockComposer } from "@/components/email/BlockComposer";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface ListOption { id: string; name: string }
@@ -41,6 +42,7 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useComposer, setUseComposer] = useState(false);
 
   const set = (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -134,9 +136,25 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">HTML body *</label>
-            <textarea required value={form.htmlBody} onChange={set("htmlBody")} rows={10}
-              className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy/30" />
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-widest text-ink-soft">HTML body *</label>
+              <div className="flex rounded-lg border border-navy/15 overflow-hidden text-xs font-medium">
+                <button type="button" onClick={() => setUseComposer(false)}
+                  className={`px-3 py-1 ${!useComposer ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>
+                  HTML
+                </button>
+                <button type="button" onClick={() => setUseComposer(true)}
+                  className={`px-3 py-1 ${useComposer ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>
+                  Visual
+                </button>
+              </div>
+            </div>
+            {useComposer ? (
+              <BlockComposer onChange={v => setForm(f => ({ ...f, htmlBody: v }))} />
+            ) : (
+              <textarea required value={form.htmlBody} onChange={set("htmlBody")} rows={10}
+                className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy/30" />
+            )}
           </div>
 
           <div>
