@@ -15,6 +15,7 @@ const NewEventPage: NextPageWithLayout = () => {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slugEdited, setSlugEdited] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -36,7 +37,7 @@ const NewEventPage: NextPageWithLayout = () => {
 
   function handleTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const title = e.target.value;
-    setForm((f) => ({ ...f, title, slug: f.slug || slugify(title) }));
+    setForm((f) => ({ ...f, title, slug: slugEdited ? f.slug : slugify(title) }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -96,7 +97,7 @@ const NewEventPage: NextPageWithLayout = () => {
             <label className="block text-xs font-bold uppercase tracking-wide text-ink-soft mb-1">Slug *</label>
             <input
               type="text" required value={form.slug}
-              onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              onChange={(e) => { setSlugEdited(true); set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")); }}
               className="w-full rounded-xl border border-navy/15 bg-cream px-4 py-2.5 font-mono text-sm text-navy focus:border-amber focus:outline-none"
             />
             <p className="mt-1 text-xs text-ink-soft">URL: /events/{form.slug || "slug"}</p>
