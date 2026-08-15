@@ -53,6 +53,7 @@ model User {
   giftCodesRedeemed        GiftCode[]
   loyaltyPoints            LoyaltyPoint[]
   crmContact               Contact?
+  territoryAssignments     TerritoryAssignment[]
 
   @@index([email])
 }
@@ -461,8 +462,9 @@ model UserApplication {
   reviewNotes      String?           @db.Text
   createdAt        DateTime          @default(now())
 
-  providerDetail   ProviderApplicationDetail?
-  ambassadorDetail AmbassadorApplicationDetail?
+  providerDetail        ProviderApplicationDetail?
+  ambassadorDetail      AmbassadorApplicationDetail?
+  territoryAssignments  TerritoryAssignment[]
 
   @@index([type, status])
   @@index([email])
@@ -970,4 +972,86 @@ enum CampaignSendStatus {
   CLICKED
   BOUNCED
   UNSUBSCRIBED
+}
+
+// ─── Territory management (SP-3) ─────────────────────────────────────────────
+
+enum TerritoryType {
+  GEOGRAPHIC
+  INDUSTRY
+  ORGANIZATION
+  CUSTOM
+}
+
+enum TerritoryScope {
+  ZIP
+  CITY
+  COUNTY
+  STATE
+  REGION
+  NATIONAL
+  CUSTOM
+}
+
+enum TerritoryStatus {
+  ACTIVE
+  RESERVED
+  LOCKED
+  INACTIVE
+}
+
+enum TerritoryAssignmentStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  TRANSFERRED
+}
+
+model Territory {
+  id          String          @id @default(cuid())
+  name        String
+  type        TerritoryType   @default(GEOGRAPHIC)
+  scope       TerritoryScope  @default(COUNTY)
+  county      String?
+  city        String?
+  state       String?
+  zip         String?
+  region      String?
+  description String?
+  status      TerritoryStatus @default(ACTIVE)
+  isExclusive Boolean         @default(false)
+  notes       String?         @db.Text
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  assignments TerritoryAssignment[]
+
+  @@index([status])
+  @@index([scope, state])
+}
+
+model TerritoryAssignment {
+  id            String                    @id @default(cuid())
+  territoryId   String
+  userId        String?
+  applicationId String?
+  status        TerritoryAssignmentStatus @default(ACTIVE)
+  startDate     DateTime                  @default(now())
+  endDate       DateTime?
+  autoRenew     Boolean                   @default(true)
+  notes         String?                   @db.Text
+  assignedBy    String
+  revokedAt     DateTime?
+  revokedBy     String?
+  transferredTo String?
+  createdAt     DateTime                  @default(now())
+
+  territory   Territory        @relation(fields: [territoryId], references: [id])
+  user        User?            @relation(fields: [userId], references: [id])
+  application UserApplication? @relation(fields: [applicationId], references: [id])
+
+  @@index([userId])
+  @@index([territoryId])
+  @@index([applicationId])
+  @@index([status])
 }

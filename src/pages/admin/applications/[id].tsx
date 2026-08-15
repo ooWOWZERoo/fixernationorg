@@ -91,10 +91,37 @@ type Application = {
   createdAt: string;
   providerDetail: ProviderDetail | null;
   ambassadorDetail: AmbassadorDetail | null;
+  territoryAssignments: TerritoryAssignmentRow[];
+};
+
+type TerritoryOption = {
+  id: string;
+  name: string;
+  scope: string;
+  county: string | null;
+  city: string | null;
+  state: string | null;
+  status: string;
+  isExclusive: boolean;
+  _count: { assignments: number };
+};
+
+type TerritoryAssignmentRow = {
+  id: string;
+  status: string;
+  startDate: string;
+  endDate: string | null;
+  autoRenew: boolean;
+  notes: string | null;
+  assignedBy: string;
+  revokedAt: string | null;
+  revokedBy: string | null;
+  territory: { id: string; name: string; scope: string; county: string | null; state: string | null };
 };
 
 interface Props {
   application: Application;
+  availableTerritories: TerritoryOption[];
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -213,7 +240,7 @@ function ExternalLink({ href, label }: { href?: string | null; label: string }) 
 
 // ── main page ─────────────────────────────────────────────────────────────────
 
-const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial }) => {
+const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial, availableTerritories }) => {
   const [application, setApplication] = useState(initial);
   const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
   const [infoRequestNotes, setInfoRequestNotes] = useState(initial.infoRequestNotes ?? "");
@@ -221,11 +248,74 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
   const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [checklist, setChecklist] = useState<Record<number, boolean>>({});
 
+  // Territory assignment state
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState("");
+  const [assignNotes, setAssignNotes] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignResult, setAssignResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
   const isReviewable = REVIEWABLE_FROM.has(application.status);
   const pd = application.providerDetail;
   const ad = application.ambassadorDetail;
   const checklistItems = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
   const checkedCount = Object.values(checklist).filter(Boolean).length;
+
+  const assignTerritory = async () => {
+    if (!selectedTerritoryId) return;
+    setAssigning(true);
+    setAssignResult(null);
+    try {
+      const res = await fetch(`/api/admin/territories/${selectedTerritoryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign",
+          applicationId: application.id,
+          notes: assignNotes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApplication((prev) => ({
+          ...prev,
+          territoryAssignments: [data, ...prev.territoryAssignments],
+        }));
+        setSelectedTerritoryId("");
+        setAssignNotes("");
+        setAssignResult({ ok: true, message: "Territory assigned." });
+        setTimeout(() => setAssignResult(null), 3000);
+      } else {
+        setAssignResult({ ok: false, message: data.error ?? "Assignment failed." });
+      }
+    } catch {
+      setAssignResult({ ok: false, message: "Network error." });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const revokeTerritory = async (assignmentId: string, territoryId: string) => {
+    setRevoking(assignmentId);
+    try {
+      const res = await fetch(`/api/admin/territories/${territoryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revoke", assignmentId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApplication((prev) => ({
+          ...prev,
+          territoryAssignments: prev.territoryAssignments.map((a) =>
+            a.id === assignmentId ? { ...a, status: "REVOKED", revokedAt: data.revokedAt } : a
+          ),
+        }));
+      }
+    } finally {
+      setRevoking(null);
+    }
+  };
 
   const act = async (status: string) => {
     setActing(true);
@@ -597,6 +687,102 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial
             </div>
           )}
 
+          {/* Territory assignment — ambassador only */}
+          {application.type === "AMBASSADOR" && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-800">Territory</p>
+                <Link href="/admin/territories" className="text-xs font-semibold text-navy hover:underline underline-offset-2">
+                  Manage territories →
+                </Link>
+              </div>
+
+              {/* Current assignments */}
+              {application.territoryAssignments.length > 0 && (
+                <div className="space-y-2">
+                  {application.territoryAssignments.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`flex items-start justify-between gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+                        a.status === "ACTIVE"
+                          ? "border-teal-200 bg-teal-50"
+                          : "border-slate-100 bg-slate-50"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className={`font-semibold truncate ${a.status === "ACTIVE" ? "text-teal-800" : "text-slate-400"}`}>
+                          {a.territory.name}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {a.territory.scope}{a.territory.county ? ` · ${a.territory.county}` : ""}{a.territory.state ? `, ${a.territory.state}` : ""}
+                          {" · "}Assigned {new Date(a.startDate).toLocaleDateString()}
+                        </p>
+                        {a.status !== "ACTIVE" && (
+                          <p className="text-xs text-slate-400 capitalize">{a.status.toLowerCase()}{a.revokedAt ? ` on ${new Date(a.revokedAt).toLocaleDateString()}` : ""}</p>
+                        )}
+                      </div>
+                      {a.status === "ACTIVE" && (
+                        <button
+                          onClick={() => revokeTerritory(a.id, a.territory.id)}
+                          disabled={revoking === a.id}
+                          className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40"
+                        >
+                          {revoking === a.id ? "…" : "Revoke"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Assign form */}
+              {assignResult && (
+                <div className={`rounded-lg px-3 py-2 text-sm font-medium ${assignResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  {assignResult.message}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <select
+                  value={selectedTerritoryId}
+                  onChange={(e) => setSelectedTerritoryId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                >
+                  <option value="">— select a territory —</option>
+                  {availableTerritories.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.state ? ` (${t.state})` : ""}{t.isExclusive ? " [exclusive]" : ""}
+                      {t._count.assignments > 0 ? ` · ${t._count.assignments} assigned` : ""}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={assignNotes}
+                  onChange={(e) => setAssignNotes(e.target.value)}
+                  placeholder="Assignment notes (optional)"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                />
+                <button
+                  onClick={assignTerritory}
+                  disabled={assigning || !selectedTerritoryId}
+                  className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-700 disabled:opacity-40"
+                >
+                  {assigning ? "Assigning…" : "Assign territory"}
+                </button>
+              </div>
+
+              {availableTerritories.length === 0 && (
+                <p className="text-xs text-slate-400">
+                  No active territories yet.{" "}
+                  <Link href="/admin/territories" className="text-navy underline underline-offset-2">
+                    Create one
+                  </Link>{" "}
+                  first.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Application metadata */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-400 space-y-1">
             <div className="flex justify-between"><span>ID</span><span className="font-mono">{application.id.slice(0, 12)}…</span></div>
@@ -626,13 +812,28 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   const { id } = context.params as { id: string };
 
-  const application = await db.userApplication.findUnique({
-    where: { id },
-    include: {
-      providerDetail: true,
-      ambassadorDetail: true,
-    },
-  });
+  const [application, availableTerritories] = await Promise.all([
+    db.userApplication.findUnique({
+      where: { id },
+      include: {
+        providerDetail: true,
+        ambassadorDetail: true,
+        territoryAssignments: {
+          include: {
+            territory: {
+              select: { id: true, name: true, scope: true, county: true, state: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    }),
+    db.territory.findMany({
+      where: { status: { in: ["ACTIVE", "RESERVED"] } },
+      include: { _count: { select: { assignments: { where: { status: "ACTIVE" } } } } },
+      orderBy: [{ state: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   if (!application) {
     return { notFound: true };
@@ -641,6 +842,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   return {
     props: {
       application: JSON.parse(JSON.stringify(application)),
+      availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
     },
   };
 };

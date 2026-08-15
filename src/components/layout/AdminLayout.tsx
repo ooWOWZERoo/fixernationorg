@@ -11,6 +11,7 @@ const ADMIN_NAV = [
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/resources", label: "Resources" },
   { href: "/admin/applications", label: "Applications" },
+  { href: "/admin/territories", label: "Territories" },
   { href: "/admin/events", label: "Events" },
   { href: "/admin/gift-codes", label: "Gift codes" },
   { href: "/admin/contacts", label: "CRM Contacts" },
