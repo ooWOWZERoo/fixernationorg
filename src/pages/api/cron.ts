@@ -8,6 +8,7 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { buildCampaignEmail } from "@/lib/campaign-email";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
@@ -127,11 +128,16 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
       include: {
         contact: {
           select: { id: true, email: true, firstName: true },
+          include: { consents: { where: { topic: "CAMPAIGNS" } } } as never,
         },
       },
     });
 
-    const eligible = members.filter(() => true); // consent filtering handled by subscribe/unsub
+    const eligible = members.filter((m) => {
+      const c = m.contact as unknown as { consents: Array<{ optedIn: boolean }> };
+      const consent = c.consents?.[0];
+      return !consent || consent.optedIn;
+    });
     if (eligible.length === 0) continue;
 
     await db.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING" } });
@@ -147,12 +153,12 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
       await Promise.allSettled(
         batch.map(async (m) => {
           try {
-            await sendEmail({
-              to: m.contact.email,
-              subject: full.subject,
-              html: full.htmlBody,
-              text: full.textBody ?? full.subject,
-            });
+            const { subject, html, text } = buildCampaignEmail(
+              full,
+              m.contactId,
+              m.contact.firstName
+            );
+            await sendEmail({ to: m.contact.email, subject, html, text });
             await db.campaignSend.update({
               where: { campaignId_contactId: { campaignId: campaign.id, contactId: m.contactId } },
               data: { status: "SENT", sentAt: now },

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { buildCampaignEmail } from "@/lib/campaign-email";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -134,12 +135,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await Promise.allSettled(
         batch.map(async (m) => {
           try {
-            await sendEmail({
-              to: m.contact.email,
-              subject: campaign.subject,
-              html: campaign.htmlBody,
-              text: campaign.textBody ?? campaign.subject,
-            });
+            const { subject, html, text } = buildCampaignEmail(
+              campaign,
+              m.contactId,
+              m.contact.firstName
+            );
+            await sendEmail({ to: m.contact.email, subject, html, text });
             await db.campaignSend.update({
               where: { campaignId_contactId: { campaignId: id, contactId: m.contactId } },
               data: { status: "SENT", sentAt: now },

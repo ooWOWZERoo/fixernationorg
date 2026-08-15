@@ -1,11 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createHmac } from "crypto";
 import { db } from "@/lib/db";
+import { verifyUnsubToken } from "@/lib/unsub-token";
 
-function makeToken(contactId: string): string {
-  const secret = process.env.AUTH_SECRET ?? "fallback";
-  return createHmac("sha256", secret).update(`unsub:${contactId}`).digest("hex");
-}
+export { makeUnsubToken } from "@/lib/unsub-token";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -21,8 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Invalid unsubscribe link" });
   }
 
-  const expected = makeToken(contactId);
-  if (token !== expected) {
+  if (!verifyUnsubToken(contactId, token)) {
     return res.status(403).json({ error: "Invalid token" });
   }
 
@@ -30,18 +26,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!contact) return res.status(404).json({ error: "Contact not found" });
 
   const now = new Date();
+
   await db.contactConsent.upsert({
-    where: { contactId_topic: { contactId, topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES" } },
-    create: { contactId, topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES", optedIn: false, optedOutAt: now, source: "unsubscribe-link" },
+    where: {
+      contactId_topic: {
+        contactId,
+        topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES",
+      },
+    },
+    create: {
+      contactId,
+      topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES",
+      optedIn: false,
+      optedOutAt: now,
+      source: "unsubscribe-link",
+    },
     update: { optedIn: false, optedOutAt: now, source: "unsubscribe-link" },
   });
 
-  // GET: redirect to a confirmation page; POST: return JSON
+  // Cancel any queued sends for this contact so they don't go out after unsubscribing
+  await db.campaignSend.updateMany({
+    where: { contactId, status: "QUEUED" },
+    data: { status: "UNSUBSCRIBED", unsubAt: now },
+  });
+
   if (req.method === "GET") {
     return res.redirect("/unsubscribed");
   }
   return res.status(200).json({ ok: true });
 }
-
-// Export token generator so campaign send routes can include the link
-export { makeToken as makeUnsubToken };
