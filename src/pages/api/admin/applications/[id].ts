@@ -300,6 +300,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: updated.userId,
     }).catch((err) => console.error("[application] CRM tag sync failed:", err));
 
+    // Enroll in automation journeys triggered by acceptance — fire and forget
+    if (ACCEPTANCE_STATUSES.has(status)) {
+      import("@/lib/automation").then(({ enrollInJourneys }) =>
+        enrollInJourneys({
+          trigger: "APPLICATION_ACCEPTED",
+          userId: updated.userId,
+          triggerConfig: { applicationType: updated.type },
+          metadata: { applicationId: id },
+        })
+      ).catch((err) => console.error("[application] Automation enroll failed:", err));
+    }
+
     return res.status(200).json(updated);
   }
 

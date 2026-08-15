@@ -25,6 +25,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Automations",
+    items: [
+      { href: "/admin/automations", label: "Journeys" },
+    ],
+  },
+  {
     label: "Content",
     items: [
       { href: "/admin/blog", label: "Blog" },

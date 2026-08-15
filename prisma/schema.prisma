@@ -1312,3 +1312,94 @@ model MessageTemplate {
   updatedBy   String?
   updatedAt   DateTime @updatedAt
 }
+
+// ─── Automation Journeys (SP-21) ──────────────────────────────────────────────
+
+enum AutomationTrigger {
+  MANUAL
+  SIGNUP
+  ROLE_CHANGE
+  TAG_ADDED
+  APPLICATION_ACCEPTED
+}
+
+enum AutomationStepType {
+  WAIT
+  SEND_EMAIL
+  ADD_TAG
+  WEBHOOK
+}
+
+enum AutomationEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+  FAILED
+}
+
+model AutomationJourney {
+  id            String            @id @default(cuid())
+  name          String
+  trigger       AutomationTrigger
+  triggerConfig Json?
+  active        Boolean           @default(false)
+  description   String?           @db.Text
+  createdBy     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  steps       AutomationStep[]
+  enrollments AutomationEnrollment[]
+
+  @@index([trigger, active])
+}
+
+model AutomationStep {
+  id        String             @id @default(cuid())
+  journeyId String
+  order     Int
+  type      AutomationStepType
+  config    Json
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  journey AutomationJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@unique([journeyId, order])
+  @@index([journeyId])
+}
+
+model AutomationEnrollment {
+  id          String                     @id @default(cuid())
+  journeyId   String
+  contactId   String?
+  userId      String?
+  currentStep Int                        @default(0)
+  status      AutomationEnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime                   @default(now())
+  completedAt DateTime?
+  nextRunAt   DateTime?
+  metadata    Json?
+
+  journey AutomationJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  events  AutomationEvent[]
+
+  @@index([journeyId, status])
+  @@index([status, nextRunAt])
+  @@index([userId])
+  @@index([contactId])
+}
+
+model AutomationEvent {
+  id           String   @id @default(cuid())
+  enrollmentId String
+  stepOrder    Int?
+  type         String
+  metadata     Json?
+  occurredAt   DateTime @default(now())
+
+  enrollment AutomationEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId, occurredAt])
+}

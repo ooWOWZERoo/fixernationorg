@@ -318,10 +318,19 @@ async function runAccountInvitationReminders(): Promise<{ message: string }> {
   return { message: `Sent ${sent} account invitation reminder${sent !== 1 ? "s" : ""}` };
 }
 
+async function runAutomationTick(): Promise<{ message: string }> {
+  const { tickAutomations } = await import("@/lib/automation");
+  const { processed, completed, failed } = await tickAutomations();
+  return {
+    message: `Automation tick: ${processed} processed, ${completed} completed${failed > 0 ? `, ${failed} failed` : ""}`,
+  };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
+  "automation-tick": runAutomationTick,
   "application-expiration": runApplicationExpiration,
   "application-expiration-reminders": runApplicationExpirationReminders,
   "account-invitation-reminders": runAccountInvitationReminders,
