@@ -161,11 +161,14 @@ type TerritoryAssignmentRow = {
   territory: { id: string; name: string; scope: string; county: string | null; state: string | null };
 };
 
+type ChecklistItemRow = { key: string; status: string };
+
 interface Props {
   application: Application;
   availableTerritories: TerritoryOption[];
   affiliateAssignment: AffiliateSnippet | null;
   onboardingRecord: OnboardingRecord | null;
+  checklistItems: ChecklistItemRow[];
   priorApplications: PriorApplication[];
   events: AppEvent[];
 }
@@ -211,26 +214,55 @@ const REVIEWABLE_FROM = new Set([
   "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED",
 ]);
 
-// Provider checklist items
-const PROVIDER_CHECKLIST = [
-  "Business name and type on file",
-  "Service category matches the description",
-  "Service areas are specific enough",
-  "Licensing or credentials noted (if applicable)",
-  "\"Why joining\" response reads as genuine",
-  "Social or web presence reviewed",
-  "Agreements signed with full name",
+type ChecklistDef = { key: string; label: string };
+
+const PROVIDER_CHECKLIST: ChecklistDef[] = [
+  { key: "identity", label: "Identity reviewed" },
+  { key: "business", label: "Business reviewed" },
+  { key: "category", label: "Provider category confirmed" },
+  { key: "license-applicability", label: "License/certification applicability determined" },
+  { key: "credential-status", label: "Credential status verified" },
+  { key: "profile-content", label: "Profile content reviewed" },
+  { key: "plan-tier", label: "Plan/tier selected" },
+  { key: "pricing", label: "Pricing snapshot established" },
+  { key: "payment-terms", label: "Payment terms determined" },
+  { key: "affiliate-eligibility", label: "Affiliate eligibility determined" },
+  { key: "publish-readiness", label: "Profile publish readiness confirmed" },
+  { key: "activation", label: "Final activation criteria satisfied" },
 ];
 
-// Ambassador checklist items
-const AMBASSADOR_CHECKLIST = [
-  "Platform presence reviewed",
-  "Community description is specific, not vague",
-  "\"Why ambassador\" response reads as genuine",
-  "Mission alignment makes sense",
-  "Geographic focus is clear",
-  "Agreements signed with full name",
+const AMBASSADOR_CHECKLIST: ChecklistDef[] = [
+  { key: "identity", label: "Identity reviewed" },
+  { key: "background", label: "Background and experience reviewed" },
+  { key: "territory-requested", label: "Requested territory reviewed" },
+  { key: "existing-ambassadors", label: "Existing ambassadors in territory reviewed" },
+  { key: "territory-rules", label: "Reserved/locked territory rules checked" },
+  { key: "territory-assignment", label: "Territory assignment(s) established or deferred" },
+  { key: "affiliate-assignment", label: "Affiliate assignment created" },
+  { key: "referral-link", label: "Referral link/promo code provisioning prepared" },
+  { key: "commission-rule", label: "Commission rule assigned" },
+  { key: "tax-payout", label: "Tax/payout requirements determined" },
+  { key: "plan-tier", label: "Plan/tier selected" },
+  { key: "pricing-waiver", label: "Pricing/waiver established" },
+  { key: "payment", label: "Payment completed or waived" },
+  { key: "activation", label: "Final activation criteria satisfied" },
 ];
+
+const STATUS_DOT: Record<string, string> = {
+  PENDING: "bg-slate-300",
+  PASSED: "bg-green-500",
+  FAILED: "bg-red-500",
+  NOT_APPLICABLE: "bg-slate-400",
+  ADDITIONAL_DOCS_REQUIRED: "bg-amber-400",
+};
+
+const STATUS_LABEL_MAP: Record<string, string> = {
+  PENDING: "Pending",
+  PASSED: "Passed",
+  FAILED: "Failed",
+  NOT_APPLICABLE: "N/A",
+  ADDITIONAL_DOCS_REQUIRED: "Docs needed",
+};
 
 // ── small helpers ─────────────────────────────────────────────────────────────
 
@@ -425,6 +457,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   availableTerritories,
   affiliateAssignment: initialAffiliate,
   onboardingRecord: initialOnboarding,
+  checklistItems: initialChecklistItems,
   priorApplications,
   events: initialEvents,
 }) => {
@@ -433,7 +466,18 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   const [infoRequestNotes, setInfoRequestNotes] = useState(initial.infoRequestNotes ?? "");
   const [acting, setActing] = useState(false);
   const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [checklist, setChecklist] = useState<Record<number, boolean>>({});
+  const [checklist, setChecklist] = useState<Record<string, string>>(() =>
+    Object.fromEntries(initialChecklistItems.map((i) => [i.key, i.status]))
+  );
+
+  function updateChecklistItem(key: string, status: string) {
+    setChecklist((c) => ({ ...c, [key]: status }));
+    fetch("/api/admin/checklist", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applicationId: application.id, key, status }),
+    }).catch(console.error);
+  }
 
   // Territory assignment state
   const [selectedTerritoryId, setSelectedTerritoryId] = useState("");
@@ -596,8 +640,10 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     onboarding?.paymentStatus === "COMPLETED" || onboarding?.paymentStatus === "WAIVED";
   const pd = application.providerDetail;
   const ad = application.ambassadorDetail;
-  const checklistItems = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
-  const checkedCount = Object.values(checklist).filter(Boolean).length;
+  const checklistDefs = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
+  const checkedCount = Object.values(checklist).filter(
+    (s) => s === "PASSED" || s === "NOT_APPLICABLE"
+  ).length;
 
   const assignTerritory = async () => {
     if (!selectedTerritoryId) return;
@@ -1331,23 +1377,32 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
           {/* Checklist */}
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-800">Review checklist</p>
-              <span className="text-xs text-slate-400">{checkedCount}/{checklistItems.length}</span>
+              <p className="text-sm font-bold text-slate-800">Onboarding checklist</p>
+              <span className="text-xs text-slate-400">{checkedCount}/{checklistDefs.length} done</span>
             </div>
-            <div className="space-y-2">
-              {checklistItems.map((item, i) => (
-                <label key={i} className="flex cursor-pointer items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={checklist[i] ?? false}
-                    onChange={(e) => setChecklist((c) => ({ ...c, [i]: e.target.checked }))}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-navy focus:ring-navy"
-                  />
-                  <span className={`text-sm leading-snug transition-colors ${checklist[i] ? "text-slate-400 line-through" : "text-slate-700"}`}>
-                    {item}
-                  </span>
-                </label>
-              ))}
+            <div className="space-y-1.5">
+              {checklistDefs.map(({ key, label }) => {
+                const status = checklist[key] ?? "PENDING";
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[status] ?? "bg-slate-300"}`} />
+                    <span className={`flex-1 text-xs leading-snug ${status === "PASSED" || status === "NOT_APPLICABLE" ? "text-slate-400" : "text-slate-700"}`}>
+                      {label}
+                    </span>
+                    <select
+                      value={status}
+                      onChange={(e) => updateChecklistItem(key, e.target.value)}
+                      className="shrink-0 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 focus:border-navy focus:outline-none"
+                    >
+                      <option value="PENDING">Pending</option>
+                      <option value="PASSED">Passed</option>
+                      <option value="FAILED">Failed</option>
+                      <option value="NOT_APPLICABLE">N/A</option>
+                      <option value="ADDITIONAL_DOCS_REQUIRED">Docs needed</option>
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -1978,7 +2033,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     return { notFound: true };
   }
 
-  const [affiliateAssignment, onboardingRecord, priorApplications] = await Promise.all([
+  const [affiliateAssignment, onboardingRecord, checklistItems, priorApplications] = await Promise.all([
     db.affiliateAssignment.findUnique({
       where: { applicationId: id },
       select: {
@@ -1993,6 +2048,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     }),
     db.onboardingRecord.findUnique({
       where: { applicationId: id },
+    }),
+    db.checklistItem.findMany({
+      where: { applicationId: id },
+      select: { key: true, status: true },
     }),
     db.userApplication.findMany({
       where: { email: application.email, id: { not: id } },
@@ -2009,6 +2068,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
       affiliateAssignment: JSON.parse(JSON.stringify(affiliateAssignment ?? null)),
       onboardingRecord: JSON.parse(JSON.stringify(onboardingRecord ?? null)),
+      checklistItems: JSON.parse(JSON.stringify(checklistItems)),
       priorApplications: JSON.parse(JSON.stringify(priorApplications)),
       events: JSON.parse(JSON.stringify(rawEvents ?? [])),
     },

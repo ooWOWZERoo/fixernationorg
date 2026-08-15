@@ -473,6 +473,7 @@ model UserApplication {
   territoryAssignments  TerritoryAssignment[]
   affiliateAssignment   AffiliateAssignment?
   onboardingRecord      OnboardingRecord?
+  checklistItems        ChecklistItem[]
   events                ApplicationEvent[]
 
   @@index([type, status])
@@ -1255,6 +1256,31 @@ model OnboardingRecord {
   updatedAt             DateTime                @updatedAt
 
   application           UserApplication         @relation(fields: [applicationId], references: [id])
+}
+
+// ─── Onboarding Checklist ─────────────────────────────────────────────────────
+
+enum ChecklistItemStatus {
+  PENDING
+  PASSED
+  FAILED
+  NOT_APPLICABLE
+  ADDITIONAL_DOCS_REQUIRED
+}
+
+model ChecklistItem {
+  id            String              @id @default(cuid())
+  applicationId String
+  key           String
+  status        ChecklistItemStatus @default(PENDING)
+  notes         String?             @db.Text
+  updatedBy     String?
+  updatedAt     DateTime            @updatedAt
+  createdAt     DateTime            @default(now())
+
+  application   UserApplication     @relation(fields: [applicationId], references: [id])
+
+  @@unique([applicationId, key])
 }
 
 // ─── Messaging Templates ──────────────────────────────────────────────────────
