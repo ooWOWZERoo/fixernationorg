@@ -32,8 +32,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tab = (req.query.tab as string) ?? "ALL";
   const type = (req.query.type as string) ?? "ALL";
   const q = (req.query.q as string) ?? "";
+  const extra = {
+    submittedFrom: (req.query.submittedFrom as string) || undefined,
+    submittedTo: (req.query.submittedTo as string) || undefined,
+    referralCode: (req.query.referralCode as string) || undefined,
+    campaignSource: (req.query.campaignSource as string) || undefined,
+    territory: (req.query.territory as string) || undefined,
+    affiliateStatus: (req.query.affiliateStatus as string) || undefined,
+  };
 
-  const where = buildApplicationWhere(tab, type, q);
+  const where = buildApplicationWhere(tab, type, q, extra);
 
   const applications = await db.userApplication.findMany({
     where,

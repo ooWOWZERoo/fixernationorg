@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
-import { buildApplicationWhere, PAGE_SIZE, TAB_STATUS_MAP } from "@/lib/application-filter";
+import { buildApplicationWhere, PAGE_SIZE, TAB_STATUS_MAP, type ExtraFilters } from "@/lib/application-filter";
 
 interface AppRow {
   id: string;
@@ -50,6 +50,12 @@ interface Props {
   tab: string;
   type: string;
   q: string;
+  submittedFrom: string;
+  submittedTo: string;
+  referralCode: string;
+  campaignSource: string;
+  territory: string;
+  affiliateStatus: string;
 }
 
 // Client-side status sets used only for isReviewable check and post-action updates
@@ -125,6 +131,12 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
   tab,
   type,
   q,
+  submittedFrom,
+  submittedTo,
+  referralCode,
+  campaignSource,
+  territory,
+  affiliateStatus,
 }) => {
   const router = useRouter();
 
@@ -136,6 +148,13 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
 
+  // Advanced filter local inputs (debounced text fields)
+  const [territoryInput, setTerritoryInput] = useState(territory);
+  const [referralInput, setReferralInput] = useState(referralCode);
+  const [campaignInput, setCampaignInput] = useState(campaignSource);
+  const advancedActive = [submittedFrom, submittedTo, referralCode, campaignSource, territory, affiliateStatus !== "ALL" ? affiliateStatus : ""].filter(Boolean).length;
+  const [showAdvanced, setShowAdvanced] = useState(() => advancedActive > 0);
+
   // Sync local state when the server returns new data (e.g. after filter navigation)
   useEffect(() => {
     setLocalApps(initial);
@@ -144,18 +163,33 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
     setExpanded(null);
   }, [initial, initialTotal, initialQueueCount]);
 
-  useEffect(() => {
-    setSearchInput(q);
-  }, [q]);
+  useEffect(() => { setSearchInput(q); }, [q]);
+  useEffect(() => { setTerritoryInput(territory); }, [territory]);
+  useEffect(() => { setReferralInput(referralCode); }, [referralCode]);
+  useEffect(() => { setCampaignInput(campaignSource); }, [campaignSource]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pushFilter = (updates: Record<string, string | number>) => {
+  const buildQuery = (updates: Record<string, string | number | undefined> = {}) => {
+    const base: Record<string, string | number> = { tab, type, page: 1 };
+    if (q) base.q = q;
+    if (submittedFrom) base.submittedFrom = submittedFrom;
+    if (submittedTo) base.submittedTo = submittedTo;
+    if (referralCode) base.referralCode = referralCode;
+    if (campaignSource) base.campaignSource = campaignSource;
+    if (territory) base.territory = territory;
+    if (affiliateStatus && affiliateStatus !== "ALL") base.affiliateStatus = affiliateStatus;
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === undefined || v === "" || v === "ALL") delete base[k];
+      else base[k] = v;
+    }
+    return base;
+  };
+
+  const pushFilter = (updates: Record<string, string | number | undefined>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    router.push({
-      pathname: router.pathname,
-      query: { tab, type, q, page: 1, ...updates },
-    });
+    router.push({ pathname: router.pathname, query: buildQuery(updates) });
   };
 
   const handleSearchChange = (value: string) => {
@@ -166,11 +200,32 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
     }, 400);
   };
 
+  const handleAdvancedText = (field: string, value: string, setter: (v: string) => void) => {
+    setter(value);
+    if (advDebounceRef.current) clearTimeout(advDebounceRef.current);
+    advDebounceRef.current = setTimeout(() => {
+      pushFilter({ [field]: value || undefined, page: 1 });
+    }, 400);
+  };
+
+  const clearAdvanced = () => pushFilter({
+    submittedFrom: undefined, submittedTo: undefined,
+    referralCode: undefined, campaignSource: undefined,
+    territory: undefined, affiliateStatus: undefined,
+  });
+
   const totalPages = Math.ceil(localTotal / pageSize);
   const startItem = localTotal === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, localTotal);
 
-  const exportUrl = `/api/admin/applications/export?tab=${encodeURIComponent(tab)}&type=${encodeURIComponent(type)}&q=${encodeURIComponent(q)}`;
+  const exportParams = new URLSearchParams({ tab, type, q });
+  if (submittedFrom) exportParams.set("submittedFrom", submittedFrom);
+  if (submittedTo) exportParams.set("submittedTo", submittedTo);
+  if (referralCode) exportParams.set("referralCode", referralCode);
+  if (campaignSource) exportParams.set("campaignSource", campaignSource);
+  if (territory) exportParams.set("territory", territory);
+  if (affiliateStatus && affiliateStatus !== "ALL") exportParams.set("affiliateStatus", affiliateStatus);
+  const exportUrl = `/api/admin/applications/export?${exportParams.toString()}`;
 
   const act = async (id: string, newStatus: string) => {
     setActing(id);
@@ -226,16 +281,107 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
         </a>
       </div>
 
-      {/* Search */}
-      <div className="mb-4">
+      {/* Search + advanced filter toggle */}
+      <div className="mb-2 flex gap-2">
         <input
           type="search"
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search by name, email, phone, business, or category…"
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
         />
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className={[
+            "shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
+            showAdvanced || advancedActive > 0
+              ? "border-navy bg-navy text-white"
+              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+          ].join(" ")}
+        >
+          Filters{advancedActive > 0 ? ` (${advancedActive})` : ""}
+        </button>
       </div>
+
+      {/* Advanced filter panel */}
+      {showAdvanced && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Submitted from</label>
+              <input
+                type="date"
+                value={submittedFrom}
+                onChange={(e) => pushFilter({ submittedFrom: e.target.value || undefined })}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Submitted to</label>
+              <input
+                type="date"
+                value={submittedTo}
+                onChange={(e) => pushFilter({ submittedTo: e.target.value || undefined })}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Territory</label>
+              <input
+                type="text"
+                value={territoryInput}
+                onChange={(e) => handleAdvancedText("territory", e.target.value, setTerritoryInput)}
+                placeholder="e.g. Columbus"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Affiliate status</label>
+              <select
+                value={affiliateStatus}
+                onChange={(e) => pushFilter({ affiliateStatus: e.target.value })}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              >
+                <option value="ALL">All</option>
+                <option value="PENDING">Pending</option>
+                <option value="ACTIVE">Active</option>
+                <option value="ON_HOLD">On hold</option>
+                <option value="SUSPENDED">Suspended</option>
+                <option value="REVOKED">Revoked</option>
+                <option value="CLOSED">Closed</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Referral code</label>
+              <input
+                type="text"
+                value={referralInput}
+                onChange={(e) => handleAdvancedText("referralCode", e.target.value, setReferralInput)}
+                placeholder="e.g. JOHN2024"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">Campaign source</label>
+              <input
+                type="text"
+                value={campaignInput}
+                onChange={(e) => handleAdvancedText("campaignSource", e.target.value, setCampaignInput)}
+                placeholder="e.g. facebook"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-navy focus:outline-none"
+              />
+            </div>
+          </div>
+          {advancedActive > 0 && (
+            <button
+              onClick={clearAdvanced}
+              className="mt-3 text-xs font-semibold text-slate-400 hover:text-slate-600"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tabs + type filter */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -594,7 +740,16 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const rawPage = parseInt((context.query.page as string) ?? "1", 10);
   const page = isNaN(rawPage) || rawPage < 1 ? 1 : rawPage;
 
-  const where = buildApplicationWhere(tab, type, q);
+  const extra: ExtraFilters = {
+    submittedFrom: (context.query.submittedFrom as string) || undefined,
+    submittedTo: (context.query.submittedTo as string) || undefined,
+    referralCode: (context.query.referralCode as string) || undefined,
+    campaignSource: (context.query.campaignSource as string) || undefined,
+    territory: (context.query.territory as string) || undefined,
+    affiliateStatus: (context.query.affiliateStatus as string) || undefined,
+  };
+
+  const where = buildApplicationWhere(tab, type, q, extra);
   const queueWhere = buildApplicationWhere("QUEUE", "ALL", "");
 
   const [total, queueCount, applications] = await Promise.all([
@@ -637,6 +792,12 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       tab,
       type,
       q,
+      submittedFrom: extra.submittedFrom ?? "",
+      submittedTo: extra.submittedTo ?? "",
+      referralCode: extra.referralCode ?? "",
+      campaignSource: extra.campaignSource ?? "",
+      territory: extra.territory ?? "",
+      affiliateStatus: extra.affiliateStatus ?? "ALL",
     },
   };
 };
