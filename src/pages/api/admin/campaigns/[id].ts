@@ -5,8 +5,15 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildCampaignEmail } from "@/lib/campaign-email";
+import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+
+const audienceRulesSchema = z.object({
+  logic: z.enum(["OR", "AND"]).default("OR"),
+  include: z.array(z.record(z.unknown())),
+  exclude: z.array(z.record(z.unknown())),
+}).nullable().optional();
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -16,6 +23,7 @@ const updateSchema = z.object({
   htmlBody: z.string().optional(),
   textBody: z.string().optional(),
   listId: z.string().nullable().optional(),
+  audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().nullable().optional(),
 });
 
@@ -112,29 +120,87 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (campaign.status === "SENDING" || campaign.status === "SENT") {
       return res.status(409).json({ error: "Campaign already sent or sending" });
     }
-    if (!campaign.listId) {
-      return res.status(400).json({ error: "Campaign has no list assigned" });
+    if (!campaign.listId && !campaign.audienceRules) {
+      return res.status(400).json({ error: "Campaign has no audience defined" });
     }
 
-    // Resolve contacts from the list
-    const members = await db.contactListMember.findMany({
-      where: { listId: campaign.listId },
-      include: {
-        contact: {
-          select: { id: true, email: true, firstName: true },
-          include: { consents: { where: { topic: "CAMPAIGNS" } } } as never,
+    // ── Resolve recipients ────────────────────────────────────────────────────
+    let eligibleContacts: Array<{ id: string; email: string; firstName: string | null }>;
+    let suppressedCount = 0;
+
+    if (campaign.audienceRules) {
+      const def = campaign.audienceRules as unknown as AudienceDefinition;
+      const { includedIds, suppressed } = await resolveAudience(def);
+      suppressedCount = suppressed.length;
+      eligibleContacts = includedIds.length > 0
+        ? await db.contact.findMany({
+            where: { id: { in: includedIds } },
+            select: { id: true, email: true, firstName: true },
+          })
+        : [];
+
+      // Save audience snapshot
+      await (db.campaignAudienceSnapshot as never as {
+        upsert: (args: unknown) => Promise<unknown>;
+      }).upsert({
+        where: { campaignId: id },
+        create: {
+          campaignId: id,
+          totalIncluded: eligibleContacts.length,
+          totalSuppressed: suppressedCount,
+          rules: campaign.audienceRules,
         },
-      },
-    });
+        update: {
+          totalIncluded: eligibleContacts.length,
+          totalSuppressed: suppressedCount,
+          takenAt: new Date(),
+          rules: campaign.audienceRules,
+        },
+      });
+    } else {
+      // Legacy path: use listId
+      const members = await db.contactListMember.findMany({
+        where: { listId: campaign.listId! },
+        include: {
+          contact: {
+            select: { id: true, email: true, firstName: true },
+            include: { consents: { where: { topic: "CAMPAIGNS" } } } as never,
+          },
+        },
+      });
+      eligibleContacts = members
+        .filter((m) => {
+          const c = m.contact as unknown as { consents: Array<{ optedIn: boolean }> };
+          const consent = c.consents?.[0];
+          return !consent || consent.optedIn;
+        })
+        .map((m) => ({
+          id: m.contactId,
+          email: (m.contact as { email: string }).email,
+          firstName: (m.contact as { firstName: string | null }).firstName,
+        }));
 
-    // Only send to contacts who have consented to campaigns (or have no explicit consent row yet)
-    const eligible = members.filter((m) => {
-      const c = m.contact as unknown as { consents: Array<{ optedIn: boolean }> };
-      const consent = c.consents?.[0];
-      return !consent || consent.optedIn;
-    });
+      // Snapshot for legacy path too
+      await (db.campaignAudienceSnapshot as never as {
+        upsert: (args: unknown) => Promise<unknown>;
+      }).upsert({
+        where: { campaignId: id },
+        create: {
+          campaignId: id,
+          totalIncluded: eligibleContacts.length,
+          totalSuppressed: 0,
+          rules: { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] },
+        },
+        update: {
+          totalIncluded: eligibleContacts.length,
+          totalSuppressed: 0,
+          takenAt: new Date(),
+          rules: { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] },
+        },
+      });
+    }
 
-    if (eligible.length === 0) {
+    if (eligibleContacts.length === 0) {
       return res.status(200).json({ message: "No eligible contacts to send to", sent: 0 });
     }
 
@@ -143,7 +209,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Queue CampaignSend rows and fetch their IDs for tracking
     await db.campaignSend.createMany({
-      data: eligible.map((m) => ({ campaignId: id, contactId: m.contactId })),
+      data: eligibleContacts.map((c) => ({ campaignId: id, contactId: c.id })),
       skipDuplicates: true,
     });
     const sendRows = await db.campaignSend.findMany({
@@ -158,21 +224,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let failed = 0;
     const now = new Date();
 
-    for (let i = 0; i < eligible.length; i += BATCH) {
-      const batch = eligible.slice(i, i + BATCH);
+    for (let i = 0; i < eligibleContacts.length; i += BATCH) {
+      const batch = eligibleContacts.slice(i, i + BATCH);
       await Promise.allSettled(
-        batch.map(async (m) => {
+        batch.map(async (c) => {
           try {
-            const sendId = sendIdByContact[m.contactId];
+            const sendId = sendIdByContact[c.id];
             const { subject, html, text } = buildCampaignEmail(
               campaign,
-              m.contactId,
-              m.contact.firstName,
+              c.id,
+              c.firstName,
               sendId
             );
-            await sendEmail({ to: m.contact.email, subject, html, text });
+            await sendEmail({ to: c.email, subject, html, text });
             await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: id, contactId: m.contactId } },
+              where: { campaignId_contactId: { campaignId: id, contactId: c.id } },
               data: { status: "SENT", sentAt: now },
             });
             sent++;

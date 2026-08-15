@@ -7,6 +7,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { BlockComposer } from "@/components/email/BlockComposer";
+import { AudienceBuilder } from "@/components/email/AudienceBuilder";
+import type { AudienceDefinition } from "@/lib/audience";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface ListOption { id: string; name: string; _count: { members: number } }
@@ -38,7 +40,11 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   const [useComposer, setUseComposer] = useState(true);
 
   // Step 3: Audience & Schedule
-  const [listId, setListId] = useState("");
+  const [audienceRules, setAudienceRules] = useState<AudienceDefinition>({
+    logic: "OR",
+    include: [],
+    exclude: [],
+  });
   const [scheduledAt, setScheduledAt] = useState("");
 
   function applyTemplate(id: string) {
@@ -69,7 +75,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
         htmlBody,
         textBody: textBody || undefined,
         templateId: selectedTemplateId || undefined,
-        listId: listId || undefined,
+        audienceRules: audienceRules.include.length > 0 ? audienceRules : undefined,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
       };
       const res = await fetch("/api/admin/campaigns", {
@@ -250,35 +256,31 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
 
         {/* Step 3: Audience & Schedule */}
         {step === 2 && (
-          <div className="space-y-5 rounded-2xl border border-navy/8 bg-white p-6">
-            <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Send to list</label>
-              <select
-                value={listId}
-                onChange={(e) => setListId(e.target.value)}
-                className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
-              >
-                <option value="">— Select a list (optional) —</option>
-                {lists.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} ({l._count.members.toLocaleString()} contacts)
-                  </option>
-                ))}
-              </select>
-              {!listId && (
-                <p className="mt-1 text-xs text-ink-soft">You can assign a list later from the campaign page.</p>
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-ink-soft">Audience</h2>
+              <AudienceBuilder
+                value={audienceRules}
+                onChange={setAudienceRules}
+                lists={lists.map((l) => ({ id: l.id, name: `${l.name} (${l._count.members.toLocaleString()})` }))}
+              />
+              {audienceRules.include.length === 0 && (
+                <p className="mt-3 text-xs text-ink-soft">No audience defined — you can add rules here or configure this after saving.</p>
               )}
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Schedule (optional)</label>
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
-              />
-              <p className="mt-1 text-xs text-ink-soft">Leave blank to save as draft. You can send manually from the campaign page.</p>
+            <div className="rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-ink-soft">Schedule</h2>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Send time (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+                />
+                <p className="mt-1 text-xs text-ink-soft">Leave blank to save as draft and send manually.</p>
+              </div>
             </div>
 
             {/* Summary */}
@@ -287,7 +289,12 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
               <p className="text-ink-soft"><span className="font-medium text-ink">Name:</span> {name}</p>
               <p className="text-ink-soft"><span className="font-medium text-ink">Subject:</span> {subject}</p>
               <p className="text-ink-soft"><span className="font-medium text-ink">From:</span> {fromName} &lt;{fromEmail}&gt;</p>
-              <p className="text-ink-soft"><span className="font-medium text-ink">List:</span> {listId ? lists.find(l => l.id === listId)?.name : "None (draft)"}</p>
+              <p className="text-ink-soft">
+                <span className="font-medium text-ink">Audience:</span>{" "}
+                {audienceRules.include.length > 0
+                  ? `${audienceRules.include.length} include rule${audienceRules.include.length !== 1 ? "s" : ""}${audienceRules.exclude.length > 0 ? `, ${audienceRules.exclude.length} exclusion${audienceRules.exclude.length !== 1 ? "s" : ""}` : ""}`
+                  : "Not defined (can be set after saving)"}
+              </p>
               <p className="text-ink-soft"><span className="font-medium text-ink">Schedule:</span> {scheduledAt ? new Date(scheduledAt).toLocaleString() : "Send manually"}</p>
             </div>
           </div>

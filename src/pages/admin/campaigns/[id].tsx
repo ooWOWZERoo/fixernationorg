@@ -9,6 +9,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface StatRow { status: string; count: number }
+interface AudienceRuleSummary { type: string; label: string }
 interface Props {
   campaign: {
     id: string;
@@ -21,6 +22,8 @@ interface Props {
     textBody: string | null;
     listId: string | null;
     listName: string | null;
+    hasAudienceRules: boolean;
+    audienceRuleSummary: AudienceRuleSummary[];
     sendCount: number;
     scheduledAt: string | null;
     sentAt: string | null;
@@ -104,8 +107,18 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                 <span>{campaign.fromName} &lt;{campaign.fromEmail}&gt;</span>
               </div>
               <div>
-                <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">List</span>
-                <span>{campaign.listName ?? "—"}</span>
+                <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">Audience</span>
+                {campaign.hasAudienceRules ? (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {campaign.audienceRuleSummary.map((r, i) => (
+                      <span key={i} className="rounded bg-navy/8 px-1.5 py-0.5 text-xs font-semibold text-navy">
+                        {r.type}: {r.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span>{campaign.listName ?? "—"}</span>
+                )}
               </div>
               {campaign.scheduledAt && (
                 <div>
@@ -126,7 +139,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
 
             <div className="flex gap-3">
               {(campaign.status === "DRAFT" || campaign.status === "SCHEDULED") && (
-                <button onClick={triggerSend} disabled={sending || !campaign.listId}
+                <button onClick={triggerSend} disabled={sending || (!campaign.listId && !campaign.hasAudienceRules)}
                   className="rounded-xl bg-navy px-5 py-2.5 text-sm font-bold text-white hover:bg-navy-dark disabled:opacity-60">
                   {sending ? "Sending…" : "Send now"}
                 </button>
@@ -144,8 +157,8 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                 </button>
               )}
             </div>
-            {!campaign.listId && campaign.status === "DRAFT" && (
-              <p className="mt-2 text-xs text-amber-dark">No list assigned — edit the campaign to add one before sending.</p>
+            {!campaign.listId && !campaign.hasAudienceRules && campaign.status === "DRAFT" && (
+              <p className="mt-2 text-xs text-amber-dark">No audience defined — edit the campaign to set one before sending.</p>
             )}
           </div>
 
@@ -221,6 +234,23 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     _count: { status: true },
   });
 
+  // Build a human-readable summary of audienceRules for display
+  type RuleShape = { type: string; listId?: string; role?: string; tag?: string; topic?: string; label?: string };
+  type AudDef = { include: RuleShape[]; exclude: RuleShape[] } | null;
+  const aud = campaign.audienceRules as AudDef;
+  const audienceRuleSummary: AudienceRuleSummary[] = aud
+    ? [
+        ...aud.include.map((r) => ({
+          type: r.type,
+          label: r.label ?? r.role ?? r.tag ?? r.topic ?? r.listId ?? "?",
+        })),
+        ...aud.exclude.map((r) => ({
+          type: `exclude:${r.type}`,
+          label: r.label ?? r.role ?? r.tag ?? r.topic ?? r.listId ?? "?",
+        })),
+      ]
+    : [];
+
   return {
     props: {
       campaign: {
@@ -234,6 +264,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         textBody: campaign.textBody,
         listId: campaign.listId,
         listName: campaign.list?.name ?? null,
+        hasAudienceRules: !!aud && aud.include.length > 0,
+        audienceRuleSummary,
         sendCount: campaign._count.sends,
         scheduledAt: campaign.scheduledAt?.toISOString() ?? null,
         sentAt: campaign.sentAt?.toISOString() ?? null,

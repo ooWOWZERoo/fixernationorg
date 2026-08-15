@@ -7,6 +7,12 @@ import { db } from "@/lib/db";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+const audienceRulesSchema = z.object({
+  logic: z.enum(["OR", "AND"]).default("OR"),
+  include: z.array(z.record(z.unknown())),
+  exclude: z.array(z.record(z.unknown())),
+}).optional();
+
 const createSchema = z.object({
   name: z.string().min(1).max(200),
   subject: z.string().min(1).max(200),
@@ -16,6 +22,7 @@ const createSchema = z.object({
   textBody: z.string().optional(),
   templateId: z.string().optional(),
   listId: z.string().optional(),
+  audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().optional(),
 });
 
@@ -54,6 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const campaign = await db.campaign.create({
       data: {
         ...parsed.data,
+        audienceRules: parsed.data.audienceRules ?? undefined,
         scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
         status: parsed.data.scheduledAt ? "SCHEDULED" : "DRAFT",
         createdBy: session.user.id,

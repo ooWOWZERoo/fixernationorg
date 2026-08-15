@@ -7,6 +7,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { BlockComposer } from "@/components/email/BlockComposer";
+import { AudienceBuilder } from "@/components/email/AudienceBuilder";
+import type { AudienceDefinition } from "@/lib/audience";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface ListOption { id: string; name: string }
@@ -21,6 +23,7 @@ interface Props {
     htmlBody: string;
     textBody: string | null;
     listId: string | null;
+    audienceRules: AudienceDefinition | null;
     scheduledAt: string | null;
   };
   lists: ListOption[];
@@ -35,11 +38,16 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
     fromEmail: campaign.fromEmail,
     htmlBody: campaign.htmlBody,
     textBody: campaign.textBody ?? "",
-    listId: campaign.listId ?? "",
     scheduledAt: campaign.scheduledAt
       ? new Date(campaign.scheduledAt).toISOString().slice(0, 16)
       : "",
   });
+  const [audienceRules, setAudienceRules] = useState<AudienceDefinition>(
+    campaign.audienceRules ??
+    (campaign.listId
+      ? { logic: "OR", include: [{ type: "list", listId: campaign.listId, label: lists.find(l => l.id === campaign.listId)?.name }], exclude: [] }
+      : { logic: "OR", include: [], exclude: [] })
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useComposer, setUseComposer] = useState(false);
@@ -55,9 +63,10 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
     try {
       const body = {
         ...form,
-        listId: form.listId || null,
         textBody: form.textBody || null,
         scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
+        audienceRules: audienceRules.include.length > 0 ? audienceRules : null,
+        listId: null,
       };
       const res = await fetch(`/api/admin/campaigns/${campaign.id}`, {
         method: "PUT",
@@ -120,19 +129,12 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Send to list</label>
-            <select value={form.listId} onChange={set("listId")}
-              className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30">
-              <option value="">— No list selected —</option>
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-            {lists.length === 0 && (
-              <p className="mt-1 text-xs text-amber-dark">
-                No lists yet. <a href="/admin/lists" className="underline">Create a list</a> first.
-              </p>
-            )}
+            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-ink-soft">Audience</label>
+            <AudienceBuilder
+              value={audienceRules}
+              onChange={setAudienceRules}
+              lists={lists}
+            />
           </div>
 
           <div>
@@ -209,6 +211,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       htmlBody: true,
       textBody: true,
       listId: true,
+      audienceRules: true,
       scheduledAt: true,
       status: true,
     },
@@ -237,6 +240,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         htmlBody: campaign.htmlBody,
         textBody: campaign.textBody,
         listId: campaign.listId,
+        audienceRules: (campaign.audienceRules as AudienceDefinition | null) ?? null,
         scheduledAt: campaign.scheduledAt?.toISOString() ?? null,
       },
       lists,
