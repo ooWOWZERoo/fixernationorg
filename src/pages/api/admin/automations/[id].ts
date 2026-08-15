@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -39,13 +40,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
     }
 
-    const data: Record<string, unknown> = {};
-    if (parsed.data.name !== undefined) data.name = parsed.data.name;
-    if (parsed.data.description !== undefined) data.description = parsed.data.description;
-    if (parsed.data.active !== undefined) data.active = parsed.data.active;
-    if (parsed.data.triggerConfig !== undefined) data.triggerConfig = parsed.data.triggerConfig;
-
-    const journey = await db.automationJourney.update({ where: { id }, data });
+    const journey = await db.automationJourney.update({
+      where: { id },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
+        ...(parsed.data.active !== undefined ? { active: parsed.data.active } : {}),
+        ...(parsed.data.triggerConfig !== undefined
+          ? { triggerConfig: parsed.data.triggerConfig ?? Prisma.DbNull }
+          : {}),
+      },
+    });
     return res.status(200).json(journey);
   }
 

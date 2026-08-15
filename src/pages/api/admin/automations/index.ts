@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -54,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: {
         name: parsed.data.name,
         trigger: parsed.data.trigger,
-        triggerConfig: parsed.data.triggerConfig ?? null,
+        triggerConfig: parsed.data.triggerConfig ?? Prisma.DbNull,
         description: parsed.data.description ?? null,
         active: parsed.data.active ?? false,
         createdBy: session.user.id,

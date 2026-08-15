@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -42,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: {
         journeyId: parsed.data.journeyId,
         type: parsed.data.type,
-        config: parsed.data.config as object,
+        config: parsed.data.config as Prisma.InputJsonValue,
         order: nextOrder,
       },
     });
@@ -87,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (parsed.data.config) {
       const updated = await db.automationStep.update({
         where: { id: parsed.data.id },
-        data: { config: parsed.data.config as object },
+        data: { config: parsed.data.config as Prisma.InputJsonValue },
       });
       return res.status(200).json(updated);
     }

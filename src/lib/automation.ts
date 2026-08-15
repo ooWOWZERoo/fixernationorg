@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import type { AutomationEnrollment, AutomationStep, AutomationTrigger } from "@prisma/client";
@@ -45,7 +46,7 @@ export async function enrollInJourneys(opts: EnrollOptions): Promise<void> {
         userId: userId ?? null,
         contactId: contactId ?? null,
         nextRunAt: new Date(),
-        metadata: (metadata as object) ?? null,
+        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
         events: {
           create: { type: "enrolled", metadata: { trigger, ...(triggerConfig ?? {}) } },
         },
