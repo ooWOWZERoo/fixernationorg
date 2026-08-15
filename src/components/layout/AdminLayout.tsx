@@ -62,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/settings", label: "Settings" },
       { href: "/admin/audit", label: "Audit log" },
+      { href: "/admin/blocked-emails", label: "Blocked emails" },
     ],
   },
 ];

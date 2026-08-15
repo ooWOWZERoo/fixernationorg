@@ -468,6 +468,8 @@ model UserApplication {
   accountInviteSentAt      DateTime?
   directoryListed          Boolean           @default(false)
   directoryListedAt        DateTime?
+  markedSpam               Boolean           @default(false)
+  markedSpamAt             DateTime?
   createdAt                DateTime          @default(now())
 
   providerDetail        ProviderApplicationDetail?
@@ -479,6 +481,16 @@ model UserApplication {
   events                ApplicationEvent[]
 
   @@index([type, status])
+  @@index([email])
+}
+
+model BlockedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String?
+  blockedBy String
+  createdAt DateTime @default(now())
+
   @@index([email])
 }
 

@@ -10,8 +10,10 @@ import {
   buildApplicationAdminNotifyEmail,
 } from "@/lib/emails/application-submitted";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { isEmailBlocked, isSubmissionThrottled } from "@/lib/rate-limit";
 
 const schema = z.object({
+  _hp:                  z.string().max(200).optional(),
   firstName:            z.string().min(1).max(60).trim(),
   lastName:             z.string().min(1).max(60).trim(),
   email:                z.string().email().trim().toLowerCase(),
@@ -57,8 +59,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const d = parsed.data;
 
+  // Honeypot — bots fill hidden fields; legitimate clients never send _hp
+  if (d._hp) {
+    return res.status(200).json({ id: "ok" });
+  }
+
   if (!d.agreedToAccuracy || !d.agreedToPolicy || !d.agreedToContact) {
     return res.status(400).json({ error: "All agreements are required." });
+  }
+
+  // Blocked email check
+  if (await isEmailBlocked(d.email)) {
+    return res.status(403).json({ error: "This email address cannot submit applications." });
+  }
+
+  // Rate limiting — max 3 submissions per email per 15 minutes
+  if (await isSubmissionThrottled(d.email)) {
+    return res.status(429).json({ error: "Too many submissions. Please try again later." });
   }
 
   const session = await getServerSession(req, res, authOptions);

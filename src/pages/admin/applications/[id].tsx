@@ -94,6 +94,8 @@ type Application = {
   accountInviteSentAt: string | null;
   directoryListed: boolean;
   directoryListedAt: string | null;
+  markedSpam: boolean;
+  markedSpamAt: string | null;
   providerDetail: ProviderDetail | null;
   ambassadorDetail: AmbassadorDetail | null;
   territoryAssignments: TerritoryAssignmentRow[];
@@ -514,6 +516,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   const [directoryListed, setDirectoryListed] = useState(initial.directoryListed);
   const [togglingDirectory, setTogglingDirectory] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [markedSpam, setMarkedSpam] = useState(initial.markedSpam);
+  const [markingSpam, setMarkingSpam] = useState(false);
   const [events, setEvents] = useState<AppEvent[]>(initialEvents);
 
   // Pre-send email preview state
@@ -814,6 +818,20 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       // silent — checkbox reverts on next render
     } finally {
       setTogglingDirectory(false);
+    }
+  };
+
+  const handleMarkSpam = async (mark: boolean) => {
+    setMarkingSpam(true);
+    try {
+      const res = await fetch(`/api/admin/applications/spam/${application.id}`, {
+        method: mark ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: mark ? JSON.stringify({ blockEmail: true }) : undefined,
+      });
+      if (res.ok) setMarkedSpam(mark);
+    } finally {
+      setMarkingSpam(false);
     }
   };
 
@@ -1549,6 +1567,33 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
                   Decline
                 </button>
                 <p className="mt-1 text-xs text-slate-400">Sends decline email. This cannot be undone.</p>
+              </div>
+
+              {/* Mark spam */}
+              <div className="border-t border-slate-100 pt-3">
+                {markedSpam ? (
+                  <div>
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Spam</span>
+                      <span className="text-xs text-slate-400">Email is blocked from reapplying</span>
+                    </div>
+                    <button
+                      onClick={() => handleMarkSpam(false)}
+                      disabled={markingSpam}
+                      className="text-xs font-semibold text-slate-400 underline underline-offset-2 hover:text-slate-700 disabled:opacity-40"
+                    >
+                      {markingSpam ? "…" : "Remove spam flag"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleMarkSpam(true)}
+                    disabled={markingSpam}
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-red-200 hover:text-red-600 disabled:opacity-40"
+                  >
+                    {markingSpam ? "…" : "Mark as spam + block email"}
+                  </button>
+                )}
               </div>
 
               {/* Pre-send email preview panel */}
