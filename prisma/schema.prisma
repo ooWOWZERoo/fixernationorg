@@ -438,21 +438,105 @@ model Resource {
 // ─── Provider / Ambassador applications ──────────────────────────────────────
 
 model UserApplication {
-  id           String            @id @default(cuid())
-  type         ApplicationType
-  status       ApplicationStatus @default(PENDING)
-  name         String
-  email        String
-  message      String            @db.Text
-  businessName String?           // providers only
-  userId       String?           // set if applicant was signed in at submission
-  reviewedAt   DateTime?
-  reviewedBy   String?
-  reviewNotes  String?           @db.Text
-  createdAt    DateTime          @default(now())
+  id               String            @id @default(cuid())
+  type             ApplicationType
+  status           ApplicationStatus @default(DRAFT)
+  name             String?
+  email            String
+  message          String?           @db.Text
+  businessName     String?
+  userId           String?
+  phone            String?
+  contactId        String?
+  submittedAt      DateTime?
+  emailVerifiedAt  DateTime?
+  emailVerifyToken String?           @unique
+  draftExpiresAt   DateTime?
+  infoRequestNotes String?           @db.Text
+  referralCode     String?
+  campaignSource   String?
+  assignedTo       String?
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  reviewNotes      String?           @db.Text
+  createdAt        DateTime          @default(now())
+
+  providerDetail   ProviderApplicationDetail?
+  ambassadorDetail AmbassadorApplicationDetail?
 
   @@index([type, status])
   @@index([email])
+}
+
+model ProviderApplicationDetail {
+  id               String    @id @default(cuid())
+  applicationId    String    @unique
+  firstName        String    @default("")
+  lastName         String    @default("")
+  phone            String    @default("")
+  businessName     String?
+  businessType     String?
+  yearsInBusiness  String?
+  website          String?
+  licenseNumber    String?
+  insuranceCarrier String?
+  insuranceExpiry  String?
+  serviceCategory  String?
+  serviceDescription String? @db.Text
+  serviceAreas     String[]
+  pricingModel     String?
+  priceRange       String?
+  whyJoining       String?   @db.Text
+  targetAudience   String?   @db.Text
+  differentiation  String?   @db.Text
+  linkedinUrl      String?
+  facebookUrl      String?
+  instagramUrl     String?
+  otherSocialUrl   String?
+  agreedToAccuracy Boolean   @default(false)
+  agreedToPolicy   Boolean   @default(false)
+  agreedToContact  Boolean   @default(false)
+  signatureName    String?
+  agreedAt         DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  application UserApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model AmbassadorApplicationDetail {
+  id                   String    @id @default(cuid())
+  applicationId        String    @unique
+  firstName            String    @default("")
+  lastName             String    @default("")
+  phone                String    @default("")
+  city                 String?
+  state                String?
+  occupation           String?
+  employer             String?
+  howHeardAboutFN      String?
+  memberSince          String?
+  audienceSize         String?
+  platformsUsed        String[]
+  communityDescription String?   @db.Text
+  geographicFocus      String?
+  whyJoining           String?   @db.Text
+  missionAlignment     String?   @db.Text
+  referralNetwork      String?   @db.Text
+  linkedinUrl          String?
+  facebookUrl          String?
+  instagramUrl         String?
+  tiktokUrl            String?
+  youtubeUrl           String?
+  podcastUrl           String?
+  blogUrl              String?
+  agreedToAccuracy     Boolean   @default(false)
+  agreedToPolicy       Boolean   @default(false)
+  agreedToContact      Boolean   @default(false)
+  signatureName        String?
+  agreedAt             DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  application UserApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 }
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
@@ -656,9 +740,24 @@ enum RsvpStatus {
 }
 
 enum ApplicationStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  PENDING                    // legacy
+  APPROVED                   // legacy
+  REJECTED                   // legacy
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  ADDITIONAL_INFO_REQUIRED
+  RESUBMITTED
+  CONDITIONALLY_ACCEPTED
+  ACCEPTED_ONBOARDING_REQUIRED
+  ONBOARDING_IN_PROGRESS
+  TERRITORY_PENDING
+  PAYMENT_PENDING
+  PAYMENT_FAILED
+  ACTIVE
+  DECLINED
+  WITHDRAWN
+  EXPIRED
 }
 
 // ─── CRM (Phase CRM-1) ────────────────────────────────────────────────────────

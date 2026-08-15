@@ -10,12 +10,12 @@ const TYPE_LABEL: Record<ApplicationType, string> = {
 };
 
 export function buildApplicationApprovedEmail(
-  name: string,
+  name: string | null | undefined,
   type: ApplicationType
 ): { subject: string; html: string; text: string } {
   const label = TYPE_LABEL[type];
   const dashboardUrl = `${BASE_URL}/dashboard`;
-  const first = name.split(" ")[0];
+  const first = (name ?? "").split(" ")[0] || "there";
 
   const htmlBody = `<!DOCTYPE html>
 <html lang="en">
@@ -79,11 +79,11 @@ Fixer Nation · ${BASE_URL}
 }
 
 export function buildApplicationRejectedEmail(
-  name: string,
+  name: string | null | undefined,
   type: ApplicationType
 ): { subject: string; html: string; text: string } {
   const label = TYPE_LABEL[type];
-  const first = name.split(" ")[0];
+  const first = (name ?? "").split(" ")[0] || "there";
   const dashboardUrl = `${BASE_URL}/dashboard`;
 
   const htmlBody = `<!DOCTYPE html>

@@ -11,15 +11,27 @@ import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+const ACCEPT_STATUSES = [
+  "UNDER_REVIEW",
+  "ADDITIONAL_INFO_REQUIRED",
+  "RESUBMITTED",
+  "CONDITIONALLY_ACCEPTED",
+  "ACCEPTED_ONBOARDING_REQUIRED",
+  "APPROVED",    // legacy
+  "DECLINED",
+  "REJECTED",    // legacy
+  "WITHDRAWN",
+  "EXPIRED",
+] as const;
+
 const patchSchema = z.object({
-  status: z.enum(["APPROVED", "REJECTED"]),
-  reviewNotes: z.string().max(1000).optional(),
+  status: z.enum(ACCEPT_STATUSES),
+  reviewNotes: z.string().max(2000).optional(),
+  infoRequestNotes: z.string().max(2000).optional(),
 });
 
-const APPROVAL_ROLE: Record<string, "PROVIDER" | "AMBASSADOR"> = {
-  PROVIDER: "PROVIDER",
-  AMBASSADOR: "AMBASSADOR",
-};
+const ACCEPTANCE_STATUSES = new Set(["ACCEPTED_ONBOARDING_REQUIRED", "APPROVED"]);
+const REJECTION_STATUSES = new Set(["DECLINED", "REJECTED"]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -35,12 +47,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
     }
 
-    const { status, reviewNotes } = parsed.data;
+    const { status, reviewNotes, infoRequestNotes } = parsed.data;
 
     const application = await db.userApplication.findUnique({ where: { id } });
     if (!application) return res.status(404).json({ error: "Not found" });
-    if (application.status !== "PENDING") {
-      return res.status(409).json({ error: "Application has already been reviewed." });
+
+    const unreviewed = new Set(["PENDING", "SUBMITTED", "UNDER_REVIEW", "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED"]);
+    if (!unreviewed.has(application.status)) {
+      return res.status(409).json({ error: "This application has already been finalized." });
     }
 
     const updated = await db.userApplication.update({
@@ -50,29 +64,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         reviewedAt: new Date(),
         reviewedBy: session.user.email,
         reviewNotes: reviewNotes?.trim() || null,
+        infoRequestNotes: infoRequestNotes?.trim() || null,
       },
     });
 
-    if (status === "APPROVED" && application.userId) {
-      const newRole = APPROVAL_ROLE[application.type];
+    if (ACCEPTANCE_STATUSES.has(status) && application.userId) {
+      const newRole = application.type === "PROVIDER" ? "PROVIDER" : application.type === "AMBASSADOR" ? "AMBASSADOR" : null;
       if (newRole) {
         const prevUser = await db.user.findUnique({ where: { id: application.userId }, select: { role: true } });
         await db.user.update({ where: { id: application.userId }, data: { role: newRole } });
-        const roleChangeTasks: Promise<unknown>[] = [
+
+        const tasks: Promise<unknown>[] = [
           logAction({
             actorId: session.user.id,
             actorEmail: session.user.email,
             action: "user.role_changed",
             resource: "User",
             resourceId: application.userId,
-            metadata: { from: prevUser?.role, to: newRole, reason: `Application ${id} approved` },
+            metadata: { from: prevUser?.role, to: newRole, reason: `Application ${id} accepted` },
             ip: getClientIp(req),
           }),
           autoJoinGroups(application.userId, newRole),
         ];
 
         if (newRole === "AMBASSADOR") {
-          roleChangeTasks.push(
+          tasks.push(
             generateUniqueReferralCode().then((referralCode) =>
               db.ambassadorProfile.upsert({
                 where: { userId: application.userId! },
@@ -83,7 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           );
         }
 
-        await Promise.all(roleChangeTasks);
+        await Promise.all(tasks);
       }
     }
 
@@ -97,16 +113,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ip: getClientIp(req),
     });
 
-    // Notify the applicant — fire and forget
-    try {
-      const appType = application.type as "PROVIDER" | "AMBASSADOR";
-      const email =
-        status === "APPROVED"
-          ? buildApplicationApprovedEmail(application.name, appType)
-          : buildApplicationRejectedEmail(application.name, appType);
-      await sendEmail({ to: application.email, ...email });
-    } catch (err) {
-      console.error("[email] Failed to send application decision email:", err);
+    if (ACCEPTANCE_STATUSES.has(status) || REJECTION_STATUSES.has(status)) {
+      try {
+        const appType = application.type as "PROVIDER" | "AMBASSADOR";
+        const displayName = application.name ?? application.email;
+        const email = ACCEPTANCE_STATUSES.has(status)
+          ? buildApplicationApprovedEmail(displayName, appType)
+          : buildApplicationRejectedEmail(displayName, appType);
+        await sendEmail({ to: application.email, ...email });
+      } catch (err) {
+        console.error("[application] Failed to send decision email:", err);
+      }
     }
 
     return res.status(200).json(updated);
