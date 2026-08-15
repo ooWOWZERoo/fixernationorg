@@ -823,6 +823,7 @@ model Contact {
   notes            ContactNote[]
   listMemberships  ContactListMember[]
   campaignSends    CampaignSend[]
+  subscriptions    ContactSubscription[]
 
   @@index([email])
   @@index([userId])
@@ -1422,4 +1423,32 @@ model AutomationEvent {
   enrollment AutomationEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId, occurredAt])
+}
+
+model NewsletterTopic {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions ContactSubscription[]
+}
+
+model ContactSubscription {
+  id        String   @id @default(cuid())
+  contactId String
+  topicId   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  topic   NewsletterTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, topicId])
+  @@index([contactId])
+  @@index([topicId])
 }

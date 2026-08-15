@@ -141,11 +141,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Mark campaign as SENDING
     await db.campaign.update({ where: { id }, data: { status: "SENDING" } });
 
-    // Queue CampaignSend rows
+    // Queue CampaignSend rows and fetch their IDs for tracking
     await db.campaignSend.createMany({
       data: eligible.map((m) => ({ campaignId: id, contactId: m.contactId })),
       skipDuplicates: true,
     });
+    const sendRows = await db.campaignSend.findMany({
+      where: { campaignId: id, status: "QUEUED" },
+      select: { id: true, contactId: true },
+    });
+    const sendIdByContact = Object.fromEntries(sendRows.map((r) => [r.contactId, r.id]));
 
     // Send in batches of 20
     const BATCH = 20;
@@ -158,10 +163,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await Promise.allSettled(
         batch.map(async (m) => {
           try {
+            const sendId = sendIdByContact[m.contactId];
             const { subject, html, text } = buildCampaignEmail(
               campaign,
               m.contactId,
-              m.contact.firstName
+              m.contact.firstName,
+              sendId
             );
             await sendEmail({ to: m.contact.email, subject, html, text });
             await db.campaignSend.update({
