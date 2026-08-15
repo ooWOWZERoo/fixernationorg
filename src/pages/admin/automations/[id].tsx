@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
@@ -20,6 +20,13 @@ const STEP_TYPE_LABELS: Record<string, string> = {
   SEND_EMAIL: "Send email",
   ADD_TAG: "Add tag",
   WEBHOOK: "Webhook",
+};
+
+const STEP_STYLES: Record<string, { badgeClass: string; leftBorderClass: string }> = {
+  WAIT:       { badgeClass: "bg-amber-50 text-amber-700",     leftBorderClass: "border-l-amber-400" },
+  SEND_EMAIL: { badgeClass: "bg-blue-50 text-blue-700",       leftBorderClass: "border-l-blue-400" },
+  ADD_TAG:    { badgeClass: "bg-emerald-50 text-emerald-700", leftBorderClass: "border-l-emerald-400" },
+  WEBHOOK:    { badgeClass: "bg-violet-50 text-violet-700",   leftBorderClass: "border-l-violet-400" },
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -250,6 +257,13 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [editingTriggerConfig, setEditingTriggerConfig] = useState(false);
+  const [triggerConfigValue, setTriggerConfigValue] = useState<string>(
+    initial.triggerConfig?.role ?? initial.triggerConfig?.tag ?? ""
+  );
+  const [savingTriggerConfig, setSavingTriggerConfig] = useState(false);
+  const dragSrc = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const startEditStep = (step: Step) => {
     setEditingStepId(step.id);
@@ -384,6 +398,50 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
     setCancellingId(null);
   };
 
+  const saveTriggerConfig = async () => {
+    setSavingTriggerConfig(true);
+    let newConfig: Record<string, string> | null = null;
+    if (journey.trigger === "ROLE_CHANGE" && triggerConfigValue) {
+      newConfig = { role: triggerConfigValue };
+    } else if (journey.trigger === "TAG_ADDED" && triggerConfigValue) {
+      newConfig = { tag: triggerConfigValue };
+    }
+    const res = await fetch(`/api/admin/automations/${journey.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ triggerConfig: newConfig }),
+    });
+    if (res.ok) {
+      setJourney((prev) => ({ ...prev, triggerConfig: newConfig }));
+      setEditingTriggerConfig(false);
+    }
+    setSavingTriggerConfig(false);
+  };
+
+  const handleDragStart = (idx: number) => {
+    dragSrc.current = idx;
+  };
+
+  const handleDrop = async (targetIdx: number) => {
+    setDragOverIdx(null);
+    if (dragSrc.current === null || dragSrc.current === targetIdx) return;
+    const next = [...steps];
+    const [moved] = next.splice(dragSrc.current, 1);
+    next.splice(targetIdx, 0, moved);
+    dragSrc.current = null;
+    setSteps(next);
+    fetch("/api/admin/automations/reorder-steps", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ journeyId: journey.id, stepIds: next.map((s) => s.id) }),
+    }).catch(() => {});
+  };
+
+  const handleDragEnd = () => {
+    dragSrc.current = null;
+    setDragOverIdx(null);
+  };
+
   return (
     <div>
       {/* Header */}
@@ -484,141 +542,254 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
         ))}
       </div>
 
-      {/* Steps tab */}
+      {/* Steps tab — visual canvas */}
       {activeTab === "steps" && (
-        <div className="space-y-3">
-          {steps.length === 0 && !addingStep && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 py-10 text-center">
-              <p className="text-sm font-semibold text-slate-500">No steps yet.</p>
-              <p className="mt-1 text-xs text-slate-400">Add a step below to start building the sequence.</p>
-            </div>
-          )}
+        <div className="flex flex-col items-center pb-8">
 
-          {steps.map((step, idx) => (
-            <div key={step.id} className="rounded-xl border border-slate-200 bg-white">
-              <div className="flex items-center gap-3 px-4 py-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                  {idx + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-400 mr-2">
-                    {STEP_TYPE_LABELS[step.type] ?? step.type}
-                  </span>
-                  <span className="text-sm text-slate-700">{stepSummary(step)}</span>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
+          {/* Trigger node */}
+          <div className="w-full max-w-xl rounded-xl border-2 border-navy/25 bg-navy p-4 text-white shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Trigger</div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold">{TRIGGER_LABELS[journey.trigger] ?? journey.trigger}</div>
+                {journey.trigger === "ROLE_CHANGE" && (
+                  <div className="mt-0.5 text-xs text-white/60">
+                    {journey.triggerConfig?.role
+                      ? `When role changes to ${journey.triggerConfig.role}`
+                      : "Any role change (no filter set)"}
+                  </div>
+                )}
+                {journey.trigger === "TAG_ADDED" && (
+                  <div className="mt-0.5 text-xs text-white/60">
+                    {journey.triggerConfig?.tag
+                      ? `When tag "${journey.triggerConfig.tag}" is added`
+                      : "Any tag added (no filter set)"}
+                  </div>
+                )}
+              </div>
+              {(journey.trigger === "ROLE_CHANGE" || journey.trigger === "TAG_ADDED") && !editingTriggerConfig && (
+                <button
+                  onClick={() => setEditingTriggerConfig(true)}
+                  className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  Configure
+                </button>
+              )}
+            </div>
+
+            {editingTriggerConfig && (
+              <div className="mt-3 border-t border-white/15 pt-3 space-y-2">
+                {journey.trigger === "ROLE_CHANGE" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-white/60 mb-1">Trigger when role changes to</label>
+                    <select
+                      value={triggerConfigValue}
+                      onChange={(e) => setTriggerConfigValue(e.target.value)}
+                      className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+                    >
+                      <option value="">Any role change</option>
+                      <option value="CONSUMER">Consumer</option>
+                      <option value="MEMBER">Member</option>
+                      <option value="PROVIDER">Provider</option>
+                      <option value="AMBASSADOR">Ambassador</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-white/60 mb-1">Trigger when this tag is added</label>
+                    <input
+                      value={triggerConfigValue}
+                      onChange={(e) => setTriggerConfigValue(e.target.value)}
+                      placeholder="e.g. ambassador-prospect"
+                      className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
                   <button
-                    onClick={() => moveStep(step.id, "move_up")}
-                    disabled={idx === 0 || movingStep.has(step.id)}
-                    className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    onClick={saveTriggerConfig}
+                    disabled={savingTriggerConfig}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-navy hover:bg-white/90 disabled:opacity-40"
                   >
-                    ↑
+                    {savingTriggerConfig ? "Saving…" : "Save"}
                   </button>
                   <button
-                    onClick={() => moveStep(step.id, "move_down")}
-                    disabled={idx === steps.length - 1 || movingStep.has(step.id)}
-                    className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    onClick={() => {
+                      setEditingTriggerConfig(false);
+                      setTriggerConfigValue(journey.triggerConfig?.role ?? journey.triggerConfig?.tag ?? "");
+                    }}
+                    className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-semibold text-white/60 hover:bg-white/10"
                   >
-                    ↓
-                  </button>
-                  <button
-                    onClick={() =>
-                      editingStepId === step.id ? cancelEditStep() : startEditStep(step)
-                    }
-                    className="rounded px-2 py-1 text-xs font-semibold text-navy hover:bg-navy/5"
-                  >
-                    {editingStepId === step.id ? "Cancel" : "Edit"}
-                  </button>
-                  <button
-                    onClick={() => deleteStep(step.id)}
-                    disabled={deletingStep.has(step.id)}
-                    className="rounded px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 disabled:opacity-40"
-                  >
-                    {deletingStep.has(step.id) ? "…" : "Remove"}
+                    Cancel
                   </button>
                 </div>
               </div>
+            )}
+          </div>
 
-              {editingStepId === step.id && (
-                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+          {/* Step cards — each includes connector above it */}
+          {steps.map((step, idx) => {
+            const style = STEP_STYLES[step.type] ?? { badgeClass: "bg-slate-100 text-slate-600", leftBorderClass: "border-l-slate-300" };
+            const isOver = dragOverIdx === idx;
+            return (
+              <div
+                key={step.id}
+                className="w-full max-w-xl"
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                onDrop={() => handleDrop(idx)}
+              >
+                <div className={["mx-auto my-1 h-5 w-px transition-colors", isOver ? "bg-navy/50" : "bg-slate-200"].join(" ")} />
+                <div className={["mx-auto h-0 w-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent transition-colors", isOver ? "border-t-navy/50" : "border-t-slate-200"].join(" ")} />
+
+                <div
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragEnd={handleDragEnd}
+                  className={[
+                    "mt-1 rounded-xl border-t border-r border-b border-l-4 bg-white shadow-sm transition-all",
+                    style.leftBorderClass,
+                    isOver
+                      ? "border-t-navy/20 border-r-navy/20 border-b-navy/20 shadow-md ring-2 ring-navy/10"
+                      : "border-t-slate-200 border-r-slate-200 border-b-slate-200",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <span className="cursor-grab select-none text-slate-300 hover:text-slate-500 text-base leading-none" title="Drag to reorder">⠿</span>
+                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.badgeClass}`}>
+                      {STEP_TYPE_LABELS[step.type] ?? step.type}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-700 truncate">{stepSummary(step)}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => moveStep(step.id, "move_up")}
+                        disabled={idx === 0 || movingStep.has(step.id)}
+                        className="rounded px-1.5 py-1 text-xs text-slate-300 hover:bg-slate-100 hover:text-slate-500 disabled:opacity-20"
+                        title="Move up"
+                      >↑</button>
+                      <button
+                        onClick={() => moveStep(step.id, "move_down")}
+                        disabled={idx === steps.length - 1 || movingStep.has(step.id)}
+                        className="rounded px-1.5 py-1 text-xs text-slate-300 hover:bg-slate-100 hover:text-slate-500 disabled:opacity-20"
+                        title="Move down"
+                      >↓</button>
+                      <button
+                        onClick={() => editingStepId === step.id ? cancelEditStep() : startEditStep(step)}
+                        className="rounded px-2 py-1 text-xs font-semibold text-navy hover:bg-navy/5"
+                      >
+                        {editingStepId === step.id ? "Cancel" : "Edit"}
+                      </button>
+                      <button
+                        onClick={() => deleteStep(step.id)}
+                        disabled={deletingStep.has(step.id)}
+                        className="rounded px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-50 disabled:opacity-40"
+                      >
+                        {deletingStep.has(step.id) ? "…" : "✕"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingStepId === step.id && (
+                    <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                      <StepConfigForm
+                        type={step.type}
+                        config={editConfig}
+                        templates={templates}
+                        onChange={setEditConfig}
+                      />
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => saveStep(step.id)}
+                          disabled={savingStep}
+                          className="rounded-lg bg-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy/90 disabled:opacity-40"
+                        >
+                          {savingStep ? "Saving…" : "Save step"}
+                        </button>
+                        <button
+                          onClick={cancelEditStep}
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Empty state — only when no steps and not adding */}
+          {steps.length === 0 && !addingStep && (
+            <div className="w-full max-w-xl">
+              <div className="mx-auto my-1 h-5 w-px bg-slate-200" />
+              <div className="mx-auto h-0 w-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-200" />
+              <div className="mt-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 py-8 text-center">
+                <p className="text-sm font-semibold text-slate-500">No steps yet.</p>
+                <p className="mt-1 text-xs text-slate-400">Add a step below to start building the sequence.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Terminal connector + add form/button */}
+          <div className="w-full max-w-xl">
+            <div className="mx-auto my-1 h-5 w-px bg-slate-200" />
+            <div className="mx-auto h-0 w-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-200" />
+            {addingStep ? (
+              <div className="mt-1 rounded-xl border border-navy/20 bg-white p-4">
+                <h3 className="mb-3 text-sm font-bold text-slate-800">Add step</h3>
+                <form onSubmit={addStep} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Step type</label>
+                    <select
+                      value={newStepType}
+                      onChange={(e) => {
+                        setNewStepType(e.target.value);
+                        setNewStepConfig({ ...(defaultConfig[e.target.value] ?? {}) });
+                      }}
+                      className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                    >
+                      {Object.entries(STEP_TYPE_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
                   <StepConfigForm
-                    type={step.type}
-                    config={editConfig}
+                    type={newStepType}
+                    config={newStepConfig}
                     templates={templates}
-                    onChange={setEditConfig}
+                    onChange={setNewStepConfig}
                   />
-                  <div className="mt-3 flex gap-2">
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => saveStep(step.id)}
-                      disabled={savingStep}
+                      type="submit"
+                      disabled={addingSaving}
                       className="rounded-lg bg-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy/90 disabled:opacity-40"
                     >
-                      {savingStep ? "Saving…" : "Save step"}
+                      {addingSaving ? "Adding…" : "Add step"}
                     </button>
                     <button
-                      onClick={cancelEditStep}
+                      type="button"
+                      onClick={() => { setAddingStep(false); setNewStepType("WAIT"); setNewStepConfig({ days: 1 }); }}
                       className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >
                       Cancel
                     </button>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                </form>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingStep(true)}
+                className="mt-1 w-full rounded-xl border border-dashed border-slate-300 py-3 text-sm font-semibold text-slate-400 hover:border-navy/40 hover:text-navy transition-colors"
+              >
+                + Add step
+              </button>
+            )}
+          </div>
 
-          {/* Add step form */}
-          {addingStep ? (
-            <div className="rounded-xl border border-navy/20 bg-white p-4">
-              <h3 className="mb-3 text-sm font-bold text-slate-800">Add step</h3>
-              <form onSubmit={addStep} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Step type</label>
-                  <select
-                    value={newStepType}
-                    onChange={(e) => {
-                      setNewStepType(e.target.value);
-                      setNewStepConfig({ ...(defaultConfig[e.target.value] ?? {}) });
-                    }}
-                    className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-                  >
-                    {Object.entries(STEP_TYPE_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-                <StepConfigForm
-                  type={newStepType}
-                  config={newStepConfig}
-                  templates={templates}
-                  onChange={setNewStepConfig}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={addingSaving}
-                    className="rounded-lg bg-navy px-3 py-1.5 text-xs font-semibold text-white hover:bg-navy/90 disabled:opacity-40"
-                  >
-                    {addingSaving ? "Adding…" : "Add step"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAddingStep(false); setNewStepType("WAIT"); setNewStepConfig({ days: 1 }); }}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <button
-              onClick={() => setAddingStep(true)}
-              className="w-full rounded-xl border border-dashed border-slate-300 py-3 text-sm font-semibold text-slate-400 hover:border-navy/40 hover:text-navy transition-colors"
-            >
-              + Add step
-            </button>
-          )}
         </div>
       )}
 
