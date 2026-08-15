@@ -948,12 +948,32 @@ model Campaign {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  template EmailTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  list     ContactList?    @relation(fields: [listId], references: [id], onDelete: SetNull)
-  sends    CampaignSend[]
+  template  EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  list      ContactList?     @relation(fields: [listId], references: [id], onDelete: SetNull)
+  sends     CampaignSend[]
+  versions  CampaignVersion[]
 
   @@index([status])
   @@index([scheduledAt])
+}
+
+model CampaignVersion {
+  id         String   @id @default(cuid())
+  campaignId String
+  version    Int
+  subject    String
+  htmlBody   String   @db.Text
+  textBody   String?  @db.Text
+  fromName   String
+  fromEmail  String
+  savedBy    String?
+  savedAt    DateTime @default(now())
+  notes      String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, version])
+  @@index([campaignId])
 }
 
 model CampaignSend {

@@ -70,6 +70,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: parsed.data.scheduledAt ? "SCHEDULED" : campaign.status === "SCHEDULED" ? "DRAFT" : campaign.status,
       },
     });
+
+    // Save a new version snapshot on every content-bearing PUT
+    const contentFields = ["subject", "htmlBody", "textBody", "fromName", "fromEmail"];
+    const hasContentChange = contentFields.some((f) => (parsed.data as Record<string, unknown>)[f] !== undefined);
+    if (hasContentChange) {
+      const last = await db.campaignVersion.findFirst({
+        where: { campaignId: id },
+        orderBy: { version: "desc" },
+      });
+      await db.campaignVersion.create({
+        data: {
+          campaignId: id,
+          version: (last?.version ?? 0) + 1,
+          subject: updated.subject,
+          htmlBody: updated.htmlBody,
+          textBody: updated.textBody,
+          fromName: updated.fromName,
+          fromEmail: updated.fromEmail,
+          savedBy: session.user.id,
+        },
+      });
+    }
+
     return res.status(200).json(updated);
   }
 

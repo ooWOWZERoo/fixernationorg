@@ -59,6 +59,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         createdBy: session.user.id,
       },
     });
+
+    // Save initial version snapshot
+    await db.campaignVersion.create({
+      data: {
+        campaignId: campaign.id,
+        version: 1,
+        subject: campaign.subject,
+        htmlBody: campaign.htmlBody,
+        textBody: campaign.textBody,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+        savedBy: session.user.id,
+      },
+    });
+
     return res.status(201).json(campaign);
   }
 

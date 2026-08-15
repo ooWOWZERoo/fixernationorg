@@ -60,7 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/contacts", label: "Contacts" },
       { href: "/admin/lists", label: "Lists" },
       { href: "/admin/campaigns", label: "Campaigns" },
-      { href: "/admin/message-templates", label: "Email templates" },
+      { href: "/admin/email-templates", label: "Email templates" },
     ],
   },
   {
