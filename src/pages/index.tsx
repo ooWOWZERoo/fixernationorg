@@ -244,7 +244,7 @@ const HomePage: NextPageWithLayout = () => {
           <div className="grid overflow-hidden rounded-3xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-[0.9fr_1.1fr]">
             <div className="relative min-h-[280px]">
               <Image
-                src="/images/anthony.png"
+                src="/images/review_profile.png"
                 alt="Fixer Nation member"
                 fill
                 className="object-cover object-top"
