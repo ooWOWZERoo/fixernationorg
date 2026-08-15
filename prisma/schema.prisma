@@ -1247,9 +1247,10 @@ model OnboardingRecord {
   discountPercent       Decimal?                @db.Decimal(5, 2)
   paymentStatus         OnboardingPaymentStatus @default(PENDING)
   paidAt                DateTime?
-  stripePaymentIntentId String?
-  stripePaymentLinkUrl  String?
-  waiverReason          String?                 @db.Text
+  stripePaymentIntentId   String?
+  stripePaymentLinkUrl    String?
+  stripeCheckoutSessionId String?
+  waiverReason            String?               @db.Text
   notes                 String?                 @db.Text
   createdBy             String
   createdAt             DateTime                @default(now())

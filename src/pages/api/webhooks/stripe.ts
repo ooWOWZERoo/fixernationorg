@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getStripe } from "@/lib/stripe";
 import type Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
+import { db } from "@/lib/db";
 
 export const config = {
   api: {
@@ -46,18 +47,77 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   console.log(`[stripe] event ${event.id} type=${event.type}`);
 
   switch (event.type) {
-    case "checkout.session.completed":
-      // Phase 1: activate membership / fulfill order
+    case "checkout.session.completed": {
+      const cs = event.data.object as Stripe.Checkout.Session;
+      const applicationId = cs.metadata?.applicationId;
+      if (!applicationId) break;
+
+      await db.onboardingRecord.updateMany({
+        where: {
+          OR: [
+            { stripeCheckoutSessionId: cs.id },
+            { applicationId },
+          ],
+        },
+        data: {
+          paymentStatus: "COMPLETED",
+          paidAt: new Date(),
+          stripePaymentIntentId:
+            typeof cs.payment_intent === "string" ? cs.payment_intent : null,
+        },
+      });
+
+      await db.applicationEvent.create({
+        data: {
+          applicationId,
+          type: "PAYMENT_RECEIVED",
+          actor: "stripe",
+          meta: {
+            sessionId: cs.id,
+            amountTotal: cs.amount_total,
+            currency: cs.currency,
+          },
+        },
+      });
       break;
+    }
+
+    case "checkout.session.expired": {
+      const cs = event.data.object as Stripe.Checkout.Session;
+      const applicationId = cs.metadata?.applicationId;
+      if (!applicationId) break;
+
+      await db.onboardingRecord.updateMany({
+        where: { stripeCheckoutSessionId: cs.id },
+        data: {
+          stripePaymentLinkUrl: null,
+          stripeCheckoutSessionId: null,
+        },
+      });
+
+      await db.applicationEvent.create({
+        data: {
+          applicationId,
+          type: "PAYMENT_LINK_EXPIRED",
+          actor: "stripe",
+          meta: { sessionId: cs.id },
+        },
+      });
+      break;
+    }
+
     case "invoice.payment_succeeded":
-      // Phase 1: renew subscription
+      // Reserved for subscription renewals (future)
       break;
+
     case "invoice.payment_failed":
-      // Phase 1: enter grace period
+      // Reserved for subscription grace period (future)
       break;
+
     case "customer.subscription.deleted":
-      // Phase 1: cancel membership
+      // Reserved for membership cancellation (future)
       break;
+
     default:
       break;
   }

@@ -11,7 +11,10 @@ export type ApplicationEventType =
   | "TERRITORY_REVOKED"
   | "AFFILIATE_PROVISIONED"
   | "ACCOUNT_CREATED"
-  | "FIELDS_EDITED";
+  | "FIELDS_EDITED"
+  | "PAYMENT_LINK_SENT"
+  | "PAYMENT_RECEIVED"
+  | "PAYMENT_LINK_EXPIRED";
 
 export async function recordEvent(
   applicationId: string,

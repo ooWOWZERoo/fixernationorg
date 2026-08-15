@@ -122,6 +122,7 @@ type OnboardingRecord = {
   paymentStatus: string;
   paidAt: string | null;
   stripePaymentLinkUrl: string | null;
+  stripeCheckoutSessionId: string | null;
   waiverReason: string | null;
   notes: string | null;
 };
@@ -506,6 +507,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   });
   const [savingOnboarding, setSavingOnboarding] = useState(false);
   const [onboardingResult, setOnboardingResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [paymentLink, setPaymentLink] = useState<string | null>(initialOnboarding?.stripePaymentLinkUrl ?? null);
   const [activating, setActivating] = useState(false);
   const [events, setEvents] = useState<AppEvent[]>(initialEvents);
 
@@ -764,6 +767,30 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       setOnboardingResult({ ok: false, message: "Network error." });
     } finally {
       setSavingOnboarding(false);
+    }
+  };
+
+  const generatePaymentLink = async () => {
+    setGeneratingLink(true);
+    setOnboardingResult(null);
+    try {
+      const res = await fetch(`/api/admin/applications/payment/${application.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setPaymentLink(data.url);
+        setOnboarding((prev) => prev ? { ...prev, stripePaymentLinkUrl: data.url, stripeCheckoutSessionId: data.sessionId } : prev);
+        setOnboardingResult({ ok: true, message: "Payment link generated." });
+        // Also move app status if it changed
+        if (application.status !== "PAYMENT_PENDING") {
+          setApplication((prev) => ({ ...prev, status: "PAYMENT_PENDING" }));
+        }
+      } else {
+        setOnboardingResult({ ok: false, message: data.error ?? "Failed to generate payment link." });
+      }
+    } catch {
+      setOnboardingResult({ ok: false, message: "Network error." });
+    } finally {
+      setGeneratingLink(false);
     }
   };
 
@@ -1656,6 +1683,46 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
                   {savingOnboarding ? "Saving…" : "Save pricing"}
                 </button>
               </form>
+
+              {/* Stripe payment link — only shown for paid pricing types */}
+              {!["FULL_WAIVER", "COMPLIMENTARY"].includes(onboardingForm.pricingType) &&
+                onboarding?.paymentStatus !== "COMPLETED" &&
+                onboarding?.paymentStatus !== "WAIVED" && (
+                <div className="border-t border-slate-100 pt-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-600">Stripe payment link</p>
+                  {paymentLink ? (
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={paymentLink}
+                        className="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(paymentLink)}
+                        className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">No payment link yet.</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={generatePaymentLink}
+                    disabled={generatingLink || !onboarding}
+                    className="w-full rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    {generatingLink
+                      ? "Generating…"
+                      : paymentLink
+                      ? "Regenerate payment link"
+                      : "Generate payment link"}
+                  </button>
+                  <p className="text-xs text-slate-400">Link expires after 24 hours. Save pricing before generating.</p>
+                </div>
+              )}
 
               <div className="border-t border-slate-100 pt-3 space-y-2">
                 {actionResult && (
