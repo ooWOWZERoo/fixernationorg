@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -252,6 +253,16 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({ applications: initia
                       {app.phone && <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Phone</p><p className="mt-0.5 text-slate-700">{app.phone}</p></div>}
                       {app.submittedAt && <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Submitted</p><p className="mt-0.5 text-slate-700">{new Date(app.submittedAt).toLocaleDateString()}</p></div>}
                       <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Email verified</p><p className="mt-0.5 text-slate-700">{app.emailVerifiedAt ? new Date(app.emailVerifiedAt).toLocaleDateString() : "No"}</p></div>
+                    </div>
+
+                    {/* Link to full detail page */}
+                    <div className="flex justify-end">
+                      <Link
+                        href={`/admin/applications/${app.id}`}
+                        className="text-xs font-semibold text-navy hover:underline underline-offset-2"
+                      >
+                        View full application →
+                      </Link>
                     </div>
 
                     {/* Provider detail */}

@@ -8,6 +8,11 @@ import { autoJoinGroups } from "@/lib/groups";
 import { sendEmail } from "@/lib/email";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
+import {
+  buildUnderReviewEmail,
+  buildInfoRequestEmail,
+  buildConditionalAcceptanceEmail,
+} from "@/lib/emails/application-status";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -17,9 +22,9 @@ const ACCEPT_STATUSES = [
   "RESUBMITTED",
   "CONDITIONALLY_ACCEPTED",
   "ACCEPTED_ONBOARDING_REQUIRED",
-  "APPROVED",    // legacy
+  "APPROVED",
   "DECLINED",
-  "REJECTED",    // legacy
+  "REJECTED",
   "WITHDRAWN",
   "EXPIRED",
 ] as const;
@@ -32,6 +37,10 @@ const patchSchema = z.object({
 
 const ACCEPTANCE_STATUSES = new Set(["ACCEPTED_ONBOARDING_REQUIRED", "APPROVED"]);
 const REJECTION_STATUSES = new Set(["DECLINED", "REJECTED"]);
+const REVIEWABLE_FROM = new Set([
+  "PENDING", "SUBMITTED", "UNDER_REVIEW",
+  "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED",
+]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -41,6 +50,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { id } = req.query as { id: string };
 
+  // ── GET ──────────────────────────────────────────────────────────────────────
+  if (req.method === "GET") {
+    const application = await db.userApplication.findUnique({
+      where: { id },
+      include: {
+        providerDetail: true,
+        ambassadorDetail: true,
+      },
+    });
+    if (!application) return res.status(404).json({ error: "Not found" });
+    return res.status(200).json(application);
+  }
+
+  // ── PATCH ─────────────────────────────────────────────────────────────────
   if (req.method === "PATCH") {
     const parsed = patchSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -52,8 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const application = await db.userApplication.findUnique({ where: { id } });
     if (!application) return res.status(404).json({ error: "Not found" });
 
-    const unreviewed = new Set(["PENDING", "SUBMITTED", "UNDER_REVIEW", "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED"]);
-    if (!unreviewed.has(application.status)) {
+    if (!REVIEWABLE_FROM.has(application.status)) {
       return res.status(409).json({ error: "This application has already been finalized." });
     }
 
@@ -68,10 +90,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
+    // Role promotion on acceptance
     if (ACCEPTANCE_STATUSES.has(status) && application.userId) {
-      const newRole = application.type === "PROVIDER" ? "PROVIDER" : application.type === "AMBASSADOR" ? "AMBASSADOR" : null;
+      const newRole = application.type === "PROVIDER" ? "PROVIDER"
+        : application.type === "AMBASSADOR" ? "AMBASSADOR"
+        : null;
+
       if (newRole) {
-        const prevUser = await db.user.findUnique({ where: { id: application.userId }, select: { role: true } });
+        const prevUser = await db.user.findUnique({
+          where: { id: application.userId },
+          select: { role: true },
+        });
         await db.user.update({ where: { id: application.userId }, data: { role: newRole } });
 
         const tasks: Promise<unknown>[] = [
@@ -109,26 +138,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       action: `application.${status.toLowerCase()}`,
       resource: "UserApplication",
       resourceId: id,
-      metadata: { type: application.type, applicantEmail: application.email, reviewNotes: reviewNotes ?? null },
+      metadata: {
+        type: application.type,
+        applicantEmail: application.email,
+        reviewNotes: reviewNotes ?? null,
+        infoRequestNotes: infoRequestNotes ?? null,
+      },
       ip: getClientIp(req),
     });
 
-    if (ACCEPTANCE_STATUSES.has(status) || REJECTION_STATUSES.has(status)) {
-      try {
-        const appType = application.type as "PROVIDER" | "AMBASSADOR";
-        const displayName = application.name ?? application.email;
-        const email = ACCEPTANCE_STATUSES.has(status)
-          ? buildApplicationApprovedEmail(displayName, appType)
-          : buildApplicationRejectedEmail(displayName, appType);
-        await sendEmail({ to: application.email, ...email });
-      } catch (err) {
-        console.error("[application] Failed to send decision email:", err);
+    // Status-specific emails — fire and forget
+    try {
+      const appType = application.type as "PROVIDER" | "AMBASSADOR";
+      const displayName = application.name;
+
+      if (status === "UNDER_REVIEW") {
+        await sendEmail({
+          to: application.email,
+          ...buildUnderReviewEmail(displayName, appType),
+        });
+      } else if (status === "ADDITIONAL_INFO_REQUIRED" && infoRequestNotes?.trim()) {
+        await sendEmail({
+          to: application.email,
+          ...buildInfoRequestEmail(displayName, appType, infoRequestNotes.trim()),
+        });
+      } else if (status === "CONDITIONALLY_ACCEPTED") {
+        await sendEmail({
+          to: application.email,
+          ...buildConditionalAcceptanceEmail(displayName, appType, reviewNotes),
+        });
+      } else if (ACCEPTANCE_STATUSES.has(status)) {
+        await sendEmail({
+          to: application.email,
+          ...buildApplicationApprovedEmail(displayName, appType),
+        });
+      } else if (REJECTION_STATUSES.has(status)) {
+        await sendEmail({
+          to: application.email,
+          ...buildApplicationRejectedEmail(displayName, appType),
+        });
       }
+    } catch (err) {
+      console.error("[application] Failed to send status email:", err);
     }
 
     return res.status(200).json(updated);
   }
 
-  res.setHeader("Allow", "PATCH");
+  res.setHeader("Allow", "GET, PATCH");
   return res.status(405).json({ error: "Method not allowed" });
 }

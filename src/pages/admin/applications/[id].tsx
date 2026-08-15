@@ -1,0 +1,648 @@
+import { useState } from "react";
+import Link from "next/link";
+import { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { AdminLayout } from "@/components/layout/AdminLayout";
+import type { NextPageWithLayout } from "@/types/next";
+
+// ── types ─────────────────────────────────────────────────────────────────────
+
+type ProviderDetail = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  businessName: string | null;
+  businessType: string | null;
+  yearsInBusiness: string | null;
+  website: string | null;
+  licenseNumber: string | null;
+  insuranceCarrier: string | null;
+  insuranceExpiry: string | null;
+  serviceCategory: string | null;
+  serviceDescription: string | null;
+  serviceAreas: string[];
+  pricingModel: string | null;
+  priceRange: string | null;
+  whyJoining: string | null;
+  targetAudience: string | null;
+  differentiation: string | null;
+  linkedinUrl: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  otherSocialUrl: string | null;
+  agreedToAccuracy: boolean;
+  agreedToPolicy: boolean;
+  agreedToContact: boolean;
+  signatureName: string | null;
+  agreedAt: string | null;
+};
+
+type AmbassadorDetail = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  city: string | null;
+  state: string | null;
+  occupation: string | null;
+  employer: string | null;
+  howHeardAboutFN: string | null;
+  memberSince: string | null;
+  audienceSize: string | null;
+  platformsUsed: string[];
+  communityDescription: string | null;
+  geographicFocus: string | null;
+  whyJoining: string | null;
+  missionAlignment: string | null;
+  referralNetwork: string | null;
+  linkedinUrl: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  tiktokUrl: string | null;
+  youtubeUrl: string | null;
+  podcastUrl: string | null;
+  blogUrl: string | null;
+  agreedToAccuracy: boolean;
+  agreedToPolicy: boolean;
+  agreedToContact: boolean;
+  signatureName: string | null;
+  agreedAt: string | null;
+};
+
+type Application = {
+  id: string;
+  type: "PROVIDER" | "AMBASSADOR";
+  status: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  businessName: string | null;
+  message: string | null;
+  userId: string | null;
+  referralCode: string | null;
+  campaignSource: string | null;
+  submittedAt: string | null;
+  emailVerifiedAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewNotes: string | null;
+  infoRequestNotes: string | null;
+  createdAt: string;
+  providerDetail: ProviderDetail | null;
+  ambassadorDetail: AmbassadorDetail | null;
+};
+
+interface Props {
+  application: Application;
+}
+
+// ── constants ─────────────────────────────────────────────────────────────────
+
+const STATUS_BADGE: Record<string, string> = {
+  PENDING: "bg-amber/20 text-amber-dark",
+  SUBMITTED: "bg-amber/20 text-amber-dark",
+  RESUBMITTED: "bg-orange-100 text-orange-700",
+  UNDER_REVIEW: "bg-blue-100 text-blue-700",
+  ADDITIONAL_INFO_REQUIRED: "bg-purple-100 text-purple-700",
+  CONDITIONALLY_ACCEPTED: "bg-teal-100 text-teal-700",
+  ACCEPTED_ONBOARDING_REQUIRED: "bg-green-100 text-green-700",
+  APPROVED: "bg-green-100 text-green-700",
+  ONBOARDING_IN_PROGRESS: "bg-teal-100 text-teal-700",
+  ACTIVE: "bg-green-100 text-green-800",
+  DECLINED: "bg-slate-100 text-slate-500",
+  REJECTED: "bg-slate-100 text-slate-500",
+  WITHDRAWN: "bg-slate-100 text-slate-400",
+  EXPIRED: "bg-slate-100 text-slate-400",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: "Pending",
+  SUBMITTED: "Submitted",
+  RESUBMITTED: "Resubmitted",
+  UNDER_REVIEW: "Under review",
+  ADDITIONAL_INFO_REQUIRED: "Info requested",
+  CONDITIONALLY_ACCEPTED: "Conditional",
+  ACCEPTED_ONBOARDING_REQUIRED: "Accepted",
+  APPROVED: "Approved",
+  ONBOARDING_IN_PROGRESS: "Onboarding",
+  ACTIVE: "Active",
+  DECLINED: "Declined",
+  REJECTED: "Rejected",
+  WITHDRAWN: "Withdrawn",
+  EXPIRED: "Expired",
+};
+
+const REVIEWABLE_FROM = new Set([
+  "PENDING", "SUBMITTED", "UNDER_REVIEW",
+  "ADDITIONAL_INFO_REQUIRED", "RESUBMITTED", "CONDITIONALLY_ACCEPTED",
+]);
+
+// Provider checklist items
+const PROVIDER_CHECKLIST = [
+  "Business name and type on file",
+  "Service category matches the description",
+  "Service areas are specific enough",
+  "Licensing or credentials noted (if applicable)",
+  "\"Why joining\" response reads as genuine",
+  "Social or web presence reviewed",
+  "Agreements signed with full name",
+];
+
+// Ambassador checklist items
+const AMBASSADOR_CHECKLIST = [
+  "Platform presence reviewed",
+  "Community description is specific, not vague",
+  "\"Why ambassador\" response reads as genuine",
+  "Mission alignment makes sense",
+  "Geographic focus is clear",
+  "Agreements signed with full name",
+];
+
+// ── small helpers ─────────────────────────────────────────────────────────────
+
+function Row({ label, value }: { label: string; value?: string | null | boolean }) {
+  if (value === undefined || value === null || value === "" || value === false) return null;
+  const display = typeof value === "boolean" ? (value ? "Yes" : "No") : value;
+  return (
+    <div className="flex gap-3 py-1.5 border-b border-slate-100 last:border-0">
+      <dt className="w-44 shrink-0 text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 flex-1 text-sm text-slate-800 break-words">{display}</dd>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50"
+      >
+        <span className="text-sm font-bold text-slate-800">{title}</span>
+        <span className="text-slate-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-5 pb-4 pt-2">
+          <dl className="divide-y divide-slate-100">{children}</dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExternalLink({ href, label }: { href?: string | null; label: string }) {
+  if (!href) return null;
+  const url = href.startsWith("http") ? href : `https://${href}`;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-navy underline underline-offset-2 hover:opacity-70 text-sm"
+    >
+      {label}
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+      </svg>
+    </a>
+  );
+}
+
+// ── main page ─────────────────────────────────────────────────────────────────
+
+const ApplicationDetailPage: NextPageWithLayout<Props> = ({ application: initial }) => {
+  const [application, setApplication] = useState(initial);
+  const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
+  const [infoRequestNotes, setInfoRequestNotes] = useState(initial.infoRequestNotes ?? "");
+  const [acting, setActing] = useState(false);
+  const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [checklist, setChecklist] = useState<Record<number, boolean>>({});
+
+  const isReviewable = REVIEWABLE_FROM.has(application.status);
+  const pd = application.providerDetail;
+  const ad = application.ambassadorDetail;
+  const checklistItems = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
+  const checkedCount = Object.values(checklist).filter(Boolean).length;
+
+  const act = async (status: string) => {
+    setActing(true);
+    setActionResult(null);
+    try {
+      const res = await fetch(`/api/admin/applications/${application.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          reviewNotes: reviewNotes.trim() || undefined,
+          infoRequestNotes: infoRequestNotes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setApplication((prev) => ({ ...prev, ...data }));
+        setActionResult({ ok: true, message: `Status updated to ${STATUS_LABEL[status] ?? status}.` });
+        setTimeout(() => setActionResult(null), 4000);
+      } else {
+        setActionResult({ ok: false, message: data.error ?? "Something went wrong." });
+      }
+    } catch {
+      setActionResult({ ok: false, message: "Network error. Please try again." });
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const displayName = application.name ?? application.email;
+
+  return (
+    <div>
+      {/* Breadcrumb */}
+      <div className="mb-5 flex items-center gap-2 text-sm text-slate-500">
+        <Link href="/admin/applications" className="hover:text-navy transition-colors">
+          Applications
+        </Link>
+        <span>/</span>
+        <span className="font-medium text-slate-800 truncate max-w-[24rem]">{displayName}</span>
+      </div>
+
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900">{displayName}</h1>
+            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${application.type === "PROVIDER" ? "bg-navy/10 text-navy" : "bg-purple-100 text-purple-700"}`}>
+              {application.type}
+            </span>
+            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[application.status] ?? "bg-slate-100 text-slate-500"}`}>
+              {STATUS_LABEL[application.status] ?? application.status}
+            </span>
+            {application.emailVerifiedAt && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                </svg>
+                Email verified
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-4 text-xs text-slate-400">
+            <span>Submitted {application.submittedAt ? new Date(application.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
+            {application.reviewedBy && (
+              <span>Last reviewed by {application.reviewedBy} on {new Date(application.reviewedAt!).toLocaleDateString()}</span>
+            )}
+            {application.referralCode && <span>Referral code: {application.referralCode}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+        {/* ── Left: application data ─────────────────────────────────────── */}
+        <div className="space-y-4 lg:col-span-2">
+
+          {/* Contact */}
+          <Section title="Contact info">
+            <Row label="Full name" value={application.name} />
+            <Row label="Email" value={application.email} />
+            <Row label="Phone" value={application.phone} />
+            <Row label="Email verified" value={application.emailVerifiedAt ? `Yes — ${new Date(application.emailVerifiedAt).toLocaleDateString()}` : "Not yet"} />
+            {application.userId && <Row label="Has FN account" value="Yes" />}
+            {application.campaignSource && <Row label="Campaign source" value={application.campaignSource} />}
+          </Section>
+
+          {/* Provider sections */}
+          {pd && (
+            <>
+              <Section title="Business">
+                <Row label="Business name" value={pd.businessName} />
+                <Row label="Business type" value={pd.businessType} />
+                <Row label="Years in business" value={pd.yearsInBusiness} />
+                <Row label="Website" value={pd.website ? undefined : null} />
+                {pd.website && (
+                  <div className="flex gap-3 py-1.5 border-b border-slate-100">
+                    <dt className="w-44 shrink-0 text-xs font-semibold text-slate-500">Website</dt>
+                    <dd className="text-sm"><ExternalLink href={pd.website} label={pd.website} /></dd>
+                  </div>
+                )}
+                <Row label="License number" value={pd.licenseNumber} />
+                <Row label="Insurance carrier" value={pd.insuranceCarrier} />
+                <Row label="Insurance expiry" value={pd.insuranceExpiry} />
+              </Section>
+
+              <Section title="Services">
+                <Row label="Category" value={pd.serviceCategory} />
+                <Row label="Service areas" value={pd.serviceAreas.join(", ")} />
+                <Row label="Pricing model" value={pd.pricingModel} />
+                <Row label="Price range" value={pd.priceRange} />
+                {pd.serviceDescription && (
+                  <div className="py-2">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Description</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{pd.serviceDescription}</p>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Their story">
+                {pd.whyJoining && (
+                  <div className="py-2 border-b border-slate-100">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Why joining</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{pd.whyJoining}</p>
+                  </div>
+                )}
+                {pd.targetAudience && (
+                  <div className="py-2 border-b border-slate-100">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Who they serve</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{pd.targetAudience}</p>
+                  </div>
+                )}
+                {pd.differentiation && (
+                  <div className="py-2">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">What makes them different</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{pd.differentiation}</p>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Online presence">
+                {pd.linkedinUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={pd.linkedinUrl} label="LinkedIn" /></div>}
+                {pd.facebookUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={pd.facebookUrl} label="Facebook" /></div>}
+                {pd.instagramUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={pd.instagramUrl} label="Instagram" /></div>}
+                {pd.otherSocialUrl && <div className="py-1.5"><ExternalLink href={pd.otherSocialUrl} label="Other link" /></div>}
+                {!pd.linkedinUrl && !pd.facebookUrl && !pd.instagramUrl && !pd.otherSocialUrl && (
+                  <p className="py-2 text-sm text-slate-400">No links provided.</p>
+                )}
+              </Section>
+
+              <Section title="Agreements">
+                <Row label="Accuracy confirmed" value={pd.agreedToAccuracy} />
+                <Row label="Policy agreed" value={pd.agreedToPolicy} />
+                <Row label="Contact agreed" value={pd.agreedToContact} />
+                <Row label="Signature" value={pd.signatureName} />
+                <Row label="Signed at" value={pd.agreedAt ? new Date(pd.agreedAt).toLocaleString() : null} />
+              </Section>
+            </>
+          )}
+
+          {/* Ambassador sections */}
+          {ad && (
+            <>
+              <Section title="Background">
+                <Row label="City / State" value={[ad.city, ad.state].filter(Boolean).join(", ") || null} />
+                <Row label="Occupation" value={ad.occupation} />
+                <Row label="Employer" value={ad.employer} />
+                <Row label="How they found FN" value={ad.howHeardAboutFN} />
+                <Row label="Member since" value={ad.memberSince} />
+              </Section>
+
+              <Section title="Their community">
+                <Row label="Platforms" value={ad.platformsUsed.join(", ")} />
+                <Row label="Audience size" value={ad.audienceSize} />
+                <Row label="Geographic focus" value={ad.geographicFocus} />
+                {ad.communityDescription && (
+                  <div className="py-2">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Community description</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{ad.communityDescription}</p>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Why ambassador">
+                {ad.whyJoining && (
+                  <div className="py-2 border-b border-slate-100">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Why joining</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{ad.whyJoining}</p>
+                  </div>
+                )}
+                {ad.missionAlignment && (
+                  <div className="py-2 border-b border-slate-100">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Mission alignment</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{ad.missionAlignment}</p>
+                  </div>
+                )}
+                {ad.referralNetwork && (
+                  <div className="py-2">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Referral network</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{ad.referralNetwork}</p>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Online presence">
+                {ad.linkedinUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.linkedinUrl} label="LinkedIn" /></div>}
+                {ad.facebookUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.facebookUrl} label="Facebook" /></div>}
+                {ad.instagramUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.instagramUrl} label="Instagram" /></div>}
+                {ad.tiktokUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.tiktokUrl} label="TikTok" /></div>}
+                {ad.youtubeUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.youtubeUrl} label="YouTube" /></div>}
+                {ad.podcastUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={ad.podcastUrl} label="Podcast" /></div>}
+                {ad.blogUrl && <div className="py-1.5"><ExternalLink href={ad.blogUrl} label="Blog / Website" /></div>}
+                {!ad.linkedinUrl && !ad.facebookUrl && !ad.instagramUrl && !ad.tiktokUrl && !ad.youtubeUrl && !ad.podcastUrl && !ad.blogUrl && (
+                  <p className="py-2 text-sm text-slate-400">No links provided.</p>
+                )}
+              </Section>
+
+              <Section title="Agreements">
+                <Row label="Accuracy confirmed" value={ad.agreedToAccuracy} />
+                <Row label="Policy agreed" value={ad.agreedToPolicy} />
+                <Row label="Contact agreed" value={ad.agreedToContact} />
+                <Row label="Signature" value={ad.signatureName} />
+                <Row label="Signed at" value={ad.agreedAt ? new Date(ad.agreedAt).toLocaleString() : null} />
+              </Section>
+            </>
+          )}
+
+          {/* Legacy applications with no detail model */}
+          {!pd && !ad && application.message && (
+            <Section title="Application message">
+              <p className="py-2 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{application.message}</p>
+            </Section>
+          )}
+        </div>
+
+        {/* ── Right: review panel ────────────────────────────────────────── */}
+        <div className="space-y-4">
+
+          {/* Checklist */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-bold text-slate-800">Review checklist</p>
+              <span className="text-xs text-slate-400">{checkedCount}/{checklistItems.length}</span>
+            </div>
+            <div className="space-y-2">
+              {checklistItems.map((item, i) => (
+                <label key={i} className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={checklist[i] ?? false}
+                    onChange={(e) => setChecklist((c) => ({ ...c, [i]: e.target.checked }))}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-navy focus:ring-navy"
+                  />
+                  <span className={`text-sm leading-snug transition-colors ${checklist[i] ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                    {item}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Review notes */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <p className="mb-3 text-sm font-bold text-slate-800">Review notes</p>
+            <textarea
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              rows={3}
+              placeholder="Internal notes — not sent to the applicant."
+              disabled={!isReviewable}
+              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </div>
+
+          {/* Action panel */}
+          {isReviewable ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+              <p className="text-sm font-bold text-slate-800">Decision</p>
+
+              {actionResult && (
+                <div className={`rounded-lg px-3 py-2.5 text-sm font-medium ${actionResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  {actionResult.message}
+                </div>
+              )}
+
+              {/* Under review */}
+              <div>
+                <button
+                  onClick={() => act("UNDER_REVIEW")}
+                  disabled={acting || application.status === "UNDER_REVIEW"}
+                  className="w-full rounded-lg border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-40"
+                >
+                  Mark under review
+                </button>
+                <p className="mt-1 text-xs text-slate-400">Sends "your application is under review" email.</p>
+              </div>
+
+              {/* Info request */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => act("ADDITIONAL_INFO_REQUIRED")}
+                  disabled={acting || !infoRequestNotes.trim()}
+                  className="w-full rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-50 disabled:opacity-40"
+                >
+                  Request more info
+                </button>
+                <textarea
+                  value={infoRequestNotes}
+                  onChange={(e) => setInfoRequestNotes(e.target.value)}
+                  rows={3}
+                  placeholder="What do you need? This message is emailed to the applicant."
+                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                />
+                <p className="text-xs text-slate-400">Required — the message above goes in the email.</p>
+              </div>
+
+              {/* Conditional */}
+              <div>
+                <button
+                  onClick={() => act("CONDITIONALLY_ACCEPTED")}
+                  disabled={acting}
+                  className="w-full rounded-lg border border-teal-200 px-4 py-2.5 text-sm font-semibold text-teal-700 transition-colors hover:bg-teal-50 disabled:opacity-40"
+                >
+                  Conditionally accept
+                </button>
+                <p className="mt-1 text-xs text-slate-400">Sends conditional acceptance email. Add review notes above to include next steps.</p>
+              </div>
+
+              {/* Accept */}
+              <div>
+                <button
+                  onClick={() => act("ACCEPTED_ONBOARDING_REQUIRED")}
+                  disabled={acting}
+                  className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-40"
+                >
+                  Accept
+                </button>
+                <p className="mt-1 text-xs text-slate-400">
+                  Upgrades their account to{" "}
+                  <strong>{application.type}</strong>
+                  {application.userId ? "." : " when they create an account."}
+                </p>
+              </div>
+
+              {/* Decline */}
+              <div>
+                <button
+                  onClick={() => act("DECLINED")}
+                  disabled={acting}
+                  className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
+                >
+                  Decline
+                </button>
+                <p className="mt-1 text-xs text-slate-400">Sends decline email. This cannot be undone.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-5 text-center">
+              <p className="text-sm font-semibold text-slate-500">
+                {STATUS_LABEL[application.status] ?? application.status}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Reviewed by {application.reviewedBy ?? "admin"} on{" "}
+                {application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : "—"}
+              </p>
+              {application.reviewNotes && (
+                <p className="mt-2 text-xs italic text-slate-500">{application.reviewNotes}</p>
+              )}
+            </div>
+          )}
+
+          {/* Application metadata */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-400 space-y-1">
+            <div className="flex justify-between"><span>ID</span><span className="font-mono">{application.id.slice(0, 12)}…</span></div>
+            <div className="flex justify-between"><span>Created</span><span>{new Date(application.createdAt).toLocaleDateString()}</span></div>
+            {!application.emailVerifiedAt && (
+              <p className="pt-1 text-amber-600 font-semibold">Email not yet verified</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ApplicationDetailPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
+
+export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
+  const session = await getServerSession(context.req, context.res, authOptions);
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+    return {
+      redirect: {
+        destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`,
+        permanent: false,
+      },
+    };
+  }
+
+  const { id } = context.params as { id: string };
+
+  const application = await db.userApplication.findUnique({
+    where: { id },
+    include: {
+      providerDetail: true,
+      ambassadorDetail: true,
+    },
+  });
+
+  if (!application) {
+    return { notFound: true };
+  }
+
+  return {
+    props: {
+      application: JSON.parse(JSON.stringify(application)),
+    },
+  };
+};
+
+export default ApplicationDetailPage;
