@@ -23,6 +23,11 @@ type ProviderBusiness = {
   website: string | null;
   phone: string | null;
   serviceArea: string | null;
+  // enriched from application detail when directoryListed
+  serviceCategory: string | null;
+  serviceAreas: string[];
+  serviceDescription: string | null;
+  directoryListed: boolean;
 } | null;
 
 type AmbassadorInfo = {
@@ -199,24 +204,52 @@ const ProfilePage: NextPageWithLayout<Props> = ({
           )}
 
           {/* Provider business card */}
-          {isProvider && providerBusiness && (providerBusiness.specialty || providerBusiness.services || providerBusiness.website || providerBusiness.phone || providerBusiness.serviceArea) && (
+          {isProvider && providerBusiness && (
+            providerBusiness.serviceCategory ||
+            providerBusiness.specialty ||
+            providerBusiness.services ||
+            providerBusiness.serviceDescription ||
+            providerBusiness.website ||
+            providerBusiness.phone ||
+            providerBusiness.serviceArea ||
+            providerBusiness.serviceAreas.length > 0
+          ) && (
             <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
               <h2 className="mb-4 text-xs font-extrabold uppercase tracking-widest text-ink-soft">
                 Services
               </h2>
-              {providerBusiness.specialty && (
+
+              {/* Category badge — prefer application detail over legacy specialty */}
+              {(providerBusiness.serviceCategory ?? providerBusiness.specialty) && (
                 <span className="mb-3 inline-block rounded-full bg-amber/15 px-3 py-1 text-sm font-semibold text-amber-dark">
-                  {providerBusiness.specialty}
+                  {providerBusiness.serviceCategory ?? providerBusiness.specialty}
                 </span>
               )}
-              {providerBusiness.services && (
+
+              {/* Service description — prefer application detail over legacy services */}
+              {(providerBusiness.serviceDescription ?? providerBusiness.services) && (
                 <p className="mt-2 text-sm leading-relaxed text-ink whitespace-pre-line">
-                  {providerBusiness.services}
+                  {providerBusiness.serviceDescription ?? providerBusiness.services}
                 </p>
               )}
+
+              {/* Service areas as badges */}
+              {providerBusiness.serviceAreas.length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">Service areas</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {providerBusiness.serviceAreas.map((area) => (
+                      <span key={area} className="inline-flex rounded-full bg-navy/6 px-2.5 py-0.5 text-xs font-medium text-navy">
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {(providerBusiness.serviceArea || providerBusiness.phone || providerBusiness.website) && (
                 <dl className="mt-5 space-y-2.5">
-                  {providerBusiness.serviceArea && (
+                  {!providerBusiness.serviceAreas.length && providerBusiness.serviceArea && (
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Service area</dt>
                       <dd className="mt-0.5 text-sm text-ink">{providerBusiness.serviceArea}</dd>
@@ -394,6 +427,24 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       memberCount: m.group._count.members,
     }));
 
+  // For listed providers, pull richer data from the active application
+  const activeApplication = user.role === "PROVIDER"
+    ? await db.userApplication.findFirst({
+        where: { userId: user.id, type: "PROVIDER", status: { in: ["ACTIVE", "APPROVED"] } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          directoryListed: true,
+          providerDetail: {
+            select: {
+              serviceCategory: true,
+              serviceAreas: true,
+              serviceDescription: true,
+            },
+          },
+        },
+      })
+    : null;
+
   const providerBusiness: ProviderBusiness = user.role === "PROVIDER" && user.providerProfile
     ? {
         businessName: user.providerProfile.businessName,
@@ -402,6 +453,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         website: user.providerProfile.website,
         phone: user.providerProfile.phone,
         serviceArea: user.providerProfile.serviceArea,
+        serviceCategory: activeApplication?.providerDetail?.serviceCategory ?? null,
+        serviceAreas: activeApplication?.providerDetail?.serviceAreas ?? [],
+        serviceDescription: activeApplication?.providerDetail?.serviceDescription ?? null,
+        directoryListed: activeApplication?.directoryListed ?? false,
       }
     : null;
 

@@ -466,6 +466,8 @@ model UserApplication {
   accountInviteToken       String?           @unique
   accountInviteExpiresAt   DateTime?
   accountInviteSentAt      DateTime?
+  directoryListed          Boolean           @default(false)
+  directoryListedAt        DateTime?
   createdAt                DateTime          @default(now())
 
   providerDetail        ProviderApplicationDetail?

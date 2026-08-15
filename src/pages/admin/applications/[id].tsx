@@ -92,6 +92,8 @@ type Application = {
   accountInviteToken: string | null;
   accountInviteExpiresAt: string | null;
   accountInviteSentAt: string | null;
+  directoryListed: boolean;
+  directoryListedAt: string | null;
   providerDetail: ProviderDetail | null;
   ambassadorDetail: AmbassadorDetail | null;
   territoryAssignments: TerritoryAssignmentRow[];
@@ -509,6 +511,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   const [onboardingResult, setOnboardingResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(initialOnboarding?.stripePaymentLinkUrl ?? null);
+  const [directoryListed, setDirectoryListed] = useState(initial.directoryListed);
+  const [togglingDirectory, setTogglingDirectory] = useState(false);
   const [activating, setActivating] = useState(false);
   const [events, setEvents] = useState<AppEvent[]>(initialEvents);
 
@@ -791,6 +795,25 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       setOnboardingResult({ ok: false, message: "Network error." });
     } finally {
       setGeneratingLink(false);
+    }
+  };
+
+  const toggleDirectoryListing = async (listed: boolean) => {
+    setTogglingDirectory(true);
+    try {
+      const res = await fetch(`/api/admin/applications/directory/${application.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directoryListed: listed }),
+      });
+      if (res.ok) {
+        setDirectoryListed(listed);
+        setApplication((prev) => ({ ...prev, directoryListed: listed }));
+      }
+    } catch {
+      // silent — checkbox reverts on next render
+    } finally {
+      setTogglingDirectory(false);
     }
   };
 
@@ -1761,21 +1784,42 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               </div>
             </div>
           ) : isActive ? (
-            <div className="rounded-xl border border-green-200 bg-green-50 p-5 text-center space-y-1">
-              <p className="text-sm font-bold text-green-800">Active</p>
-              <p className="text-xs text-green-600">
-                {application.type === "PROVIDER" ? "Service provider" : "Ambassador"} account is live.
-              </p>
-              {application.reviewedBy && (
+            <div className="rounded-xl border border-green-200 bg-green-50 p-5 space-y-3">
+              <div className="text-center space-y-1">
+                <p className="text-sm font-bold text-green-800">Active</p>
                 <p className="text-xs text-green-600">
-                  Activated by {application.reviewedBy} on{" "}
-                  {application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : "—"}
+                  {application.type === "PROVIDER" ? "Service provider" : "Ambassador"} account is live.
                 </p>
-              )}
-              {onboarding && (
-                <p className="text-xs text-green-600 pt-1">
-                  {PRICING_LABELS[onboarding.pricingType] ?? onboarding.pricingType} &middot; payment {onboarding.paymentStatus.toLowerCase()}
-                </p>
+                {application.reviewedBy && (
+                  <p className="text-xs text-green-600">
+                    Activated by {application.reviewedBy} on{" "}
+                    {application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : "—"}
+                  </p>
+                )}
+                {onboarding && (
+                  <p className="text-xs text-green-600">
+                    {PRICING_LABELS[onboarding.pricingType] ?? onboarding.pricingType} &middot; payment {onboarding.paymentStatus.toLowerCase()}
+                  </p>
+                )}
+              </div>
+              {application.type === "PROVIDER" && (
+                <div className="border-t border-green-200 pt-3">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={directoryListed}
+                      disabled={togglingDirectory}
+                      onChange={(e) => toggleDirectoryListing(e.target.checked)}
+                      className="h-4 w-4 rounded border-green-400 text-green-600 focus:ring-green-500 disabled:opacity-40"
+                    />
+                    <span className="text-xs font-semibold text-green-800">Listed in provider directory</span>
+                  </label>
+                  <p className="mt-1 pl-7 text-xs text-green-600">
+                    {directoryListed
+                      ? "Visible on the public /providers page."
+                      : "Not yet visible to the public."}
+                  </p>
+                </div>
               )}
             </div>
           ) : (
