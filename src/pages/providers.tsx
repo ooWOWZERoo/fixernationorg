@@ -181,6 +181,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
     select: {
       id: true,
       name: true,
+      userId: true,
       directoryListedAt: true,
       providerDetail: {
         select: {
@@ -189,28 +190,37 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
           serviceAreas: true,
         },
       },
-      user: {
-        select: {
-          username: true,
-          socialProfile: {
-            select: { avatarUrl: true, location: true },
-          },
-        },
-      },
     },
   });
 
-  const providers: ProviderCard[] = applications.map((a) => ({
-    applicationId: a.id,
-    username: a.user?.username ?? null,
-    name: a.name,
-    avatarUrl: a.user?.socialProfile?.avatarUrl ?? null,
-    businessName: a.providerDetail?.businessName ?? null,
-    serviceCategory: a.providerDetail?.serviceCategory ?? null,
-    serviceAreas: a.providerDetail?.serviceAreas ?? [],
-    location: a.user?.socialProfile?.location ?? null,
-    directoryListedAt: a.directoryListedAt?.toISOString() ?? null,
-  }));
+  const userIds = applications.map((a) => a.userId!);
+  const users = userIds.length
+    ? await db.user.findMany({
+        where: { id: { in: userIds } },
+        select: {
+          id: true,
+          username: true,
+          socialProfile: { select: { avatarUrl: true, location: true } },
+        },
+      })
+    : [];
+
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  const providers: ProviderCard[] = applications.map((a) => {
+    const u = a.userId ? userMap[a.userId] : null;
+    return {
+      applicationId: a.id,
+      username: u?.username ?? null,
+      name: a.name,
+      avatarUrl: u?.socialProfile?.avatarUrl ?? null,
+      businessName: a.providerDetail?.businessName ?? null,
+      serviceCategory: a.providerDetail?.serviceCategory ?? null,
+      serviceAreas: a.providerDetail?.serviceAreas ?? [],
+      location: u?.socialProfile?.location ?? null,
+      directoryListedAt: a.directoryListedAt?.toISOString() ?? null,
+    };
+  });
 
   return { props: { providers } };
 };
