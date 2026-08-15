@@ -58,10 +58,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    const { audienceRules: rawAudienceRules, ...restData } = parsed.data;
     const campaign = await db.campaign.create({
       data: {
-        ...parsed.data,
-        audienceRules: parsed.data.audienceRules ?? undefined,
+        ...restData,
+        audienceRules: rawAudienceRules !== undefined ? (rawAudienceRules as never) : undefined,
         scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
         status: parsed.data.scheduledAt ? "SCHEDULED" : "DRAFT",
         createdBy: session.user.id,
