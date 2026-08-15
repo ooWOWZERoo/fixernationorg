@@ -458,10 +458,12 @@ model UserApplication {
   referralCode     String?
   campaignSource   String?
   assignedTo       String?
-  reviewedAt       DateTime?
-  reviewedBy       String?
-  reviewNotes      String?           @db.Text
-  createdAt        DateTime          @default(now())
+  reviewedAt              DateTime?
+  reviewedBy              String?
+  reviewNotes             String?           @db.Text
+  previousApplicationId   String?
+  expirationReminderSentAt DateTime?
+  createdAt               DateTime          @default(now())
 
   providerDetail        ProviderApplicationDetail?
   ambassadorDetail      AmbassadorApplicationDetail?

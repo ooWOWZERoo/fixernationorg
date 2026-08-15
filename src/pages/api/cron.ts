@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
 import { buildApplicationExpiredEmail } from "@/lib/emails/expiration";
+import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { applyApplicationTags } from "@/lib/application-crm";
 import { randomUUID } from "crypto";
 
@@ -215,11 +216,61 @@ async function runApplicationExpiration() {
   return { message: `Expired ${expired} application${expired !== 1 ? "s" : ""}` };
 }
 
+// Send 14-day and 7-day reminder emails to accepted/onboarding apps nearing expiration.
+// Each app only ever gets one reminder email (tracked via expirationReminderSentAt).
+async function runApplicationExpirationReminders(): Promise<{ message: string }> {
+  const now = new Date();
+  // Expiration = 30 days after reviewedAt (or submittedAt fallback)
+  // 14-day reminder window: apps whose clock started 16-30 days ago (14-0 days left)
+  // We send at the 14-day mark and the 7-day mark. Track in expirationReminderSentAt.
+  // Strategy: find apps where expirationReminderSentAt is null and days-remaining <= 14
+  const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const cutoff16 = new Date(now.getTime() - 16 * 24 * 60 * 60 * 1000);
+
+  const upcoming = await db.userApplication.findMany({
+    where: {
+      status: { in: ["ACCEPTED_ONBOARDING_REQUIRED", "ONBOARDING_IN_PROGRESS", "PAYMENT_PENDING"] },
+      expirationReminderSentAt: null,
+      OR: [
+        { reviewedAt: { gte: cutoff30, lte: cutoff16 } },
+        { reviewedAt: null, submittedAt: { gte: cutoff30, lte: cutoff16 } },
+      ],
+    },
+    select: { id: true, email: true, name: true, type: true, reviewedAt: true, submittedAt: true },
+  });
+
+  let sent = 0;
+  for (const app of upcoming) {
+    const clockStart = app.reviewedAt ?? app.submittedAt ?? now;
+    const expiresAt = new Date(clockStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (daysLeft <= 0) continue;
+
+    try {
+      await sendEmail({
+        to: app.email,
+        ...buildExpirationReminderEmail(app.name, app.type as "PROVIDER" | "AMBASSADOR", daysLeft),
+      });
+      await db.userApplication.update({
+        where: { id: app.id },
+        data: { expirationReminderSentAt: now },
+      });
+      sent++;
+    } catch (err) {
+      console.error(`[expiration-reminders] Failed for ${app.id}:`, err);
+    }
+  }
+
+  return { message: `Sent ${sent} expiration reminder${sent !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
   "application-expiration": runApplicationExpiration,
+  "application-expiration-reminders": runApplicationExpirationReminders,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

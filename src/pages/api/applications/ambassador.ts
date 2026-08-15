@@ -63,6 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
 
+  // Block active duplicates
   const existing = await db.userApplication.findFirst({
     where: {
       email: d.email,
@@ -77,6 +78,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       error: "An active application already exists for this email address.",
       existing: { id: existing.id, status: existing.status },
     });
+  }
+
+  // Reapplication waiting period check
+  const [priorDeclined, reapplyDaysSetting] = await Promise.all([
+    db.userApplication.findFirst({
+      where: {
+        email: d.email,
+        type: "AMBASSADOR",
+        status: { in: ["DECLINED", "REJECTED"] },
+      },
+      orderBy: { reviewedAt: "desc" },
+      select: { id: true, reviewedAt: true },
+    }),
+    db.setting.findUnique({ where: { key: "ambassador_reapplication_days" } }),
+  ]);
+
+  if (priorDeclined?.reviewedAt) {
+    const waitDays = parseInt(reapplyDaysSetting?.value ?? "90", 10);
+    const unlocksAt = new Date(priorDeclined.reviewedAt.getTime() + waitDays * 24 * 60 * 60 * 1000);
+    if (unlocksAt > new Date()) {
+      return res.status(409).json({
+        error: "REAPPLICATION_BLOCKED",
+        message: `You may reapply after ${unlocksAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`,
+        unlocksAt: unlocksAt.toISOString(),
+        previousApplicationId: priorDeclined.id,
+      });
+    }
   }
 
   const emailVerifyToken = randomBytes(32).toString("hex");
@@ -95,6 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       submittedAt: new Date(),
       emailVerifyToken,
       draftExpiresAt: null,
+      previousApplicationId: priorDeclined?.id ?? null,
       ambassadorDetail: {
         create: {
           firstName: d.firstName,

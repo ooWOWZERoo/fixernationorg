@@ -226,7 +226,11 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.");
+        if (data.error === "REAPPLICATION_BLOCKED") {
+          setError(data.message ?? "You're not eligible to reapply yet.");
+        } else {
+          setError(data.error ?? "Something went wrong. Please try again.");
+        }
         setSubmitting(false);
         return;
       }
