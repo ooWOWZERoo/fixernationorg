@@ -164,6 +164,11 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) 
   const [addingLedger, setAddingLedger] = useState(false);
   const [ledgerResult, setLedgerResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Ledger entry status transitions
+  const [transitioningEntry, setTransitioningEntry] = useState<Set<string>>(new Set());
+  const [reverseTarget, setReverseTarget] = useState<string | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
+
   // Settings form
   const [settings, setSettings] = useState({
     attributionWindowDays: String(affiliate.attributionWindowDays),
@@ -273,6 +278,40 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) 
       setLedgerResult({ ok: false, message: data.error ?? "Failed." });
     }
     setAddingLedger(false);
+  };
+
+  const handleLedgerTransition = async (
+    entryId: string,
+    action: "approve" | "hold" | "release" | "pay" | "reverse",
+    extra?: Record<string, string>
+  ) => {
+    setTransitioningEntry((prev) => new Set(prev).add(entryId));
+    try {
+      const res = await fetch(`/api/admin/commissions/${entryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAffiliate((prev) => ({
+          ...prev,
+          ledgerEntries: prev.ledgerEntries.map((e) =>
+            e.id === entryId ? { ...e, status: updated.status } : e
+          ),
+        }));
+      }
+    } finally {
+      setTransitioningEntry((prev) => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
+      if (action === "reverse") {
+        setReverseTarget(null);
+        setReverseReason("");
+      }
+    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -543,7 +582,7 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) 
               </div>
 
               {affiliate.ledgerEntries.length === 0 ? (
-                <p className="text-sm text-slate-400 px-1">No ledger entries yet. Entries are created automatically when referrals convert (SP-5) or manually above.</p>
+                <p className="text-sm text-slate-400 px-1">No ledger entries yet. Entries are created automatically when referrals convert or manually above.</p>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                   <table className="w-full text-sm">
@@ -553,27 +592,120 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) 
                         <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Transaction</th>
                         <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Commission</th>
                         <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
-                        <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">Date</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {affiliate.ledgerEntries.map((l) => (
-                        <tr key={l.id}>
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-slate-900">{l.description ?? l.sourceType}</p>
-                            <p className="text-xs text-slate-400">{l.sourceType}</p>
-                          </td>
-                          <td className="hidden px-4 py-3 text-right text-slate-600 sm:table-cell">{fmt(l.grossAmount)}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(l.commissionAmount)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${LEDGER_BADGE[l.status] ?? "bg-slate-100 text-slate-500"}`}>
-                              {l.status}
-                            </span>
-                          </td>
-                          <td className="hidden px-4 py-3 text-slate-500 text-xs md:table-cell">
-                            {new Date(l.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
+                        <>
+                          <tr key={l.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-slate-900">{l.description ?? l.sourceType}</p>
+                              <p className="text-xs text-slate-400">
+                                {l.sourceType} &middot; {new Date(l.createdAt).toLocaleDateString()}
+                              </p>
+                            </td>
+                            <td className="hidden px-4 py-3 text-right text-slate-600 sm:table-cell">{fmt(l.grossAmount)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(l.commissionAmount)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${LEDGER_BADGE[l.status] ?? "bg-slate-100 text-slate-500"}`}>
+                                {l.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {(l.status === "PENDING" || l.status === "ON_HOLD") && (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {l.status === "PENDING" && (
+                                    <button
+                                      onClick={() => handleLedgerTransition(l.id, "approve")}
+                                      disabled={transitioningEntry.has(l.id)}
+                                      className="rounded px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-40"
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                  {l.status === "ON_HOLD" && (
+                                    <button
+                                      onClick={() => handleLedgerTransition(l.id, "release")}
+                                      disabled={transitioningEntry.has(l.id)}
+                                      className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                                    >
+                                      Release
+                                    </button>
+                                  )}
+                                  {l.status === "PENDING" && (
+                                    <button
+                                      onClick={() => handleLedgerTransition(l.id, "hold")}
+                                      disabled={transitioningEntry.has(l.id)}
+                                      className="rounded px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-40"
+                                    >
+                                      Hold
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setReverseTarget(reverseTarget === l.id ? null : l.id)}
+                                    disabled={transitioningEntry.has(l.id)}
+                                    className="rounded px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-50 disabled:opacity-40"
+                                  >
+                                    Reverse
+                                  </button>
+                                </div>
+                              )}
+                              {l.status === "APPROVED" && (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleLedgerTransition(l.id, "pay")}
+                                    disabled={transitioningEntry.has(l.id)}
+                                    className="rounded px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-40"
+                                  >
+                                    {transitioningEntry.has(l.id) ? "…" : "Mark paid"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleLedgerTransition(l.id, "hold")}
+                                    disabled={transitioningEntry.has(l.id)}
+                                    className="rounded px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-40"
+                                  >
+                                    Hold
+                                  </button>
+                                  <button
+                                    onClick={() => setReverseTarget(reverseTarget === l.id ? null : l.id)}
+                                    disabled={transitioningEntry.has(l.id)}
+                                    className="rounded px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-50 disabled:opacity-40"
+                                  >
+                                    Reverse
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          {reverseTarget === l.id && (
+                            <tr key={`${l.id}-reverse`}>
+                              <td colSpan={5} className="bg-red-50 px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    value={reverseReason}
+                                    onChange={(e) => setReverseReason(e.target.value)}
+                                    placeholder="Reason for reversal (required)"
+                                    className="flex-1 rounded-lg border border-red-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300"
+                                  />
+                                  <button
+                                    onClick={() => handleLedgerTransition(l.id, "reverse", { reason: reverseReason })}
+                                    disabled={!reverseReason.trim() || transitioningEntry.has(l.id)}
+                                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                                  >
+                                    Confirm reverse
+                                  </button>
+                                  <button
+                                    onClick={() => { setReverseTarget(null); setReverseReason(""); }}
+                                    className="text-xs font-semibold text-slate-400 hover:text-slate-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       ))}
                     </tbody>
                   </table>
