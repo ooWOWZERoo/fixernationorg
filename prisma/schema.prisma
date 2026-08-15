@@ -473,9 +473,22 @@ model UserApplication {
   territoryAssignments  TerritoryAssignment[]
   affiliateAssignment   AffiliateAssignment?
   onboardingRecord      OnboardingRecord?
+  events                ApplicationEvent[]
 
   @@index([type, status])
   @@index([email])
+}
+
+model ApplicationEvent {
+  id            String          @id @default(cuid())
+  applicationId String
+  application   UserApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String
+  actor         String?
+  meta          Json?
+  createdAt     DateTime        @default(now())
+
+  @@index([applicationId, createdAt(sort: Desc)])
 }
 
 model ProviderApplicationDetail {

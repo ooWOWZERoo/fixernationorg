@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { autoJoinGroups } from "@/lib/groups";
+import { recordEvent } from "@/lib/application-events";
 
 const postSchema = z.object({
   name: z.string().min(2).max(100),
@@ -117,6 +118,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         accountInviteExpiresAt: null,
       },
     });
+
+    recordEvent(application.id, "ACCOUNT_CREATED", null, {
+      userId: user.id,
+      role: newRole,
+    }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
 
     // Auto-join role-based groups
     try {

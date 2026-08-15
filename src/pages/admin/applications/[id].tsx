@@ -97,6 +97,14 @@ type Application = {
   territoryAssignments: TerritoryAssignmentRow[];
 };
 
+type AppEvent = {
+  id: string;
+  type: string;
+  actor: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 type PriorApplication = {
   id: string;
   type: string;
@@ -159,6 +167,7 @@ interface Props {
   affiliateAssignment: AffiliateSnippet | null;
   onboardingRecord: OnboardingRecord | null;
   priorApplications: PriorApplication[];
+  events: AppEvent[];
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -292,6 +301,44 @@ const ONBOARDING_STATUSES = new Set([
   "PAYMENT_PENDING",
 ]);
 
+const EVENT_DOT: Record<string, string> = {
+  STATUS_CHANGED:        "border-blue-400 bg-blue-100",
+  EMAIL_SENT:            "border-violet-400 bg-violet-100",
+  INVITE_SENT:           "border-teal-400 bg-teal-100",
+  INVITE_RESENT:         "border-teal-300 bg-teal-50",
+  INVITE_REVOKED:        "border-red-300 bg-red-50",
+  TERRITORY_ASSIGNED:    "border-amber-400 bg-amber-100",
+  TERRITORY_REVOKED:     "border-orange-300 bg-orange-50",
+  AFFILIATE_PROVISIONED: "border-green-400 bg-green-100",
+  ACCOUNT_CREATED:       "border-green-500 bg-green-200",
+};
+
+function formatEventLabel(ev: AppEvent): string {
+  const m = ev.meta ?? {};
+  switch (ev.type) {
+    case "STATUS_CHANGED":
+      return `Status changed${m.from ? ` from ${STATUS_LABEL[m.from as string] ?? m.from}` : ""} to ${STATUS_LABEL[m.to as string] ?? m.to}`;
+    case "EMAIL_SENT":
+      return `Email sent${m.subject ? `: "${m.subject}"` : ""}${m.custom ? " (custom)" : ""}`;
+    case "INVITE_SENT":
+      return "Account invitation sent";
+    case "INVITE_RESENT":
+      return "Account invitation resent";
+    case "INVITE_REVOKED":
+      return "Account invitation revoked";
+    case "TERRITORY_ASSIGNED":
+      return `Territory assigned${m.territoryName ? `: ${m.territoryName}` : ""}`;
+    case "TERRITORY_REVOKED":
+      return `Territory revoked${m.territoryName ? `: ${m.territoryName}` : ""}`;
+    case "AFFILIATE_PROVISIONED":
+      return "Affiliate provisioned";
+    case "ACCOUNT_CREATED":
+      return "Account created via invite";
+    default:
+      return ev.type.replace(/_/g, " ").toLowerCase();
+  }
+}
+
 const PRICING_LABELS: Record<string, string> = {
   CURRENT: "Current price",
   QUOTED: "Quoted price",
@@ -374,6 +421,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   affiliateAssignment: initialAffiliate,
   onboardingRecord: initialOnboarding,
   priorApplications,
+  events: initialEvents,
 }) => {
   const [application, setApplication] = useState(initial);
   const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
@@ -410,6 +458,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   const [savingOnboarding, setSavingOnboarding] = useState(false);
   const [onboardingResult, setOnboardingResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [activating, setActivating] = useState(false);
+  const [events, setEvents] = useState<AppEvent[]>(initialEvents);
 
   // Pre-send email preview state
   const [sendPreview, setSendPreview] = useState<{
@@ -909,6 +958,39 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               <p className="py-2 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{application.message}</p>
             </Section>
           )}
+
+          {/* Activity timeline */}
+          <Section title={`Activity${events.length > 0 ? ` (${events.length})` : ""}`}>
+            {events.length === 0 ? (
+              <p className="py-2 text-sm text-slate-400">No recorded events yet.</p>
+            ) : (
+              <div className="space-y-0 py-1">
+                {events.map((ev, i) => (
+                  <div key={ev.id} className="flex gap-3">
+                    {/* Timeline dot + line */}
+                    <div className="flex flex-col items-center">
+                      <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${EVENT_DOT[ev.type] ?? "border-slate-300 bg-white"}`} />
+                      {i < events.length - 1 && <div className="w-px flex-1 bg-slate-100" />}
+                    </div>
+                    {/* Content */}
+                    <div className="min-w-0 flex-1 pb-4">
+                      <p className="text-sm font-semibold text-slate-800 leading-snug">{formatEventLabel(ev)}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {ev.actor ?? "system"} &middot;{" "}
+                        {new Date(ev.createdAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
         </div>
 
         {/* ── Right: review panel ────────────────────────────────────────── */}
@@ -1547,6 +1629,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
           },
           orderBy: { createdAt: "desc" },
         },
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        },
       },
     }),
     db.territory.findMany({
@@ -1583,13 +1669,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     }),
   ]);
 
+  const { events: rawEvents, ...applicationWithoutEvents } = application;
+
   return {
     props: {
-      application: JSON.parse(JSON.stringify(application)),
+      application: JSON.parse(JSON.stringify(applicationWithoutEvents)),
       availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
       affiliateAssignment: JSON.parse(JSON.stringify(affiliateAssignment ?? null)),
       onboardingRecord: JSON.parse(JSON.stringify(onboardingRecord ?? null)),
       priorApplications: JSON.parse(JSON.stringify(priorApplications)),
+      events: JSON.parse(JSON.stringify(rawEvents ?? [])),
     },
   };
 };

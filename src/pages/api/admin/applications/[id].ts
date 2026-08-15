@@ -20,6 +20,7 @@ import { buildApplicationExpiredEmail, buildApplicationWithdrawnEmail } from "@/
 import { applyApplicationTags } from "@/lib/application-crm";
 import { loadTemplate } from "@/lib/template-engine";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
+import { recordEvent } from "@/lib/application-events";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
@@ -126,6 +127,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ?? buildAccountInviteEmail(application.name, appType, inviteUrl);
       try {
         await sendEmail({ to: application.email, ...inviteEmail });
+        recordEvent(id, "INVITE_SENT", session.user.email, {}).catch(
+          (err) => console.error("[events] INVITE_SENT record failed:", err)
+        );
       } catch (err) {
         console.error("[application] Failed to send invite email:", err);
       }
@@ -196,6 +200,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       ip: getClientIp(req),
     });
+
+    recordEvent(id, "STATUS_CHANGED", session.user.email, {
+      from: application.status,
+      to: status,
+      reviewNotes: reviewNotes?.trim() || null,
+      infoRequestNotes: infoRequestNotes?.trim() || null,
+    }).catch((err) => console.error("[events] STATUS_CHANGED record failed:", err));
 
     // Status-specific emails
     // Priority: customSubject/customBody from admin pre-send editor > DB template > hardcoded fallback
@@ -268,6 +279,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (emailToSend && !skipInfoRequired) {
           await sendEmail({ to: application.email, ...emailToSend });
+          recordEvent(id, "EMAIL_SENT", session.user.email, {
+            template: templateKey,
+            subject: emailToSend.subject,
+            custom: !!(customSubject && customBody),
+          }).catch((err) => console.error("[events] EMAIL_SENT record failed:", err));
         }
       }
     } catch (err) {

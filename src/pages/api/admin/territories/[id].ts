@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordEvent } from "@/lib/application-events";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -107,13 +108,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         });
 
+        recordEvent(applicationId, "TERRITORY_ASSIGNED", session.user.email, {
+          territoryId: id,
+          territoryName: assignment.territory?.name ?? id,
+        }).catch((err) => console.error("[events] TERRITORY_ASSIGNED record failed:", err));
+
         return res.status(201).json(assignment);
       }
 
       if (parsed.data.action === "revoke") {
         const { assignmentId, notes } = parsed.data;
 
-        const existing = await db.territoryAssignment.findUnique({ where: { id: assignmentId } });
+        const existing = await db.territoryAssignment.findUnique({
+          where: { id: assignmentId },
+          include: { territory: { select: { name: true } } },
+        });
         if (!existing) return res.status(404).json({ error: "Assignment not found" });
         if (existing.status === "REVOKED") {
           return res.status(409).json({ error: "Already revoked" });
@@ -128,6 +137,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             notes: notes?.trim() || existing.notes,
           },
         });
+
+        if (existing.applicationId) {
+          recordEvent(existing.applicationId, "TERRITORY_REVOKED", session.user.email, {
+            territoryId: id,
+            territoryName: existing.territory?.name ?? id,
+          }).catch((err) => console.error("[events] TERRITORY_REVOKED record failed:", err));
+        }
 
         return res.status(200).json(revoked);
       }

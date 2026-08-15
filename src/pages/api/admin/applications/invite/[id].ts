@@ -7,6 +7,7 @@ import { logAction, getClientIp } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { loadTemplate } from "@/lib/template-engine";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
+import { recordEvent } from "@/lib/application-events";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const INVITE_STATUSES = new Set([
@@ -83,15 +84,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error("[invite] Failed to send invite email:", err);
     }
 
+    const inviteAction = application.accountInviteToken ? "application.invite_resent" : "application.invite_sent";
     await logAction({
       actorId: session.user.id,
       actorEmail: session.user.email,
-      action: application.accountInviteToken ? "application.invite_resent" : "application.invite_sent",
+      action: inviteAction,
       resource: "UserApplication",
       resourceId: id,
       metadata: { email: application.email },
       ip: getClientIp(req),
     });
+
+    recordEvent(
+      id,
+      application.accountInviteToken ? "INVITE_RESENT" : "INVITE_SENT",
+      session.user.email,
+      {}
+    ).catch((err) => console.error("[events] invite record failed:", err));
 
     return res.status(200).json({
       accountInviteSentAt: now.toISOString(),
@@ -126,6 +135,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { email: application.email },
       ip: getClientIp(req),
     });
+
+    recordEvent(id, "INVITE_REVOKED", session.user.email, {}).catch(
+      (err) => console.error("[events] INVITE_REVOKED record failed:", err)
+    );
 
     return res.status(200).json({ ok: true });
   }
