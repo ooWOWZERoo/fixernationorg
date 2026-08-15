@@ -68,14 +68,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    const { audienceRules: rawAudienceRules, scheduledAt: rawScheduledAt, ...restData } = parsed.data;
     const updated = await db.campaign.update({
       where: { id },
       data: {
-        ...parsed.data,
-        scheduledAt: parsed.data.scheduledAt !== undefined
-          ? parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null
+        ...restData,
+        audienceRules: rawAudienceRules !== undefined
+          ? (rawAudienceRules as never)
           : undefined,
-        status: parsed.data.scheduledAt ? "SCHEDULED" : campaign.status === "SCHEDULED" ? "DRAFT" : campaign.status,
+        scheduledAt: rawScheduledAt !== undefined
+          ? rawScheduledAt ? new Date(rawScheduledAt) : null
+          : undefined,
+        status: rawScheduledAt ? "SCHEDULED" : campaign.status === "SCHEDULED" ? "DRAFT" : campaign.status,
       },
     });
 
