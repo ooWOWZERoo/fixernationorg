@@ -242,12 +242,13 @@ const HomePage: NextPageWithLayout = () => {
             <h2 className="mt-4 text-3xl font-extrabold text-navy">Real results from real members</h2>
           </div>
           <div className="grid overflow-hidden rounded-3xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="relative min-h-[280px]">
+            <div className="flex items-center justify-center p-8 lg:p-10">
               <Image
                 src="/images/review_profile.png"
                 alt="Fixer Nation member"
-                fill
-                className="object-cover object-top"
+                width={260}
+                height={260}
+                className="max-w-full"
               />
             </div>
             <div className="p-10 lg:p-12">
