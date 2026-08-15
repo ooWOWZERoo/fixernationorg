@@ -18,6 +18,7 @@ const ADMIN_NAV = [
   { href: "/admin/contacts", label: "CRM Contacts" },
   { href: "/admin/lists", label: "CRM Lists" },
   { href: "/admin/campaigns", label: "Campaigns" },
+  { href: "/admin/message-templates", label: "Email templates" },
   { href: "/admin/contact", label: "Contact" },
   { href: "/admin/questions", label: "Ask The Fixer" },
   { href: "/admin/settings", label: "Settings" },

@@ -1240,3 +1240,18 @@ model OnboardingRecord {
 
   application           UserApplication         @relation(fields: [applicationId], references: [id])
 }
+
+// ─── Messaging Templates ──────────────────────────────────────────────────────
+// Editable transactional email templates for application lifecycle messages.
+// key is a dot-notation slug, e.g. "application.accepted".
+// Variables use {{double_braces}} syntax substituted at send time.
+
+model MessageTemplate {
+  key         String   @id
+  description String
+  subject     String
+  body        String   @db.Text  // plain text; {{vars}} substituted at send time; \n\n = paragraph break
+  variables   String[]
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+}

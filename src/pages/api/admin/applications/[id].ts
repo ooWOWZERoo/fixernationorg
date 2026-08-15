@@ -17,6 +17,7 @@ import {
 import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail } from "@/lib/emails/welcome";
 import { buildApplicationExpiredEmail, buildApplicationWithdrawnEmail } from "@/lib/emails/expiration";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { loadTemplate } from "@/lib/template-engine";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -37,9 +38,11 @@ const ACCEPT_STATUSES = [
 ] as const;
 
 const patchSchema = z.object({
-  status: z.enum(ACCEPT_STATUSES),
-  reviewNotes: z.string().max(2000).optional(),
+  status:           z.enum(ACCEPT_STATUSES),
+  reviewNotes:      z.string().max(2000).optional(),
   infoRequestNotes: z.string().max(2000).optional(),
+  customSubject:    z.string().max(300).optional(),
+  customBody:       z.string().max(8000).optional(),
 });
 
 const ACCEPTANCE_STATUSES = new Set(["ACCEPTED_ONBOARDING_REQUIRED", "APPROVED"]);
@@ -78,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
     }
 
-    const { status, reviewNotes, infoRequestNotes } = parsed.data;
+    const { status, reviewNotes, infoRequestNotes, customSubject, customBody } = parsed.data;
 
     const application = await db.userApplication.findUnique({ where: { id } });
     if (!application) return res.status(404).json({ error: "Not found" });
@@ -164,51 +167,78 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ip: getClientIp(req),
     });
 
-    // Status-specific emails — fire and forget
+    // Status-specific emails
+    // Priority: customSubject/customBody from admin pre-send editor > DB template > hardcoded fallback
     try {
       const appType = application.type as "PROVIDER" | "AMBASSADOR";
       const displayName = application.name;
+      const firstName = (displayName ?? "").split(" ")[0] || "there";
+      const roleLabel = appType === "PROVIDER" ? "service provider" : "brand ambassador";
 
-      if (status === "UNDER_REVIEW") {
-        await sendEmail({
-          to: application.email,
-          ...buildUnderReviewEmail(displayName, appType),
-        });
-      } else if (status === "ADDITIONAL_INFO_REQUIRED" && infoRequestNotes?.trim()) {
-        await sendEmail({
-          to: application.email,
-          ...buildInfoRequestEmail(displayName, appType, infoRequestNotes.trim()),
-        });
-      } else if (status === "CONDITIONALLY_ACCEPTED") {
-        await sendEmail({
-          to: application.email,
-          ...buildConditionalAcceptanceEmail(displayName, appType, reviewNotes),
-        });
-      } else if (ACCEPTANCE_STATUSES.has(status)) {
-        await sendEmail({
-          to: application.email,
-          ...buildApplicationApprovedEmail(displayName, appType),
-        });
-      } else if (REJECTION_STATUSES.has(status)) {
-        await sendEmail({
-          to: application.email,
-          ...buildApplicationRejectedEmail(displayName, appType),
-        });
-      } else if (status === "ACTIVE") {
-        const welcomeEmail = appType === "AMBASSADOR"
-          ? buildWelcomeAmbassadorEmail(displayName)
-          : buildWelcomeProviderEmail(displayName);
-        await sendEmail({ to: application.email, ...welcomeEmail });
-      } else if (status === "EXPIRED") {
-        await sendEmail({
-          to: application.email,
-          ...buildApplicationExpiredEmail(displayName, appType),
-        });
-      } else if (status === "WITHDRAWN") {
-        await sendEmail({
-          to: application.email,
-          ...buildApplicationWithdrawnEmail(displayName, appType),
-        });
+      const templateVars = {
+        first_name:         firstName,
+        role:               roleLabel,
+        info_request_notes: infoRequestNotes?.trim() ?? "",
+        review_notes:       reviewNotes?.trim() ?? "",
+        deadline:           "",
+      };
+
+      const STATUS_TEMPLATE_KEY: Record<string, string> = {
+        UNDER_REVIEW:                 "application.under_review",
+        ADDITIONAL_INFO_REQUIRED:     "application.info_required",
+        CONDITIONALLY_ACCEPTED:       "application.conditionally_accepted",
+        ACCEPTED_ONBOARDING_REQUIRED: "application.accepted",
+        APPROVED:                     "application.accepted",
+        DECLINED:                     "application.declined",
+        REJECTED:                     "application.declined",
+        ACTIVE:                       "activation.welcome",
+        EXPIRED:                      "application.expired",
+        WITHDRAWN:                    "application.withdrawn",
+      };
+
+      const templateKey = STATUS_TEMPLATE_KEY[status];
+
+      if (templateKey) {
+        // If admin provided custom content, build the email from that; otherwise load from DB or fall back to hardcoded
+        let emailToSend: { subject: string; html: string; text: string } | null = null;
+
+        if (customSubject && customBody) {
+          const { previewTemplate } = await import("@/lib/template-engine");
+          emailToSend = previewTemplate(customSubject, customBody, templateVars);
+        } else {
+          emailToSend = await loadTemplate(templateKey, templateVars);
+        }
+
+        // Hardcoded fallback if DB template missing
+        if (!emailToSend) {
+          if (status === "UNDER_REVIEW") {
+            emailToSend = buildUnderReviewEmail(displayName, appType);
+          } else if (status === "ADDITIONAL_INFO_REQUIRED" && infoRequestNotes?.trim()) {
+            emailToSend = buildInfoRequestEmail(displayName, appType, infoRequestNotes.trim());
+          } else if (status === "CONDITIONALLY_ACCEPTED") {
+            emailToSend = buildConditionalAcceptanceEmail(displayName, appType, reviewNotes);
+          } else if (ACCEPTANCE_STATUSES.has(status)) {
+            emailToSend = buildApplicationApprovedEmail(displayName, appType);
+          } else if (REJECTION_STATUSES.has(status)) {
+            emailToSend = buildApplicationRejectedEmail(displayName, appType);
+          } else if (status === "ACTIVE") {
+            emailToSend = appType === "AMBASSADOR"
+              ? buildWelcomeAmbassadorEmail(displayName)
+              : buildWelcomeProviderEmail(displayName);
+          } else if (status === "EXPIRED") {
+            emailToSend = buildApplicationExpiredEmail(displayName, appType);
+          } else if (status === "WITHDRAWN") {
+            emailToSend = buildApplicationWithdrawnEmail(displayName, appType);
+          }
+        }
+
+        // Skip info_required if there are no notes to include
+        const skipInfoRequired =
+          status === "ADDITIONAL_INFO_REQUIRED" && !infoRequestNotes?.trim() && !customBody;
+
+        if (emailToSend && !skipInfoRequired) {
+          await sendEmail({ to: application.email, ...emailToSend });
+        }
       }
     } catch (err) {
       console.error("[application] Failed to send status email:", err);

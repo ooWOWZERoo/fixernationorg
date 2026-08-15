@@ -299,6 +299,72 @@ const PRICING_LABELS: Record<string, string> = {
   COMPLIMENTARY: "Complimentary",
 };
 
+interface SendPreviewPanelProps {
+  preview: { status: string; subject: string; body: string; loading: boolean };
+  onSubjectChange: (s: string) => void;
+  onBodyChange: (b: string) => void;
+  onSend: () => void;
+  onCancel: () => void;
+  sending: boolean;
+}
+
+function SendPreviewPanel({
+  preview,
+  onSubjectChange,
+  onBodyChange,
+  onSend,
+  onCancel,
+  sending,
+}: SendPreviewPanelProps) {
+  return (
+    <div className="rounded-lg border border-navy/20 bg-navy/5 p-4 space-y-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy">
+        Review email before sending
+      </p>
+      {preview.loading ? (
+        <p className="text-xs text-slate-400">Loading template…</p>
+      ) : (
+        <>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Subject</label>
+            <input
+              type="text"
+              value={preview.subject}
+              onChange={(e) => onSubjectChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Body</label>
+            <textarea
+              value={preview.body}
+              onChange={(e) => onBodyChange(e.target.value)}
+              rows={8}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy resize-y"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onSend}
+              disabled={sending}
+              className="flex-1 rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-dark disabled:opacity-50"
+            >
+              {sending ? "Sending…" : "Send email & update status"}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={sending}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   application: initial,
   availableTerritories,
@@ -341,6 +407,14 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   const [savingOnboarding, setSavingOnboarding] = useState(false);
   const [onboardingResult, setOnboardingResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [activating, setActivating] = useState(false);
+
+  // Pre-send email preview state
+  const [sendPreview, setSendPreview] = useState<{
+    status: string;
+    subject: string;
+    body: string;
+    loading: boolean;
+  } | null>(null);
 
   const isReviewable = REVIEWABLE_FROM.has(application.status);
   const isOnboarding = ONBOARDING_STATUSES.has(application.status);
@@ -497,9 +571,10 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     }
   };
 
-  const act = async (status: string) => {
+  const act = async (status: string, customSubject?: string, customBody?: string) => {
     setActing(true);
     setActionResult(null);
+    setSendPreview(null);
     try {
       const res = await fetch(`/api/admin/applications/${application.id}`, {
         method: "PATCH",
@@ -508,6 +583,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
           status,
           reviewNotes: reviewNotes.trim() || undefined,
           infoRequestNotes: infoRequestNotes.trim() || undefined,
+          customSubject: customSubject?.trim() || undefined,
+          customBody: customBody?.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -522,6 +599,54 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       setActionResult({ ok: false, message: "Network error. Please try again." });
     } finally {
       setActing(false);
+    }
+  };
+
+  const STATUS_TEMPLATE_KEY: Record<string, string> = {
+    UNDER_REVIEW:                 "application.under_review",
+    ADDITIONAL_INFO_REQUIRED:     "application.info_required",
+    CONDITIONALLY_ACCEPTED:       "application.conditionally_accepted",
+    ACCEPTED_ONBOARDING_REQUIRED: "application.accepted",
+    DECLINED:                     "application.declined",
+    REJECTED:                     "application.declined",
+    ACTIVE:                       "activation.welcome",
+    WITHDRAWN:                    "application.withdrawn",
+  };
+
+  const openPreview = async (status: string) => {
+    const templateKey = STATUS_TEMPLATE_KEY[status];
+    if (!templateKey) {
+      act(status);
+      return;
+    }
+    setSendPreview({ status, subject: "", body: "", loading: true });
+    try {
+      const res = await fetch(`/api/admin/message-templates/${templateKey}`);
+      const data = await res.json();
+      if (res.ok && data.subject) {
+        const firstName = (application.name ?? "").split(" ")[0] || "there";
+        const role = application.type === "PROVIDER" ? "service provider" : "brand ambassador";
+        const substitute = (str: string) =>
+          str
+            .replace(/\{\{first_name\}\}/g, firstName)
+            .replace(/\{\{role\}\}/g, role)
+            .replace(/\{\{info_request_notes\}\}/g, infoRequestNotes.trim() || "(info request notes here)")
+            .replace(/\{\{review_notes\}\}/g, reviewNotes.trim() || "")
+            .replace(/\{\{deadline\}\}/g, "soon");
+        setSendPreview({
+          status,
+          subject: substitute(data.subject),
+          body: substitute(data.body),
+          loading: false,
+        });
+      } else {
+        // Template not found — send directly without preview
+        setSendPreview(null);
+        act(status);
+      }
+    } catch {
+      setSendPreview(null);
+      act(status);
     }
   };
 
@@ -784,8 +909,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {/* Under review */}
               <div>
                 <button
-                  onClick={() => act("UNDER_REVIEW")}
-                  disabled={acting || application.status === "UNDER_REVIEW"}
+                  onClick={() => openPreview("UNDER_REVIEW")}
+                  disabled={acting || !!sendPreview || application.status === "UNDER_REVIEW"}
                   className="w-full rounded-lg border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-40"
                 >
                   Mark under review
@@ -796,8 +921,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {/* Info request */}
               <div className="space-y-2">
                 <button
-                  onClick={() => act("ADDITIONAL_INFO_REQUIRED")}
-                  disabled={acting || !infoRequestNotes.trim()}
+                  onClick={() => openPreview("ADDITIONAL_INFO_REQUIRED")}
+                  disabled={acting || !!sendPreview || !infoRequestNotes.trim()}
                   className="w-full rounded-lg border border-purple-200 px-4 py-2.5 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-50 disabled:opacity-40"
                 >
                   Request more info
@@ -815,8 +940,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {/* Conditional */}
               <div>
                 <button
-                  onClick={() => act("CONDITIONALLY_ACCEPTED")}
-                  disabled={acting}
+                  onClick={() => openPreview("CONDITIONALLY_ACCEPTED")}
+                  disabled={acting || !!sendPreview}
                   className="w-full rounded-lg border border-teal-200 px-4 py-2.5 text-sm font-semibold text-teal-700 transition-colors hover:bg-teal-50 disabled:opacity-40"
                 >
                   Conditionally accept
@@ -827,8 +952,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {/* Accept */}
               <div>
                 <button
-                  onClick={() => act("ACCEPTED_ONBOARDING_REQUIRED")}
-                  disabled={acting}
+                  onClick={() => openPreview("ACCEPTED_ONBOARDING_REQUIRED")}
+                  disabled={acting || !!sendPreview}
                   className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-40"
                 >
                   Accept
@@ -843,14 +968,26 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {/* Decline */}
               <div>
                 <button
-                  onClick={() => act("DECLINED")}
-                  disabled={acting}
+                  onClick={() => openPreview("DECLINED")}
+                  disabled={acting || !!sendPreview}
                   className="w-full rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-40"
                 >
                   Decline
                 </button>
                 <p className="mt-1 text-xs text-slate-400">Sends decline email. This cannot be undone.</p>
               </div>
+
+              {/* Pre-send email preview panel */}
+              {sendPreview && (
+                <SendPreviewPanel
+                  preview={sendPreview}
+                  onSubjectChange={(s) => setSendPreview((p) => p ? { ...p, subject: s } : null)}
+                  onBodyChange={(b) => setSendPreview((p) => p ? { ...p, body: b } : null)}
+                  onSend={() => act(sendPreview.status, sendPreview.subject, sendPreview.body)}
+                  onCancel={() => setSendPreview(null)}
+                  sending={acting}
+                />
+              )}
             </div>
           ) : isOnboarding ? (
             /* ── Onboarding & payment panel ────────────────────────────────── */
@@ -1012,13 +1149,24 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
                 )}
 
                 <button
-                  onClick={activate}
-                  disabled={activating || !paymentReady}
+                  onClick={() => openPreview("ACTIVE")}
+                  disabled={activating || acting || !!sendPreview || !paymentReady}
                   className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-40"
                 >
                   {activating ? "Activating…" : "Activate"}
                 </button>
                 <p className="text-xs text-slate-400 text-center">Marks as Active and sends welcome email.</p>
+
+                {sendPreview && (
+                  <SendPreviewPanel
+                    preview={sendPreview}
+                    onSubjectChange={(s) => setSendPreview((p) => p ? { ...p, subject: s } : null)}
+                    onBodyChange={(b) => setSendPreview((p) => p ? { ...p, body: b } : null)}
+                    onSend={() => act(sendPreview.status, sendPreview.subject, sendPreview.body)}
+                    onCancel={() => setSendPreview(null)}
+                    sending={acting}
+                  />
+                )}
               </div>
             </div>
           ) : isActive ? (
