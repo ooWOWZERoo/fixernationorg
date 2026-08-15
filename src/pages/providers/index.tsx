@@ -239,18 +239,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
     },
     orderBy: { directoryListedAt: "desc" },
     select: {
-      user: {
-        select: {
-          username: true,
-          name: true,
-          socialProfile: {
-            select: { headline: true, location: true, avatarUrl: true },
-          },
-          providerProfile: {
-            select: { specialty: true, serviceArea: true, businessName: true },
-          },
-        },
-      },
+      userId: true,
       providerDetail: {
         select: {
           serviceCategory: true,
@@ -261,21 +250,45 @@ export const getServerSideProps: GetServerSideProps = async () => {
     },
   });
 
+  const userIds = listedApplications
+    .map((a) => a.userId)
+    .filter((id): id is string => id !== null);
+
+  const users = await db.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      socialProfile: {
+        select: { headline: true, location: true, avatarUrl: true },
+      },
+      providerProfile: {
+        select: { specialty: true, serviceArea: true, businessName: true },
+      },
+    },
+  });
+
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
   const providers: ProviderCard[] = listedApplications
-    .filter((a) => a.user?.username)
+    .map((a) => ({ ...a, user: a.userId ? userMap.get(a.userId) : undefined }))
+    .filter((a): a is typeof a & { user: NonNullable<typeof a.user> } =>
+      a.user?.username != null
+    )
     .map((a) => ({
-      username: a.user!.username!,
-      name: a.user!.name,
-      avatarUrl: a.user!.socialProfile?.avatarUrl ?? null,
-      headline: a.user!.socialProfile?.headline ?? null,
-      location: a.user!.socialProfile?.location ?? null,
-      specialty: a.user!.providerProfile?.specialty ?? null,
+      username: a.user.username!,
+      name: a.user.name,
+      avatarUrl: a.user.socialProfile?.avatarUrl ?? null,
+      headline: a.user.socialProfile?.headline ?? null,
+      location: a.user.socialProfile?.location ?? null,
+      specialty: a.user.providerProfile?.specialty ?? null,
       serviceCategory: a.providerDetail?.serviceCategory ?? null,
       serviceAreas: a.providerDetail?.serviceAreas ?? [],
-      serviceArea: a.user!.providerProfile?.serviceArea ?? null,
+      serviceArea: a.user.providerProfile?.serviceArea ?? null,
       businessName:
         a.providerDetail?.businessName ??
-        a.user!.providerProfile?.businessName ??
+        a.user.providerProfile?.businessName ??
         null,
     }));
 
