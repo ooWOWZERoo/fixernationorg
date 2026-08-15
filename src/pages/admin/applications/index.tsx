@@ -102,12 +102,14 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({ applications: initia
   const [applications, setApplications] = useState<AppRow[]>(initial);
   const [filter, setFilter] = useState<FilterTab>("QUEUE");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "PROVIDER" | "AMBASSADOR">("ALL");
+  const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
 
   const queueCount = applications.filter((a) => QUEUE_STATUSES.has(a.status)).length;
 
+  const lq = search.trim().toLowerCase();
   const visible = applications.filter((a) => {
     const matchesType = typeFilter === "ALL" || a.type === typeFilter;
     const matchesStatus =
@@ -116,7 +118,14 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({ applications: initia
       : filter === "ACTIVE" ? ACTIVE_STATUSES.has(a.status)
       : filter === "ACCEPTED" ? FINAL_STATUSES.has(a.status)
       : CLOSED_STATUSES.has(a.status);
-    return matchesType && matchesStatus;
+    const matchesSearch = !lq || [
+      a.name ?? "",
+      a.email,
+      a.phone ?? "",
+      a.businessName ?? "",
+      a.providerDetail?.serviceCategory ?? "",
+    ].some((v) => v.toLowerCase().includes(lq));
+    return matchesType && matchesStatus && matchesSearch;
   });
 
   const act = async (id: string, status: string, notes?: string) => {
@@ -157,6 +166,17 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({ applications: initia
           )}
         </h1>
         <p className="mt-1 text-sm text-slate-500">Provider and ambassador applications.</p>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email, phone, business, or category…"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+        />
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

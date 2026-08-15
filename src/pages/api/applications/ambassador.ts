@@ -9,6 +9,7 @@ import {
   buildApplicationSubmittedEmail,
   buildApplicationAdminNotifyEmail,
 } from "@/lib/emails/application-submitted";
+import { applyApplicationTags } from "@/lib/application-crm";
 
 const schema = z.object({
   firstName:            z.string().min(1).max(60).trim(),
@@ -128,6 +129,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     },
   });
+
+  // Sync CRM contact + tags — fire and forget
+  applyApplicationTags({
+    id: application.id,
+    email: d.email,
+    name: `${d.firstName} ${d.lastName}`,
+    type: "AMBASSADOR",
+    status: "SUBMITTED",
+    userId: session?.user?.id ?? null,
+  }).catch((err) => console.error("[application/ambassador] CRM sync failed:", err));
 
   const notifyEmail = process.env.ADMIN_NOTIFY_EMAIL ?? process.env.SMTP_FROM;
   const [submittedEmail, adminEmail] = await Promise.allSettled([

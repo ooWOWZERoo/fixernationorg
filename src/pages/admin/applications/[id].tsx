@@ -94,6 +94,14 @@ type Application = {
   territoryAssignments: TerritoryAssignmentRow[];
 };
 
+type PriorApplication = {
+  id: string;
+  type: string;
+  status: string;
+  submittedAt: string | null;
+  createdAt: string;
+};
+
 type OnboardingRecord = {
   id: string;
   pricingType: string;
@@ -147,6 +155,7 @@ interface Props {
   availableTerritories: TerritoryOption[];
   affiliateAssignment: AffiliateSnippet | null;
   onboardingRecord: OnboardingRecord | null;
+  priorApplications: PriorApplication[];
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -295,6 +304,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
   availableTerritories,
   affiliateAssignment: initialAffiliate,
   onboardingRecord: initialOnboarding,
+  priorApplications,
 }) => {
   const [application, setApplication] = useState(initial);
   const [reviewNotes, setReviewNotes] = useState(initial.reviewNotes ?? "");
@@ -1205,6 +1215,38 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
             </div>
           )}
 
+          {/* Prior application history */}
+          {priorApplications.length > 0 && (
+            <div className="rounded-xl border border-amber/30 bg-amber/5 p-4 space-y-2">
+              <p className="text-xs font-bold text-amber-dark">Prior applications ({priorApplications.length})</p>
+              {priorApplications.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide mr-1.5 ${p.type === "PROVIDER" ? "bg-navy/10 text-navy" : "bg-purple-100 text-purple-700"}`}>
+                      {p.type}
+                    </span>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[p.status] ?? "bg-slate-100 text-slate-500"}`}>
+                      {STATUS_LABEL[p.status] ?? p.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">
+                      {p.submittedAt
+                        ? new Date(p.submittedAt).toLocaleDateString()
+                        : new Date(p.createdAt).toLocaleDateString()}
+                    </span>
+                    <Link
+                      href={`/admin/applications/${p.id}`}
+                      className="text-xs font-semibold text-navy hover:underline underline-offset-2"
+                    >
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Application metadata */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-400 space-y-1">
             <div className="flex justify-between"><span>ID</span><span className="font-mono">{application.id.slice(0, 12)}…</span></div>
@@ -1261,7 +1303,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     return { notFound: true };
   }
 
-  const [affiliateAssignment, onboardingRecord] = await Promise.all([
+  const [affiliateAssignment, onboardingRecord, priorApplications] = await Promise.all([
     db.affiliateAssignment.findUnique({
       where: { applicationId: id },
       select: {
@@ -1277,6 +1319,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     db.onboardingRecord.findUnique({
       where: { applicationId: id },
     }),
+    db.userApplication.findMany({
+      where: { email: application.email, id: { not: id } },
+      select: { id: true, type: true, status: true, submittedAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   return {
@@ -1285,6 +1332,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       availableTerritories: JSON.parse(JSON.stringify(availableTerritories)),
       affiliateAssignment: JSON.parse(JSON.stringify(affiliateAssignment ?? null)),
       onboardingRecord: JSON.parse(JSON.stringify(onboardingRecord ?? null)),
+      priorApplications: JSON.parse(JSON.stringify(priorApplications)),
     },
   };
 };

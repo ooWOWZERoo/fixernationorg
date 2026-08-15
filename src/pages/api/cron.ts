@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
+import { buildApplicationExpiredEmail } from "@/lib/emails/expiration";
+import { applyApplicationTags } from "@/lib/application-crm";
 import { randomUUID } from "crypto";
 
 // cPanel calls this URL via HTTP:
@@ -167,10 +169,57 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
   return { message: `Processed ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
 }
 
+// Applications in accepted/onboarding states expire after 30 days of inactivity.
+// "Inactivity" = reviewedAt (last admin action) or submittedAt has not advanced in 30+ days.
+async function runApplicationExpiration() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const stale = await db.userApplication.findMany({
+    where: {
+      status: { in: ["ACCEPTED_ONBOARDING_REQUIRED", "ONBOARDING_IN_PROGRESS", "PAYMENT_PENDING"] },
+      OR: [
+        { reviewedAt: { lte: cutoff } },
+        { reviewedAt: null, submittedAt: { lte: cutoff } },
+      ],
+    },
+    select: { id: true, email: true, name: true, type: true, userId: true },
+  });
+
+  let expired = 0;
+  for (const app of stale) {
+    await db.userApplication.update({
+      where: { id: app.id },
+      data: { status: "EXPIRED" },
+    });
+
+    applyApplicationTags({
+      id: app.id,
+      email: app.email,
+      name: app.name,
+      type: app.type,
+      status: "EXPIRED",
+      userId: app.userId,
+    }).catch(() => {});
+
+    try {
+      await sendEmail({
+        to: app.email,
+        ...buildApplicationExpiredEmail(app.name, app.type as "PROVIDER" | "AMBASSADOR"),
+      });
+    } catch (err) {
+      console.error(`[application-expiration] Email failed for ${app.id}:`, err);
+    }
+
+    expired++;
+  }
+
+  return { message: `Expired ${expired} application${expired !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
+  "application-expiration": runApplicationExpiration,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

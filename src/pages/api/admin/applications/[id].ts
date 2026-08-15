@@ -15,6 +15,8 @@ import {
   buildConditionalAcceptanceEmail,
 } from "@/lib/emails/application-status";
 import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail } from "@/lib/emails/welcome";
+import { buildApplicationExpiredEmail, buildApplicationWithdrawnEmail } from "@/lib/emails/expiration";
+import { applyApplicationTags } from "@/lib/application-crm";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -197,10 +199,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? buildWelcomeAmbassadorEmail(displayName)
           : buildWelcomeProviderEmail(displayName);
         await sendEmail({ to: application.email, ...welcomeEmail });
+      } else if (status === "EXPIRED") {
+        await sendEmail({
+          to: application.email,
+          ...buildApplicationExpiredEmail(displayName, appType),
+        });
+      } else if (status === "WITHDRAWN") {
+        await sendEmail({
+          to: application.email,
+          ...buildApplicationWithdrawnEmail(displayName, appType),
+        });
       }
     } catch (err) {
       console.error("[application] Failed to send status email:", err);
     }
+
+    // Sync CRM tags — fire and forget
+    applyApplicationTags({
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      type: updated.type,
+      status: updated.status,
+      userId: updated.userId,
+    }).catch((err) => console.error("[application] CRM tag sync failed:", err));
 
     return res.status(200).json(updated);
   }

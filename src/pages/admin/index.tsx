@@ -22,9 +22,23 @@ interface RecentUser {
   createdAt: string;
 }
 
+interface AppFunnel {
+  needsReview: number;
+  underReview: number;
+  awaitingApplicant: number;
+  accepted: number;
+  onboarding: number;
+  active: number;
+  declined: number;
+  expired: number;
+  totalProviders: number;
+  totalAmbassadors: number;
+}
+
 interface Props {
   stats: Stats;
   recentUsers: RecentUser[];
+  funnel: AppFunnel;
 }
 
 const QUICK_ACTIONS = [
@@ -34,7 +48,7 @@ const QUICK_ACTIONS = [
   { label: "View Site ↗", href: "/", primary: false, external: true },
 ];
 
-const AdminDashboard: NextPageWithLayout<Props> = ({ stats, recentUsers }) => {
+const AdminDashboard: NextPageWithLayout<Props> = ({ stats, recentUsers, funnel }) => {
   const statCards = [
     { label: "Total Users", value: stats.totalUsers },
     { label: "Active Members", value: stats.activeMembers },
@@ -94,6 +108,41 @@ const AdminDashboard: NextPageWithLayout<Props> = ({ stats, recentUsers }) => {
             <p className="mt-2 text-3xl font-bold text-slate-900">{card.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Application funnel */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-700">Applications</h2>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">
+              {funnel.totalProviders}P / {funnel.totalAmbassadors}A total
+            </span>
+            <Link href="/admin/applications" className="text-xs font-medium text-navy no-underline hover:text-navy-dark">
+              View all →
+            </Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 sm:grid-cols-4">
+          {[
+            { label: "Needs review", value: funnel.needsReview, color: "text-amber-600", href: "/admin/applications?tab=QUEUE" },
+            { label: "Under review", value: funnel.underReview, color: "text-blue-600", href: "/admin/applications?tab=ACTIVE" },
+            { label: "Awaiting applicant", value: funnel.awaitingApplicant, color: "text-purple-600", href: "/admin/applications?tab=ACTIVE" },
+            { label: "Accepted / onboarding", value: funnel.accepted + funnel.onboarding, color: "text-teal-600", href: "/admin/applications?tab=ACCEPTED" },
+            { label: "Active", value: funnel.active, color: "text-green-600", href: "/admin/applications?tab=ACCEPTED" },
+            { label: "Declined", value: funnel.declined, color: "text-slate-400", href: "/admin/applications?tab=CLOSED" },
+            { label: "Expired", value: funnel.expired, color: "text-slate-400", href: "/admin/applications?tab=CLOSED" },
+          ].map((row) => (
+            <Link
+              key={row.label}
+              href={row.href}
+              className="flex flex-col gap-0.5 px-5 py-4 no-underline hover:bg-slate-50 transition-colors"
+            >
+              <span className={`text-2xl font-bold ${row.color}`}>{row.value}</span>
+              <span className="text-xs text-slate-400">{row.label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Recent sign-ups */}
@@ -169,7 +218,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   ];
 
   try {
-    const [totalUsers, activeMembers, activeProducts, newThisWeek, recentUsers] =
+    const [totalUsers, activeMembers, activeProducts, newThisWeek, recentUsers, appCounts] =
       await Promise.all([
         db.user.count(),
         db.user.count({ where: { role: { in: PAID_ROLES } } }),
@@ -180,12 +229,35 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           take: 5,
           select: { id: true, name: true, email: true, role: true, createdAt: true },
         }),
+        db.userApplication.groupBy({
+          by: ["status", "type"],
+          _count: { _all: true },
+        }),
       ]);
+
+    const countFor = (statuses: string[], type?: string) =>
+      appCounts
+        .filter((r) => statuses.includes(r.status) && (type ? r.type === type : true))
+        .reduce((sum, r) => sum + r._count._all, 0);
+
+    const funnel: AppFunnel = {
+      needsReview:      countFor(["PENDING", "SUBMITTED", "RESUBMITTED"]),
+      underReview:      countFor(["UNDER_REVIEW", "CONDITIONALLY_ACCEPTED"]),
+      awaitingApplicant: countFor(["ADDITIONAL_INFO_REQUIRED"]),
+      accepted:         countFor(["ACCEPTED_ONBOARDING_REQUIRED"]),
+      onboarding:       countFor(["ONBOARDING_IN_PROGRESS", "PAYMENT_PENDING", "TERRITORY_PENDING"]),
+      active:           countFor(["ACTIVE"]),
+      declined:         countFor(["DECLINED", "REJECTED"]),
+      expired:          countFor(["EXPIRED", "WITHDRAWN"]),
+      totalProviders:   countFor(["PENDING","SUBMITTED","RESUBMITTED","UNDER_REVIEW","ADDITIONAL_INFO_REQUIRED","CONDITIONALLY_ACCEPTED","ACCEPTED_ONBOARDING_REQUIRED","ONBOARDING_IN_PROGRESS","PAYMENT_PENDING","TERRITORY_PENDING","ACTIVE","DECLINED","REJECTED","EXPIRED","WITHDRAWN"], "PROVIDER"),
+      totalAmbassadors: countFor(["PENDING","SUBMITTED","RESUBMITTED","UNDER_REVIEW","ADDITIONAL_INFO_REQUIRED","CONDITIONALLY_ACCEPTED","ACCEPTED_ONBOARDING_REQUIRED","ONBOARDING_IN_PROGRESS","PAYMENT_PENDING","TERRITORY_PENDING","ACTIVE","DECLINED","REJECTED","EXPIRED","WITHDRAWN"], "AMBASSADOR"),
+    };
 
     return {
       props: {
         stats: { totalUsers, activeMembers, activeProducts, newThisWeek },
         recentUsers: JSON.parse(JSON.stringify(recentUsers)),
+        funnel,
       },
     };
   } catch (e) {
@@ -194,6 +266,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       props: {
         stats: { totalUsers: 0, activeMembers: 0, activeProducts: 0, newThisWeek: 0 },
         recentUsers: [],
+        funnel: { needsReview: 0, underReview: 0, awaitingApplicant: 0, accepted: 0, onboarding: 0, active: 0, declined: 0, expired: 0, totalProviders: 0, totalAmbassadors: 0 },
       },
     };
   }
