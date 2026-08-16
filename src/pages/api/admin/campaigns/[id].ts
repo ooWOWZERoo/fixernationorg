@@ -97,6 +97,7 @@ const updateSchema = z.object({
   audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().nullable().optional(),
   isAbTest: z.boolean().optional(),
+  isAmbassadorMaterial: z.boolean().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

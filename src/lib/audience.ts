@@ -39,6 +39,9 @@ export interface AudiencePreview {
 async function resolveRule(rule: AudienceRule): Promise<Set<string>> {
   switch (rule.type) {
     case "list": {
+      const list = await db.contactList.findUnique({ where: { id: rule.listId }, select: { ownerType: true } });
+      // AC-066/067: Never use ambassador- or provider-owned lists for FN campaign sends
+      if (!list || list.ownerType !== "FN_ADMIN") return new Set();
       const rows = await db.contactListMember.findMany({
         where: { listId: rule.listId },
         select: { contactId: true },

@@ -275,12 +275,18 @@ function AmbassadorDashboard({ data, email }: { data: AmbassadorData; email: str
       )}
 
       {/* Profile link */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <Link
           href="/account/ambassador"
           className="text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
         >
           Edit your profile →
+        </Link>
+        <Link
+          href="/account/ambassador/materials"
+          className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
+        >
+          Campaign materials →
         </Link>
         <Link
           href="/ambassadors"

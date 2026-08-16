@@ -65,6 +65,7 @@ interface Props {
     sentAt: string | null;
     createdAt: string;
     isAbTest: boolean;
+    isAmbassadorMaterial: boolean;
   };
   metric: MetricData | null;
   variants: VariantRow[];
@@ -88,6 +89,20 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const [refreshing, setRefreshing] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [materialToggling, setMaterialToggling] = useState(false);
+
+  async function toggleAmbassadorMaterial() {
+    setMaterialToggling(true);
+    const next = !campaign.isAmbassadorMaterial;
+    await fetch(`/api/admin/campaigns/${campaign.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isAmbassadorMaterial: next }),
+    });
+    setCampaign((c) => ({ ...c, isAmbassadorMaterial: next }));
+    setMaterialToggling(false);
+  }
 
   // A/B variants
   const [variants, setVariants] = useState<VariantRow[]>(initialVariants);
@@ -322,6 +337,32 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                   {campaign.textBody && <p className="mt-0.5 text-xs text-ink-soft">{campaign.textBody}</p>}
                   {campaign.pushUrl && <p className="mt-1 text-xs text-ink-soft/60">{campaign.pushUrl}</p>}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Ambassador materials */}
+          {campaign.status === "SENT" && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-ink-soft">Ambassador materials</h2>
+                  <p className="mt-1 text-sm text-ink-soft">
+                    Share this campaign's content with ambassadors so they can use it in their own outreach.
+                  </p>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={campaign.isAmbassadorMaterial}
+                    onChange={toggleAmbassadorMaterial}
+                    disabled={materialToggling}
+                    className="h-4 w-4 rounded border-slate-300 accent-navy"
+                  />
+                  <span className="text-sm font-semibold text-navy">
+                    {campaign.isAmbassadorMaterial ? "Available to ambassadors" : "Not shared"}
+                  </span>
+                </label>
               </div>
             </div>
           )}
@@ -718,6 +759,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         sentAt: campaign.sentAt?.toISOString() ?? null,
         createdAt: campaign.createdAt.toISOString(),
         isAbTest,
+        isAmbassadorMaterial: (campaign as unknown as { isAmbassadorMaterial: boolean }).isAmbassadorMaterial ?? false,
       },
       variants: variantRows.map((v) => ({
         id: v.id, name: v.name, subject: v.subject, fromName: v.fromName, fromEmail: v.fromEmail,
