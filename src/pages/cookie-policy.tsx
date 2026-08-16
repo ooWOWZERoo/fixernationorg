@@ -43,19 +43,6 @@ const CookiePolicyPage: NextPageWithLayout = () => {
             and continue using features that require an account.
           </p>
 
-          <h3>Analytics cookies (optional)</h3>
-          <p>
-            We use PostHog to understand how people use Fixer Nation: which pages get visited,
-            where people drop off, and what features get used. PostHog sets a cookie that
-            assigns your browser a random ID so it can count unique visits without identifying
-            you personally. The data is aggregated and anonymous as far as we are concerned.
-          </p>
-          <p>
-            PostHog offers its own opt-out mechanism. If you prefer not to be tracked, you can
-            also use a browser extension like uBlock Origin or Privacy Badger, which will block
-            the PostHog script entirely.
-          </p>
-
           <h3>Stripe cookies (payments only)</h3>
           <p>
             When you go through the checkout process, Stripe sets cookies to detect fraud and

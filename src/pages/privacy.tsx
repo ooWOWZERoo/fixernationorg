@@ -34,9 +34,9 @@ const PrivacyPage: NextPageWithLayout = () => {
           </p>
           <p>
             When you use the site, we collect basic usage data — pages visited, features used,
-            and general device/browser information. We use PostHog for this analytics. We also
-            collect any content you submit directly, such as questions sent to Ask The Fixer,
-            posts made on FN Network, or messages sent to other members.
+            and general device/browser information. We also collect any content you submit
+            directly, such as questions sent to Ask The Fixer, posts made on FN Network, or
+            messages sent to other members.
           </p>
 
           <h2>How we use it</h2>
@@ -62,7 +62,6 @@ const PrivacyPage: NextPageWithLayout = () => {
           <ul>
             <li><strong>Stripe</strong> — payment processing. Subject to Stripe's privacy policy.</li>
             <li><strong>Cloudinary</strong> — media storage and image delivery.</li>
-            <li><strong>PostHog</strong> — product analytics (anonymized usage data).</li>
             <li><strong>Neon</strong> — managed PostgreSQL database hosting.</li>
             <li><strong>Vercel</strong> — web hosting and deployment infrastructure.</li>
             <li><strong>Cloudflare R2</strong> — file storage for uploaded images.</li>
