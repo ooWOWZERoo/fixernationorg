@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { autoJoinGroups } from "@/lib/groups";
 import { recordEvent } from "@/lib/application-events";
 import { enrollInJourneys } from "@/lib/automation";
+import { generateUniqueReferralCode } from "@/lib/referral";
 
 const postSchema = z.object({
   name: z.string().min(2).max(100),
@@ -79,18 +80,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check for an existing account with this email
     const existing = await db.user.findUnique({
       where: { email: application.email },
-      select: { id: true },
+      select: { id: true, role: true },
     });
     if (existing) {
-      // Account already exists — just link it to the application
-      await db.userApplication.update({
-        where: { id: application.id },
-        data: {
-          userId: existing.id,
-          accountInviteToken: null,
-          accountInviteExpiresAt: null,
-        },
-      });
+      const newRole = application.type === "PROVIDER" ? "PROVIDER"
+        : application.type === "AMBASSADOR" ? "AMBASSADOR"
+        : null;
+
+      const ops: Promise<unknown>[] = [
+        db.userApplication.update({
+          where: { id: application.id },
+          data: {
+            userId: existing.id,
+            accountInviteToken: null,
+            accountInviteExpiresAt: null,
+          },
+        }),
+      ];
+
+      if (newRole) {
+        ops.push(db.user.update({ where: { id: existing.id }, data: { role: newRole } }));
+
+        if (newRole === "AMBASSADOR") {
+          ops.push(
+            generateUniqueReferralCode().then((referralCode) =>
+              db.ambassadorProfile.upsert({
+                where: { userId: existing.id },
+                create: { userId: existing.id, referralCode },
+                update: {},
+              })
+            )
+          );
+        }
+      }
+
+      await Promise.all(ops);
+
+      if (newRole) {
+        autoJoinGroups(existing.id, newRole).catch(() => {});
+        enrollInJourneys({ trigger: "ROLE_CHANGE", userId: existing.id, triggerConfig: { role: newRole } }).catch(() => {});
+        recordEvent(application.id, "ACCOUNT_LINKED", null, { userId: existing.id, role: newRole }).catch(() => {});
+      }
+
       return res.status(200).json({ ok: true, linked: true });
     }
 

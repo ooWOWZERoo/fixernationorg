@@ -114,10 +114,15 @@ export const authOptions: NextAuthOptions = {
       if (user?.image !== undefined) token.picture = user.image;
       return token;
     },
-    session({ session, token }) {
+    async session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
-      if (token.role) session.user.role = token.role;
       if (token.picture) session.user.image = token.picture as string;
+      // Re-read role from DB on every session access so admin-side role
+      // changes (e.g. application acceptance) take effect without sign-out.
+      const dbUser = token.sub
+        ? await db.user.findUnique({ where: { id: token.sub }, select: { role: true } })
+        : null;
+      session.user.role = dbUser?.role ?? (token.role as string) ?? "CONSUMER";
       return session;
     },
   },
