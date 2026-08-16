@@ -1,14 +1,18 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   type EmailBlock, type EmailBlockType, type BlockAlign,
   type HeadingBlock, type TextBlock, type ButtonBlock,
   type ImageBlock, type DividerBlock, type SpacerBlock, type HtmlBlock,
-  defaultBlock, blocksToHtml,
+  defaultBlock, blocksToHtml, newId,
 } from "@/lib/email-blocks";
 
+interface SavedSectionRow { id: string; name: string; blocks: unknown }
+
 interface Props {
-  onChange: (html: string) => void;
+  initialBlocks?: EmailBlock[];
+  onChange: (html: string, blocks: EmailBlock[]) => void;
+  onPickImage?: (cb: (url: string) => void) => void;
 }
 
 const PALETTE: { type: EmailBlockType; label: string }[] = [
@@ -115,10 +119,21 @@ function ButtonEditor({ block, update }: { block: ButtonBlock; update: (p: Parti
   );
 }
 
-function ImageEditor({ block, update }: { block: ImageBlock; update: (p: Partial<ImageBlock>) => void }) {
+function ImageEditor({ block, update, onPickImage }: { block: ImageBlock; update: (p: Partial<ImageBlock>) => void; onPickImage?: (cb: (url: string) => void) => void }) {
   return (
     <div className="space-y-3">
-      <FieldRow label="Image URL"><Input value={block.src} onChange={v => update({ src: v })} placeholder="https://..." /></FieldRow>
+      <FieldRow label="Image URL">
+        <div className="flex gap-2">
+          <Input value={block.src} onChange={v => update({ src: v })} placeholder="https://..." />
+          {onPickImage && (
+            <button type="button"
+              onClick={() => onPickImage(url => update({ src: url }))}
+              className="shrink-0 rounded-lg border border-navy/15 px-2.5 py-1.5 text-xs font-medium text-navy hover:bg-cream-panel">
+              Browse
+            </button>
+          )}
+        </div>
+      </FieldRow>
       <FieldRow label="Alt text"><Input value={block.alt} onChange={v => update({ alt: v })} placeholder="Describe the image" /></FieldRow>
       <FieldRow label="Link URL"><Input value={block.href} onChange={v => update({ href: v })} placeholder="Optional — wrap image in a link" /></FieldRow>
       <FieldRow label="Max width">
@@ -169,7 +184,7 @@ function HtmlEditor({ block, update }: { block: HtmlBlock; update: (p: Partial<H
   );
 }
 
-function BlockEditor({ block, onChange }: { block: EmailBlock; onChange: (b: EmailBlock) => void }) {
+function BlockEditor({ block, onChange, onPickImage }: { block: EmailBlock; onChange: (b: EmailBlock) => void; onPickImage?: (cb: (url: string) => void) => void }) {
   function update<T extends EmailBlock>(patch: Partial<T>) {
     onChange({ ...block, ...patch } as EmailBlock);
   }
@@ -177,7 +192,7 @@ function BlockEditor({ block, onChange }: { block: EmailBlock; onChange: (b: Ema
     case "heading":  return <HeadingEditor  block={block} update={update} />;
     case "text":     return <TextEditor     block={block} update={update} />;
     case "button":   return <ButtonEditor   block={block} update={update} />;
-    case "image":    return <ImageEditor    block={block} update={update} />;
+    case "image":    return <ImageEditor    block={block} update={update} onPickImage={onPickImage} />;
     case "divider":  return <DividerEditor  block={block} update={update} />;
     case "spacer":   return <SpacerEditor   block={block} update={update} />;
     case "html":     return <HtmlEditor     block={block} update={update} />;
@@ -186,15 +201,37 @@ function BlockEditor({ block, onChange }: { block: EmailBlock; onChange: (b: Ema
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function BlockComposer({ onChange }: Props) {
-  const [blocks, setBlocks] = useState<EmailBlock[]>([]);
+export function BlockComposer({ initialBlocks, onChange, onPickImage }: Props) {
+  const [blocks, setBlocks] = useState<EmailBlock[]>(initialBlocks ?? []);
   const [selected, setSelected] = useState<string | null>(null);
   const [showHtml, setShowHtml] = useState(false);
+  const [showSections, setShowSections] = useState(false);
+  const [sections, setSections] = useState<SavedSectionRow[]>([]);
+  const [savingSection, setSavingSection] = useState(false);
   const dragSrc = useRef<number | null>(null);
+  const initialFired = useRef(false);
+
+  // Fire onChange once on mount if initialBlocks provided
+  useEffect(() => {
+    if (!initialFired.current && (initialBlocks ?? []).length > 0) {
+      initialFired.current = true;
+      onChange(blocksToHtml(initialBlocks!), initialBlocks!);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load saved sections when panel opens
+  useEffect(() => {
+    if (!showSections) return;
+    fetch("/api/admin/saved-sections")
+      .then(r => r.json())
+      .then(data => setSections(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [showSections]);
 
   function update(next: EmailBlock[]) {
     setBlocks(next);
-    onChange(blocksToHtml(next));
+    onChange(blocksToHtml(next), next);
   }
 
   function addBlock(type: EmailBlockType) {
@@ -202,6 +239,7 @@ export function BlockComposer({ onChange }: Props) {
     const next = [...blocks, b];
     update(next);
     setSelected(b.id);
+    setShowSections(false);
   }
 
   function updateBlock(b: EmailBlock) {
@@ -222,7 +260,6 @@ export function BlockComposer({ onChange }: Props) {
     update(next);
   }
 
-  // HTML5 drag-and-drop reorder
   function handleDragStart(idx: number) { dragSrc.current = idx; }
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
@@ -234,6 +271,31 @@ export function BlockComposer({ onChange }: Props) {
     update(next);
   }
   function handleDragEnd() { dragSrc.current = null; }
+
+  async function saveAsSection() {
+    const name = prompt("Section name:");
+    if (!name?.trim()) return;
+    setSavingSection(true);
+    try {
+      await fetch("/api/admin/saved-sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), blocks }),
+      });
+    } finally { setSavingSection(false); }
+  }
+
+  function insertSection(row: SavedSectionRow) {
+    const incoming = (row.blocks as EmailBlock[]).map(b => ({ ...b, id: newId() }));
+    const next = [...blocks, ...incoming];
+    update(next);
+    setShowSections(false);
+  }
+
+  async function deleteSection(id: string) {
+    await fetch(`/api/admin/saved-sections/${id}`, { method: "DELETE" });
+    setSections(prev => prev.filter(s => s.id !== id));
+  }
 
   const generatedHtml = blocksToHtml(blocks);
 
@@ -248,11 +310,46 @@ export function BlockComposer({ onChange }: Props) {
             {label}
           </button>
         ))}
-        <button type="button" onClick={() => setShowHtml(v => !v)}
-          className={`ml-auto rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${showHtml ? "bg-navy text-white" : "border border-navy/15 text-ink-soft hover:bg-cream-panel"}`}>
-          {showHtml ? "Hide HTML" : "View HTML"}
-        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          {blocks.length > 0 && (
+            <button type="button" onClick={saveAsSection} disabled={savingSection}
+              className="rounded-lg border border-navy/15 bg-white px-2.5 py-1 text-xs font-medium text-ink-soft hover:bg-cream-panel disabled:opacity-50">
+              {savingSection ? "Saving…" : "Save section"}
+            </button>
+          )}
+          <button type="button" onClick={() => { setShowSections(v => !v); setShowHtml(false); }}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${showSections ? "bg-navy text-white" : "border border-navy/15 text-ink-soft hover:bg-cream-panel"}`}>
+            Sections
+          </button>
+          <button type="button" onClick={() => { setShowHtml(v => !v); setShowSections(false); }}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${showHtml ? "bg-navy text-white" : "border border-navy/15 text-ink-soft hover:bg-cream-panel"}`}>
+            {showHtml ? "Hide HTML" : "View HTML"}
+          </button>
+        </div>
       </div>
+
+      {/* Saved sections panel */}
+      {showSections && (
+        <div className="border-b border-navy/8 bg-cream-panel/60 px-4 py-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink-soft">Saved sections</p>
+          {sections.length === 0 ? (
+            <p className="text-sm text-ink-soft">No saved sections yet. Build blocks and click "Save section" to store them.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {sections.map(s => (
+                <div key={s.id} className="flex items-center justify-between rounded-lg border border-navy/10 bg-white px-3 py-2">
+                  <button type="button" onClick={() => insertSection(s)}
+                    className="text-left text-sm font-medium text-navy hover:underline truncate mr-2">
+                    {s.name}
+                  </button>
+                  <button type="button" onClick={() => deleteSection(s.id)}
+                    className="shrink-0 text-xs text-red-400 hover:text-red-600">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Block list */}
       <div className="divide-y divide-navy/5">
@@ -270,24 +367,13 @@ export function BlockComposer({ onChange }: Props) {
               onDragOver={e => handleDragOver(e, idx)}
               onDragEnd={handleDragEnd}
               className="group">
-              {/* Block row */}
               <div
                 onClick={() => setSelected(isSelected ? null : block.id)}
                 className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors ${isSelected ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
-                {/* Drag handle */}
-                <span className="cursor-grab text-ink-soft opacity-40 group-hover:opacity-100 select-none"
-                  title="Drag to reorder">
-                  ⠿
-                </span>
-                {/* Type badge */}
-                <span className="shrink-0 rounded bg-navy/8 px-1.5 py-0.5 text-xs font-semibold text-navy">
-                  {TYPE_LABELS[block.type]}
-                </span>
-                {/* Summary */}
+                <span className="cursor-grab text-ink-soft opacity-40 group-hover:opacity-100 select-none" title="Drag to reorder">⠿</span>
+                <span className="shrink-0 rounded bg-navy/8 px-1.5 py-0.5 text-xs font-semibold text-navy">{TYPE_LABELS[block.type]}</span>
                 <span className="flex-1 truncate text-sm text-ink">{blockSummary(block)}</span>
-                {/* Controls */}
-                <span className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={e => e.stopPropagation()}>
+                <span className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                   <button type="button" onClick={() => moveBlock(idx, -1)} disabled={idx === 0}
                     className="rounded px-1.5 py-0.5 text-xs text-ink-soft hover:bg-navy/8 disabled:opacity-30" title="Move up">↑</button>
                   <button type="button" onClick={() => moveBlock(idx, 1)} disabled={idx === blocks.length - 1}
@@ -296,10 +382,9 @@ export function BlockComposer({ onChange }: Props) {
                     className="rounded px-1.5 py-0.5 text-xs text-red-400 hover:bg-red-50" title="Delete">✕</button>
                 </span>
               </div>
-              {/* Editor panel */}
               {isSelected && (
                 <div className="border-t border-navy/8 bg-slate-50 px-4 py-4">
-                  <BlockEditor block={block} onChange={updateBlock} />
+                  <BlockEditor block={block} onChange={updateBlock} onPickImage={onPickImage} />
                 </div>
               )}
             </div>

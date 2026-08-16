@@ -920,17 +920,29 @@ model ContactListMember {
   @@index([contactId])
 }
 
+enum EmailTemplateStatus {
+  DRAFT
+  APPROVED
+  RETIRED
+}
+
 model EmailTemplate {
-  id        String   @id @default(cuid())
+  id        String               @id @default(cuid())
   name      String
   subject   String
-  htmlBody  String   @db.Text
-  textBody  String?  @db.Text
-  createdBy String?  // admin user id
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  htmlBody  String               @db.Text
+  textBody  String?              @db.Text
+  blocks    Json?
+  status    EmailTemplateStatus  @default(DRAFT)
+  category  String?
+  tags      String?
+  createdBy String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 
   campaigns Campaign[]
+
+  @@index([status])
 }
 
 model Campaign {
@@ -1508,4 +1520,33 @@ model ContactAttribution {
   attributedAt DateTime                 @default(now())
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+// ── SP-31: Media Asset Library + Saved Sections ───────────────────────────
+
+model MediaAsset {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  publicId  String   @unique
+  folder    String   @default("campaign-assets")
+  mimeType  String
+  width     Int?
+  height    Int?
+  bytes     Int?
+  alt       String?
+  tags      String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([folder])
+}
+
+model SavedSection {
+  id        String   @id @default(cuid())
+  name      String
+  blocks    Json
+  tags      String?
+  createdBy String?
+  createdAt DateTime @default(now())
 }

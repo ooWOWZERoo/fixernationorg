@@ -3,14 +3,19 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { blocksToHtml } from "@/lib/email-blocks";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
   subject: z.string().min(1).max(200),
-  htmlBody: z.string().min(1),
+  htmlBody: z.string().optional(),
   textBody: z.string().optional(),
+  blocks: z.array(z.record(z.unknown())).optional(),
+  status: z.enum(["DRAFT", "APPROVED", "RETIRED"]).optional(),
+  category: z.string().optional(),
+  tags: z.string().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -20,7 +25,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "GET") {
+    const { status, category, q } = req.query;
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (category) where.category = category;
+    if (q) {
+      where.OR = [
+        { name: { contains: q as string, mode: "insensitive" } },
+        { subject: { contains: q as string, mode: "insensitive" } },
+        { tags: { contains: q as string, mode: "insensitive" } },
+      ];
+    }
+
     const templates = await db.emailTemplate.findMany({
+      where,
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { campaigns: true } } },
     });
@@ -31,8 +49,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+    const { blocks: rawBlocks, htmlBody, ...rest } = parsed.data;
+
+    // Derive htmlBody from blocks if not explicitly provided
+    let resolvedHtml = htmlBody ?? "";
+    if (rawBlocks && rawBlocks.length > 0 && !htmlBody) {
+      resolvedHtml = blocksToHtml(rawBlocks as never);
+    }
+
     const template = await db.emailTemplate.create({
-      data: { ...parsed.data, createdBy: session.user.id },
+      data: {
+        ...rest,
+        htmlBody: resolvedHtml,
+        ...(rawBlocks !== undefined && { blocks: rawBlocks as never }),
+        createdBy: session.user.id,
+      },
     });
     return res.status(201).json(template);
   }
