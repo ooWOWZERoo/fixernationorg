@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildCampaignEmail } from "@/lib/campaign-email";
 import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
+import { webpush } from "@/lib/web-push";
 
 type SupDb = {
   suppressionRecord: {
@@ -27,6 +28,15 @@ type AbSendDb = {
     createMany: (a: unknown) => Promise<{ count: number }>;
     findMany: (a: unknown) => Promise<{ id: string; contactId: string; variantId: string | null }[]>;
     update: (a: unknown) => Promise<unknown>;
+  };
+};
+
+type PushDb = {
+  pushSubscription: {
+    findMany: (a: unknown) => Promise<{ id: string; userId: string; endpoint: string; p256dhKey: string; authKey: string }[]>;
+  };
+  contact: {
+    findMany: (a: unknown) => Promise<{ id: string; userId: string | null }[]>;
   };
 };
 
@@ -81,6 +91,8 @@ const updateSchema = z.object({
   fromEmail: z.string().email().optional(),
   htmlBody: z.string().optional(),
   textBody: z.string().optional(),
+  pushUrl: z.string().url().nullable().optional(),
+  pushIcon: z.string().url().nullable().optional(),
   listId: z.string().nullable().optional(),
   audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().nullable().optional(),
@@ -104,6 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   if (!campaign) return res.status(404).json({ error: "Campaign not found" });
   const isAbTest = (campaign as unknown as { isAbTest: boolean }).isAbTest ?? false;
+  const channelType = (campaign as unknown as { channelType: string }).channelType ?? "EMAIL";
 
   if (req.method === "GET") {
     const stats = await db.campaignSend.groupBy({
@@ -299,7 +312,75 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let failed = 0;
     const now = new Date();
 
-    if (isAbTest) {
+    if (channelType === "PUSH") {
+      // ── Push notification send ────────────────────────────────────────────
+      const pushDb = db as never as PushDb;
+
+      // Resolve userIds for eligible contacts
+      const contactsWithUser = await pushDb.contact.findMany({
+        where: { id: { in: eligibleContacts.map((c) => c.id) } } as never,
+        select: { id: true, userId: true } as never,
+      });
+      const userIds = contactsWithUser.filter((c) => c.userId).map((c) => c.userId!);
+
+      if (userIds.length === 0) {
+        await db.campaign.update({ where: { id }, data: { status: "DRAFT" } });
+        return res.status(200).json({ message: "No contacts with push subscriptions", sent: 0 });
+      }
+
+      const subscriptions = await pushDb.pushSubscription.findMany({
+        where: { userId: { in: userIds } } as never,
+      });
+
+      // Map userId → contactId for CampaignSend records
+      const contactByUserId = Object.fromEntries(
+        contactsWithUser.filter((c) => c.userId).map((c) => [c.userId!, c.id])
+      );
+
+      const pushCampaign = campaign as unknown as { subject: string; textBody: string | null; pushUrl: string | null; pushIcon: string | null };
+      const payload = JSON.stringify({
+        title: pushCampaign.subject,
+        body: pushCampaign.textBody ?? "",
+        url: pushCampaign.pushUrl ?? "/",
+        icon: pushCampaign.pushIcon ?? undefined,
+      });
+
+      // Create send records for all subscribers
+      await db.campaignSend.createMany({
+        data: subscriptions.map((sub) => ({
+          campaignId: id,
+          contactId: contactByUserId[sub.userId],
+        })).filter((r) => r.contactId),
+        skipDuplicates: true,
+      });
+
+      for (let i = 0; i < subscriptions.length; i += BATCH) {
+        const batch = subscriptions.slice(i, i + BATCH);
+        await Promise.allSettled(
+          batch.map(async (sub) => {
+            const contactId = contactByUserId[sub.userId];
+            if (!contactId) return;
+            try {
+              await webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dhKey, auth: sub.authKey } },
+                payload,
+              );
+              await db.campaignSend.update({
+                where: { campaignId_contactId: { campaignId: id, contactId } },
+                data: { status: "SENT", sentAt: now },
+              });
+              sent++;
+            } catch {
+              await db.campaignSend.update({
+                where: { campaignId_contactId: { campaignId: id, contactId } },
+                data: { status: "BOUNCED", bouncedAt: now },
+              }).catch(() => {});
+              failed++;
+            }
+          })
+        );
+      }
+    } else if (isAbTest) {
       // ── A/B send: split audience by variant, stamp variantId on each send ──
       const varDb = db as never as VarDb;
       const abDb = db as never as AbSendDb;

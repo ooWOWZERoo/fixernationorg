@@ -48,11 +48,14 @@ interface Props {
     id: string;
     name: string;
     status: string;
+    channelType: string;
     subject: string;
     fromName: string;
     fromEmail: string;
-    htmlBody: string;
+    htmlBody: string | null;
     textBody: string | null;
+    pushUrl: string | null;
+    pushIcon: string | null;
     listId: string | null;
     listName: string | null;
     hasAudienceRules: boolean;
@@ -213,16 +216,29 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                 <h1 className="text-xl font-extrabold text-navy">{campaign.name}</h1>
                 <p className="mt-0.5 text-sm text-ink-soft">{campaign.subject}</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_COLORS[campaign.status] ?? "bg-navy/8 text-navy"}`}>
-                {campaign.status.toLowerCase()}
-              </span>
+              <div className="flex items-center gap-2">
+                {campaign.channelType === "PUSH" && (
+                  <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">Push</span>
+                )}
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_COLORS[campaign.status] ?? "bg-navy/8 text-navy"}`}>
+                  {campaign.status.toLowerCase()}
+                </span>
+              </div>
             </div>
 
             <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">From</span>
-                <span>{campaign.fromName} &lt;{campaign.fromEmail}&gt;</span>
-              </div>
+              {campaign.channelType !== "PUSH" && (
+                <div>
+                  <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">From</span>
+                  <span>{campaign.fromName} &lt;{campaign.fromEmail}&gt;</span>
+                </div>
+              )}
+              {campaign.channelType === "PUSH" && campaign.pushUrl && (
+                <div>
+                  <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">Click URL</span>
+                  <span className="truncate">{campaign.pushUrl}</span>
+                </div>
+              )}
               <div>
                 <span className="block text-xs font-bold uppercase tracking-widest text-ink-soft">Audience</span>
                 {campaign.hasAudienceRules ? (
@@ -279,16 +295,39 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
             )}
           </div>
 
-          {/* HTML preview */}
+          {/* HTML preview (email only) */}
+          {campaign.channelType !== "PUSH" && (
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Email preview</h2>
             <div className="overflow-auto rounded-xl border border-navy/8 bg-cream-panel p-4 text-xs font-mono max-h-64 text-ink-soft whitespace-pre-wrap">
-              {campaign.htmlBody.slice(0, 2000)}{campaign.htmlBody.length > 2000 ? "\n…" : ""}
+              {(campaign.htmlBody ?? "").slice(0, 2000)}{(campaign.htmlBody ?? "").length > 2000 ? "\n…" : ""}
             </div>
           </div>
+          )}
 
-          {/* A/B Testing */}
-          {(campaign.status === "DRAFT" || campaign.status === "SCHEDULED" || campaign.isAbTest) && (
+          {/* Push notification preview */}
+          {campaign.channelType === "PUSH" && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Notification preview</h2>
+              <div className="flex items-start gap-3 rounded-xl border border-navy/8 bg-cream-panel p-4">
+                {campaign.pushIcon ? (
+                  <img src={campaign.pushIcon} alt="" className="h-10 w-10 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg bg-navy/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="h-5 w-5 text-navy/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-semibold text-navy">{campaign.subject}</p>
+                  {campaign.textBody && <p className="mt-0.5 text-xs text-ink-soft">{campaign.textBody}</p>}
+                  {campaign.pushUrl && <p className="mt-1 text-xs text-ink-soft/60">{campaign.pushUrl}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* A/B Testing (email only) */}
+          {campaign.channelType !== "PUSH" && (campaign.status === "DRAFT" || campaign.status === "SCHEDULED" || campaign.isAbTest) && (
             <div className="rounded-2xl border border-navy/8 bg-white p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -592,6 +631,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!campaign) return { notFound: true };
 
   const isAbTest = (campaign as unknown as { isAbTest: boolean }).isAbTest ?? false;
+  const channelType = (campaign as unknown as { channelType: string }).channelType ?? "EMAIL";
+  const pushUrl = (campaign as unknown as { pushUrl: string | null }).pushUrl ?? null;
+  const pushIcon = (campaign as unknown as { pushIcon: string | null }).pushIcon ?? null;
 
   // Build a human-readable summary of audienceRules for display
   type RuleShape = { type: string; listId?: string; role?: string; tag?: string; topic?: string; label?: string };
@@ -659,11 +701,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         id: campaign.id,
         name: campaign.name,
         status: campaign.status,
+        channelType,
         subject: campaign.subject,
         fromName: campaign.fromName,
         fromEmail: campaign.fromEmail,
         htmlBody: campaign.htmlBody,
         textBody: campaign.textBody,
+        pushUrl,
+        pushIcon,
         listId: campaign.listId,
         listName: campaign.list?.name ?? null,
         hasAudienceRules: !!aud && aud.include.length > 0,

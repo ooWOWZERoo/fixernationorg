@@ -15,11 +15,14 @@ const audienceRulesSchema = z.object({
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
+  channelType: z.enum(["EMAIL", "PUSH"]).optional(),
   subject: z.string().min(1).max(200),
   fromName: z.string().optional(),
   fromEmail: z.string().email().optional(),
-  htmlBody: z.string().min(1),
+  htmlBody: z.string().min(1).optional(),
   textBody: z.string().optional(),
+  pushUrl: z.string().url().optional(),
+  pushIcon: z.string().url().optional(),
   templateId: z.string().optional(),
   listId: z.string().optional(),
   audienceRules: audienceRulesSchema,
@@ -49,6 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+    const channelType = parsed.data.channelType ?? "EMAIL";
+    if (channelType === "EMAIL" && !parsed.data.htmlBody) {
+      return res.status(400).json({ error: "htmlBody is required for email campaigns" });
+    }
+
     // Validate that the list (if provided) is FN_ADMIN-owned — AC-067
     if (parsed.data.listId) {
       const list = await db.contactList.findUnique({ where: { id: parsed.data.listId } });
@@ -58,10 +66,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const { audienceRules: rawAudienceRules, ...restData } = parsed.data;
-    const campaign = await db.campaign.create({
+    const { audienceRules: rawAudienceRules, channelType: _ch, ...restData } = parsed.data;
+    const campaign = await (db.campaign as unknown as {
+      create: (a: unknown) => Promise<{ id: string; subject: string; htmlBody: string | null; textBody: string | null; fromName: string; fromEmail: string }>;
+    }).create({
       data: {
         ...restData,
+        channelType,
         audienceRules: rawAudienceRules !== undefined ? (rawAudienceRules as never) : undefined,
         scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
         status: parsed.data.scheduledAt ? "SCHEDULED" : "DRAFT",
@@ -69,19 +80,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // Save initial version snapshot
-    await db.campaignVersion.create({
-      data: {
-        campaignId: campaign.id,
-        version: 1,
-        subject: campaign.subject,
-        htmlBody: campaign.htmlBody,
-        textBody: campaign.textBody,
-        fromName: campaign.fromName,
-        fromEmail: campaign.fromEmail,
-        savedBy: session.user.id,
-      },
-    });
+    // Save initial version snapshot (email campaigns only)
+    if (channelType === "EMAIL") {
+      await db.campaignVersion.create({
+        data: {
+          campaignId: campaign.id,
+          version: 1,
+          subject: campaign.subject,
+          htmlBody: campaign.htmlBody ?? "",
+          textBody: campaign.textBody,
+          fromName: campaign.fromName,
+          fromEmail: campaign.fromEmail,
+          savedBy: session.user.id,
+        },
+      });
+    }
 
     return res.status(201).json(campaign);
   }

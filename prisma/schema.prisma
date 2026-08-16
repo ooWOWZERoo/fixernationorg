@@ -55,6 +55,7 @@ model User {
   crmContact               Contact?
   territoryAssignments     TerritoryAssignment[]
   affiliateAssignments     AffiliateAssignment[]
+  pushSubscriptions        PushSubscription[]
 
   @@index([email])
 }
@@ -949,14 +950,17 @@ model EmailTemplate {
 }
 
 model Campaign {
-  id          String         @id @default(cuid())
+  id          String                @id @default(cuid())
   name        String
-  status      CampaignStatus @default(DRAFT)
+  status      CampaignStatus        @default(DRAFT)
+  channelType CampaignChannelType   @default(EMAIL)
   subject     String
-  fromName    String         @default("Fixer Nation")
-  fromEmail   String         @default("campaigns@fixernation.org")
-  htmlBody    String         @db.Text
-  textBody    String?        @db.Text
+  fromName    String                @default("Fixer Nation")
+  fromEmail   String                @default("campaigns@fixernation.org")
+  htmlBody    String?               @db.Text
+  textBody    String?               @db.Text
+  pushUrl     String?
+  pushIcon    String?
   templateId    String?
   listId        String?
   audienceRules Json?
@@ -1061,12 +1065,18 @@ enum ContactConsentTopic {
   CAMPAIGNS
   NEWSLETTERS
   PRODUCT_UPDATES
+  PUSH_NOTIFICATIONS
 }
 
 enum ContactListOwnerType {
   FN_ADMIN
   AMBASSADOR
   PROVIDER
+}
+
+enum CampaignChannelType {
+  EMAIL
+  PUSH
 }
 
 enum CampaignStatus {
@@ -1710,4 +1720,22 @@ model CustomFieldValue {
 
   @@unique([contactId, fieldId])
   @@index([fieldId])
+}
+
+// ─── SP-37: Browser Push Subscriptions ───────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dhKey String
+  authKey   String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId])
 }
