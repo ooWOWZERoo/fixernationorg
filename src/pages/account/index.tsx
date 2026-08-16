@@ -110,6 +110,14 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
                 <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   Business profile
                 </Link>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/provider/contacts" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  My contacts
+                </Link>
+                <span className="text-ink-soft/40">·</span>
+                <Link href="/account/provider/campaigns" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                  My campaigns
+                </Link>
               </>
             )}
             {user.role === "AMBASSADOR" && (

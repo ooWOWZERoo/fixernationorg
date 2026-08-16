@@ -370,12 +370,26 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingAp
               </Link>
               .
             </p>
-            <Link
-              href="/account/business"
-              className="mt-3 inline-block text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
-            >
-              Set up your listing →
-            </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <Link
+                href="/account/business"
+                className="text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
+              >
+                Set up your listing →
+              </Link>
+              <Link
+                href="/account/provider/contacts"
+                className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
+              >
+                My contacts →
+              </Link>
+              <Link
+                href="/account/provider/campaigns"
+                className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
+              >
+                My campaigns →
+              </Link>
+            </div>
           </div>
         )}
 

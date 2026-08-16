@@ -58,6 +58,8 @@ model User {
   pushSubscriptions        PushSubscription[]
   stripeCustomerId         String?
   membership               UserMembership?
+  providerContacts         ProviderContact[]  @relation("ProviderContacts")
+  providerCampaigns        ProviderCampaign[] @relation("ProviderCampaigns")
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -1787,4 +1789,72 @@ model ContactImportBatch {
   importedAt           DateTime @default(now())
 
   @@index([importedAt])
+}
+
+// ─── SP-41: Provider Campaign Creation ───────────────────────────────────────
+
+enum ProviderCampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum ProviderCampaignSendStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model ProviderContact {
+  id             String   @id @default(cuid())
+  providerUserId String
+  firstName      String?
+  lastName       String?
+  email          String
+  phone          String?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  provider User                 @relation("ProviderContacts", fields: [providerUserId], references: [id], onDelete: Cascade)
+  sends    ProviderCampaignSend[]
+
+  @@unique([providerUserId, email])
+  @@index([providerUserId])
+}
+
+model ProviderCampaign {
+  id             String                @id @default(cuid())
+  providerUserId String
+  name           String
+  subject        String
+  fromName       String
+  htmlBody       String                @db.Text
+  textBody       String?               @db.Text
+  status         ProviderCampaignStatus @default(DRAFT)
+  sentAt         DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  provider User                 @relation("ProviderCampaigns", fields: [providerUserId], references: [id], onDelete: Cascade)
+  sends    ProviderCampaignSend[]
+
+  @@index([providerUserId])
+  @@index([status])
+}
+
+model ProviderCampaignSend {
+  id                String                    @id @default(cuid())
+  campaignId        String
+  providerContactId String
+  status            ProviderCampaignSendStatus @default(QUEUED)
+  sentAt            DateTime?
+  createdAt         DateTime                  @default(now())
+
+  campaign ProviderCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  ProviderContact  @relation(fields: [providerContactId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, providerContactId])
+  @@index([campaignId])
 }

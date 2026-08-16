@@ -18,17 +18,19 @@ export async function sendEmail({
   subject,
   html,
   text,
+  from,
 }: {
   to: string;
   subject: string;
   html: string;
   text: string;
+  from?: string;
 }) {
   if (!process.env.SMTP_USER) {
     console.warn("[email] SMTP_USER not set — skipping send to", to);
     return;
   }
-  await transporter.sendMail({ from: FROM, to, subject, html, text });
+  await transporter.sendMail({ from: from ?? FROM, to, subject, html, text });
 }
 
 export async function sendVerificationEmail(to: string, token: string) {
