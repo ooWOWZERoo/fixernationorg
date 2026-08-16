@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
-import { useSession } from "next-auth/react";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
 const MEMBERSHIP_ROLES = ["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR"] as const;
-const ADMIN_ROLES = ["NONE", "ADMIN", "SUPER_ADMIN"] as const;
+const ADMIN_ROLE_OPTIONS = ["NONE", "ADMIN", "SUPER_ADMIN"] as const;
 
 const MEMBERSHIP_LABEL: Record<string, string> = {
   CONSUMER: "Consumer",
@@ -23,6 +22,19 @@ const ADMIN_LABEL: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
 };
 
+const MEMBERSHIP_BADGE: Record<string, string> = {
+  CONSUMER: "bg-slate-100 text-slate-600",
+  MEMBER: "bg-navy/10 text-navy",
+  PROVIDER: "bg-sky-100 text-sky-700",
+  AMBASSADOR: "bg-violet-100 text-violet-700",
+};
+
+const ADMIN_BADGE: Record<string, string> = {
+  NONE: "bg-slate-100 text-slate-500",
+  ADMIN: "bg-amber/15 text-amber-dark border border-amber/30",
+  SUPER_ADMIN: "bg-amber/30 text-amber-dark border border-amber/50 font-bold",
+};
+
 interface UserRow {
   id: string;
   name: string | null;
@@ -34,13 +46,16 @@ interface UserRow {
 
 interface Props {
   users: UserRow[];
+  myId: string;
+  myAdminRole: string;
 }
 
-const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
-  const { data: session } = useSession();
+const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, myAdminRole }) => {
   const [users, setUsers] = useState(initialUsers);
   const [saving, setSaving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
+
+  const iAmSuperAdmin = myAdminRole === "SUPER_ADMIN";
 
   async function updateField(userId: string, field: "role" | "adminRole", value: string) {
     setSaving(userId);
@@ -71,7 +86,10 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Users</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {users.length} registered user{users.length !== 1 ? "s" : ""}.
+          {users.length} registered user{users.length !== 1 ? "s" : ""}.{" "}
+          {iAmSuperAdmin && (
+            <span className="text-slate-400">Membership and staff access can be edited independently.</span>
+          )}
         </p>
       </div>
 
@@ -81,29 +99,43 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">User</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Membership</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Staff access</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Membership role
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Staff access
+                  {iAmSuperAdmin && <span className="ml-1.5 text-[10px] font-normal normal-case text-amber-dark">(Super Admin only)</span>}
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Joined</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map((user) => {
-                const isMe = user.id === session?.user?.id;
+                const isMe = user.id === myId;
                 const targetIsSuperAdmin = user.adminRole === "SUPER_ADMIN";
-                const iAmSuperAdmin = session?.user?.adminRole === "SUPER_ADMIN";
-                const canEdit = !isMe && !(targetIsSuperAdmin && !iAmSuperAdmin);
+                const canEditMembership = !isMe && !(targetIsSuperAdmin && !iAmSuperAdmin);
+                const canEditAdmin = iAmSuperAdmin && !isMe;
                 const fb = feedback?.id === user.id ? feedback : null;
 
                 return (
                   <tr key={user.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-slate-900">{user.name ?? "—"}</p>
-                      <p className="text-xs text-slate-400">{user.email}</p>
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{user.name ?? "—"}</p>
+                          <p className="text-xs text-slate-400">{user.email}</p>
+                        </div>
+                        {isMe && (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                            you
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Membership role */}
                     <td className="px-4 py-3">
-                      {canEdit ? (
+                      {canEditMembership ? (
                         <select
                           value={user.role}
                           disabled={saving === user.id}
@@ -115,32 +147,30 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
                           ))}
                         </select>
                       ) : (
-                        <span className="inline-flex rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-medium text-navy">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${MEMBERSHIP_BADGE[user.role] ?? "bg-slate-100 text-slate-600"}`}>
                           {MEMBERSHIP_LABEL[user.role] ?? user.role}
                         </span>
                       )}
                     </td>
 
-                    {/* Admin role */}
+                    {/* Staff access (adminRole) */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {canEdit && iAmSuperAdmin ? (
+                        {canEditAdmin ? (
                           <select
                             value={user.adminRole}
                             disabled={saving === user.id}
                             onChange={(e) => updateField(user.id, "adminRole", e.target.value)}
                             className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-navy focus:outline-none disabled:opacity-50"
                           >
-                            {ADMIN_ROLES.map((r) => (
+                            {ADMIN_ROLE_OPTIONS.map((r) => (
                               <option key={r} value={r}>{ADMIN_LABEL[r]}</option>
                             ))}
                           </select>
-                        ) : user.adminRole !== "NONE" ? (
-                          <span className="inline-flex rounded-full bg-amber/20 px-2.5 py-0.5 text-xs font-semibold text-amber-dark">
+                        ) : (
+                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${ADMIN_BADGE[user.adminRole] ?? "bg-slate-100 text-slate-500"}`}>
                             {ADMIN_LABEL[user.adminRole] ?? user.adminRole}
                           </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
                         )}
                         {saving === user.id && <span className="text-xs text-slate-400">Saving…</span>}
                         {fb && (
@@ -148,7 +178,6 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
                             {fb.msg}
                           </span>
                         )}
-                        {isMe && <span className="text-xs text-slate-400">(you)</span>}
                       </div>
                     </td>
 
@@ -179,7 +208,13 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     select: { id: true, name: true, email: true, role: true, adminRole: true, createdAt: true },
   });
 
-  return { props: { users: JSON.parse(JSON.stringify(users)) } };
+  return {
+    props: {
+      users: JSON.parse(JSON.stringify(users)),
+      myId: session.user.id,
+      myAdminRole: session.user.adminRole,
+    },
+  };
 };
 
 export default AdminUsersPage;
