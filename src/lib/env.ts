@@ -20,8 +20,6 @@ const serverSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
-  // ── Optional: Phase 1+ ─────────────────────────────────────────────────────
-  SENTRY_DSN: z.string().optional(),
 });
 
 const clientSchema = z.object({
@@ -29,14 +27,12 @@ const clientSchema = z.object({
     .string()
     .url()
     .default("http://localhost:3000"),
-  NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
 });
 
 function buildEnv() {
   if (typeof window !== "undefined") {
     return clientSchema.parse({
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-      NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     }) as z.infer<typeof serverSchema> & z.infer<typeof clientSchema>;
   }
 
@@ -49,7 +45,6 @@ function buildEnv() {
 
   const client = clientSchema.parse({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   });
 
   return { ...(server.data ?? {}), ...client } as z.infer<typeof serverSchema> &

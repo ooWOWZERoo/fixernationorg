@@ -1,3 +1,4 @@
+import Head from "next/head";
 import Link from "next/link";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
@@ -304,6 +305,10 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingAp
   const roleLabel = ROLE_LABEL[role] ?? role;
 
   return (
+    <>
+    <Head>
+      <title>Dashboard — Fixer Nation</title>
+    </Head>
     <div className="min-h-screen bg-cream py-12 px-4">
       <div className="mx-auto max-w-3xl">
 
@@ -452,6 +457,7 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingAp
 
       </div>
     </div>
+    </>
   );
 };
 
