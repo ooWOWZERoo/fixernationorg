@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 const FOOTER_LINKS = {
   Books: [
@@ -30,22 +31,37 @@ const FOOTER_LINKS = {
 };
 
 export function SiteFooter() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/public/site-settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
+  }, []);
+
   return (
     <footer className="bg-navy-dark text-white/75">
       <div className="mx-auto max-w-6xl px-6 py-14 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-7">
 
-          {/* Brand column */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
+          {/* Brand column — wider to accommodate logo */}
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <Link href="/" className="flex items-center gap-2.5 no-underline hover:no-underline">
-              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
-                ✓
-              </span>
-              <span className="text-lg font-extrabold tracking-tight text-white">
-                Fixer Nation
-              </span>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="Fixer Nation" className="h-12 w-auto max-w-[200px] object-contain" />
+              ) : (
+                <>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
+                    ✓
+                  </span>
+                  <span className="text-lg font-extrabold tracking-tight text-white">
+                    Fixer Nation
+                  </span>
+                </>
+              )}
             </Link>
-            <p className="mt-3.5 text-sm leading-relaxed text-white/60 max-w-[220px]">
+            <p className="mt-3.5 text-sm leading-relaxed text-white/60 max-w-[240px]">
               "There are no problems in life... only issues and answers." — Fixer Nation Credo
             </p>
           </div>

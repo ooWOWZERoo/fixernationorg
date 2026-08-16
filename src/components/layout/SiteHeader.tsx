@@ -60,7 +60,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-navy/8 bg-white">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 lg:px-8">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 lg:px-8">
 
         {/* Brand */}
         <Link
@@ -69,9 +69,9 @@ export function SiteHeader() {
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Fixer Nation" className="h-9 w-auto max-w-[160px] object-contain" />
+            <img src={logoUrl} alt="Fixer Nation" className="h-12 w-auto max-w-[200px] object-contain" />
           ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
+            <span className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-navy text-amber text-xl font-extrabold">
               ✓
             </span>
           )}

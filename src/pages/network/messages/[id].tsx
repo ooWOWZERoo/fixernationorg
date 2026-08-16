@@ -140,7 +140,7 @@ const NetworkThreadPage: NextPageWithLayout<Props> = ({
         <title>{otherUser.name ?? "Messages"} — FN Network</title>
       </Head>
 
-      <div className="flex h-[calc(100dvh-4rem)] flex-col">
+      <div className="flex h-[calc(100dvh-5rem)] flex-col">
         {/* Thread header */}
         <div className="flex items-center gap-3 border-b border-navy/10 bg-white px-5 py-3">
           <Link
