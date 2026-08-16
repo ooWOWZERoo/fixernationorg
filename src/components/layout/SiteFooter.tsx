@@ -78,6 +78,7 @@ export function SiteFooter() {
             <Link href="/privacy" className="text-white/75 underline underline-offset-2 transition-colors hover:text-amber">Privacy policy</Link>
             <Link href="/terms" className="text-white/75 underline underline-offset-2 transition-colors hover:text-amber">Terms of service</Link>
             <Link href="/cookie-policy" className="text-white/75 underline underline-offset-2 transition-colors hover:text-amber">Cookies</Link>
+            <Link href="/developers" className="text-white/75 underline underline-offset-2 transition-colors hover:text-amber">API Reference</Link>
           </div>
         </div>
       </div>
