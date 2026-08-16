@@ -823,8 +823,9 @@ model Contact {
   notes            ContactNote[]
   listMemberships  ContactListMember[]
   campaignSends    CampaignSend[]
-  subscriptions    ContactSubscription[]
-  attribution      ContactAttribution?
+  subscriptions     ContactSubscription[]
+  attribution       ContactAttribution?
+  customFieldValues CustomFieldValue[]
 
   @@index([email])
   @@index([userId])
@@ -1549,4 +1550,48 @@ model SavedSection {
   tags      String?
   createdBy String?
   createdAt DateTime @default(now())
+}
+
+// ─── Custom fields ─────────────────────────────────────────────────────────────
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+  CHECKBOX
+  URL
+  TEXTAREA
+}
+
+model CustomFieldDefinition {
+  id        String          @id @default(cuid())
+  slug      String          @unique
+  label     String
+  type      CustomFieldType
+  options   Json?
+  required  Boolean         @default(false)
+  active    Boolean         @default(true)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  values    CustomFieldValue[]
+
+  @@index([active])
+}
+
+model CustomFieldValue {
+  id        String   @id @default(cuid())
+  contactId String
+  fieldId   String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact Contact               @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  field   CustomFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, fieldId])
+  @@index([fieldId])
 }

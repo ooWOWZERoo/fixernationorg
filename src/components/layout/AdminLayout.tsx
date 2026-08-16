@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "CRM",
     items: [
       { href: "/admin/contacts", label: "Contacts" },
+      { href: "/admin/custom-fields", label: "Custom fields" },
       { href: "/admin/lists", label: "Lists" },
       { href: "/admin/campaigns", label: "Campaigns" },
       { href: "/admin/email-templates", label: "Email templates" },

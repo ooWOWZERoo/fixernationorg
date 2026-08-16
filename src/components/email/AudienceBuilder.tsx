@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AudienceDefinition, AudienceRule } from "@/lib/audience";
 
 interface ListOption { id: string; name: string }
+interface FieldOption { id: string; label: string; type: string }
+
 interface Props {
   value: AudienceDefinition;
   onChange: (d: AudienceDefinition) => void;
@@ -17,8 +19,15 @@ interface PreviewResult {
 
 const ROLES = ["MEMBER", "CONSUMER", "PROVIDER", "AMBASSADOR", "ADMIN", "SUPER_ADMIN"];
 const TOPICS = ["CAMPAIGNS", "NEWSLETTERS", "MORNING_BOOST", "PRODUCT_UPDATES"];
+const CF_OPS: { value: string; label: string }[] = [
+  { value: "set",      label: "is set (any value)" },
+  { value: "not_set",  label: "is not set" },
+  { value: "eq",       label: "equals" },
+  { value: "ne",       label: "does not equal" },
+  { value: "contains", label: "contains" },
+];
 
-function ruleDisplay(rule: AudienceRule, lists: ListOption[]): { badge: string; label: string } {
+function ruleDisplay(rule: AudienceRule, lists: ListOption[], fields: FieldOption[]): { badge: string; label: string } {
   switch (rule.type) {
     case "list":
       return { badge: "List", label: rule.label ?? lists.find((l) => l.id === rule.listId)?.name ?? rule.listId };
@@ -28,6 +37,14 @@ function ruleDisplay(rule: AudienceRule, lists: ListOption[]): { badge: string; 
       return { badge: "Tag", label: rule.tag };
     case "consent_topic":
       return { badge: "Consent", label: rule.topic };
+    case "custom_field": {
+      const fieldLabel = rule.fieldLabel ?? fields.find(f => f.id === rule.fieldId)?.label ?? rule.fieldId;
+      const opLabel = CF_OPS.find(o => o.value === rule.op)?.label ?? rule.op;
+      return {
+        badge: "Custom field",
+        label: rule.value ? `${fieldLabel} ${opLabel} "${rule.value}"` : `${fieldLabel} ${opLabel}`,
+      };
+    }
   }
 }
 
@@ -35,16 +52,25 @@ type RuleType = AudienceRule["type"];
 
 interface AddRuleFormProps {
   lists: ListOption[];
+  fields: FieldOption[];
   onAdd: (rule: AudienceRule) => void;
   onCancel: () => void;
 }
 
-function AddRuleForm({ lists, onAdd, onCancel }: AddRuleFormProps) {
+function AddRuleForm({ lists, fields, onAdd, onCancel }: AddRuleFormProps) {
   const [ruleType, setRuleType] = useState<RuleType>("list");
   const [listId, setListId] = useState(lists[0]?.id ?? "");
   const [role, setRole] = useState("MEMBER");
   const [tag, setTag] = useState("");
   const [topic, setTopic] = useState("CAMPAIGNS");
+  const [cfFieldId, setCfFieldId] = useState(fields[0]?.id ?? "");
+  const [cfOp, setCfOp] = useState<string>("set");
+  const [cfValue, setCfValue] = useState("");
+
+  // Keep cfFieldId in sync when fields load
+  useEffect(() => {
+    if (!cfFieldId && fields[0]) setCfFieldId(fields[0].id);
+  }, [fields, cfFieldId]);
 
   function handleAdd() {
     let rule: AudienceRule | null = null;
@@ -63,9 +89,21 @@ function AddRuleForm({ lists, onAdd, onCancel }: AddRuleFormProps) {
       case "consent_topic":
         rule = { type: "consent_topic", topic };
         break;
+      case "custom_field":
+        if (!cfFieldId) return;
+        rule = {
+          type: "custom_field",
+          fieldId: cfFieldId,
+          fieldLabel: fields.find(f => f.id === cfFieldId)?.label,
+          op: cfOp as never,
+          ...(cfOp !== "set" && cfOp !== "not_set" && cfValue.trim() ? { value: cfValue.trim() } : {}),
+        };
+        break;
     }
     if (rule) onAdd(rule);
   }
+
+  const valueRequired = ruleType === "custom_field" && cfOp !== "set" && cfOp !== "not_set";
 
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-navy/15 bg-slate-50 p-3">
@@ -80,6 +118,7 @@ function AddRuleForm({ lists, onAdd, onCancel }: AddRuleFormProps) {
           <option value="role">Has role</option>
           <option value="tag">Has tag</option>
           <option value="consent_topic">Subscribed to topic</option>
+          {fields.length > 0 && <option value="custom_field">Custom field</option>}
         </select>
       </div>
 
@@ -125,13 +164,44 @@ function AddRuleForm({ lists, onAdd, onCancel }: AddRuleFormProps) {
             {TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         )}
+        {ruleType === "custom_field" && (
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={cfFieldId}
+              onChange={(e) => setCfFieldId(e.target.value)}
+              className="rounded-lg border border-navy/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+            >
+              {fields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+            <select
+              value={cfOp}
+              onChange={(e) => setCfOp(e.target.value)}
+              className="rounded-lg border border-navy/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+            >
+              {CF_OPS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {valueRequired && (
+              <input
+                type="text"
+                value={cfValue}
+                onChange={(e) => setCfValue(e.target.value)}
+                placeholder="Value…"
+                className="rounded-lg border border-navy/15 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={handleAdd}
-          disabled={ruleType === "list" && !listId}
+          disabled={
+            (ruleType === "list" && !listId) ||
+            (ruleType === "tag" && !tag.trim()) ||
+            (ruleType === "custom_field" && (!cfFieldId || (valueRequired && !cfValue.trim())))
+          }
           className="rounded-lg bg-navy px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy-dark disabled:opacity-40"
         >
           Add
@@ -154,6 +224,22 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [fields, setFields] = useState<FieldOption[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/custom-fields?activeOnly=1")
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setFields(data.map((f: { id: string; label: string; type: string }) => ({
+            id: f.id,
+            label: f.label,
+            type: f.type,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   function addInclude(rule: AudienceRule) {
     onChange({ ...value, include: [...value.include, rule] });
@@ -234,7 +320,7 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
 
         <div className="space-y-1.5">
           {value.include.map((rule, idx) => {
-            const { badge, label } = ruleDisplay(rule, lists);
+            const { badge, label } = ruleDisplay(rule, lists, fields);
             return (
               <div key={idx} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                 <span className="shrink-0 rounded bg-navy/8 px-1.5 py-0.5 text-xs font-semibold text-navy">{badge}</span>
@@ -255,6 +341,7 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
         {showAddInclude ? (
           <AddRuleForm
             lists={lists}
+            fields={fields}
             onAdd={addInclude}
             onCancel={() => setShowAddInclude(false)}
           />
@@ -281,7 +368,7 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
 
         <div className="space-y-1.5">
           {value.exclude.map((rule, idx) => {
-            const { badge, label } = ruleDisplay(rule, lists);
+            const { badge, label } = ruleDisplay(rule, lists, fields);
             return (
               <div key={idx} className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
                 <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">{badge}</span>
@@ -302,6 +389,7 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
         {showAddExclude ? (
           <AddRuleForm
             lists={lists}
+            fields={fields}
             onAdd={addExclude}
             onCancel={() => setShowAddExclude(false)}
           />

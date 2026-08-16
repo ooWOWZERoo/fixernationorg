@@ -2,12 +2,19 @@ import { db } from "@/lib/db";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface ListRule    { type: "list";          listId: string; label?: string }
-export interface RoleRule    { type: "role";          role: string }
-export interface TagRule     { type: "tag";           tag: string }
-export interface ConsentRule { type: "consent_topic"; topic: string }
+export interface ListRule        { type: "list";          listId: string; label?: string }
+export interface RoleRule        { type: "role";          role: string }
+export interface TagRule         { type: "tag";           tag: string }
+export interface ConsentRule     { type: "consent_topic"; topic: string }
+export interface CustomFieldRule {
+  type: "custom_field";
+  fieldId: string;
+  fieldLabel?: string;
+  op: "eq" | "ne" | "contains" | "set" | "not_set";
+  value?: string;
+}
 
-export type AudienceRule = ListRule | RoleRule | TagRule | ConsentRule;
+export type AudienceRule = ListRule | RoleRule | TagRule | ConsentRule | CustomFieldRule;
 
 export interface AudienceDefinition {
   logic:   "OR" | "AND";
@@ -61,6 +68,37 @@ async function resolveRule(rule: AudienceRule): Promise<Set<string>> {
       const rows = await db.contactConsent.findMany({
         where: { topic: rule.topic as never, optedIn: true },
         select: { contactId: true },
+      });
+      return new Set(rows.map((r) => r.contactId));
+    }
+    case "custom_field": {
+      const cfvDb = db as never as {
+        customFieldValue: { findMany: (a: unknown) => Promise<{ contactId: string }[]> };
+        contact: { findMany: (a: unknown) => Promise<{ id: string }[]> };
+      };
+      if (rule.op === "set") {
+        const rows = await cfvDb.customFieldValue.findMany({
+          where: { fieldId: rule.fieldId } as never,
+          select: { contactId: true } as never,
+        });
+        return new Set(rows.map((r) => r.contactId));
+      }
+      if (rule.op === "not_set") {
+        const [hasField, allContacts] = await Promise.all([
+          cfvDb.customFieldValue.findMany({ where: { fieldId: rule.fieldId } as never, select: { contactId: true } as never }),
+          db.contact.findMany({ select: { id: true } }),
+        ]);
+        const hasSet = new Set(hasField.map((r) => r.contactId));
+        return new Set(allContacts.map((c) => c.id).filter((id) => !hasSet.has(id)));
+      }
+      if (!rule.value) return new Set();
+      const whereValue =
+        rule.op === "eq"       ? rule.value :
+        rule.op === "ne"       ? ({ not: rule.value } as never) :
+        ({ contains: rule.value, mode: "insensitive" } as never);
+      const rows = await cfvDb.customFieldValue.findMany({
+        where: { fieldId: rule.fieldId, value: whereValue } as never,
+        select: { contactId: true } as never,
       });
       return new Set(rows.map((r) => r.contactId));
     }

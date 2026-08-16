@@ -113,6 +113,8 @@ function AddressForm({
 }
 
 interface AttributionRow { source: string; attributedAt: string }
+interface CustomFieldDef { id: string; slug: string; label: string; type: string; options: string[] | null; required: boolean }
+interface CustomFieldVal { fieldId: string; value: string }
 
 interface Props {
   contact: {
@@ -138,11 +140,19 @@ interface Props {
     addresses: AddressRow[];
   };
   allLists: ListOption[];
+  customFieldDefs: CustomFieldDef[];
+  customFieldValues: CustomFieldVal[];
 }
 
-const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, allLists }) => {
+const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, allLists, customFieldDefs, customFieldValues: initialCfv }) => {
   const router = useRouter();
   const [contact, setContact] = useState(initial);
+  const [cfValues, setCfValues] = useState<Record<string, string>>(
+    Object.fromEntries(initialCfv.map(v => [v.fieldId, v.value]))
+  );
+  const [cfEditing, setCfEditing] = useState(false);
+  const [cfDraft, setCfDraft] = useState<Record<string, string>>({});
+  const [cfSaving, setCfSaving] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
@@ -627,6 +637,84 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
             </div>
           )}
 
+          {/* Custom fields */}
+          {customFieldDefs.length > 0 && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-ink-soft">Custom fields</h2>
+                {!cfEditing ? (
+                  <button type="button" onClick={() => { setCfDraft({ ...cfValues }); setCfEditing(true); }}
+                    className="text-xs font-semibold text-navy hover:underline">
+                    Edit
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button type="button" disabled={cfSaving}
+                      onClick={async () => {
+                        setCfSaving(true);
+                        try {
+                          const values = customFieldDefs.map(d => ({ fieldId: d.id, value: cfDraft[d.id] ?? "" }));
+                          const r = await fetch(`/api/admin/contacts/${contact.id}/custom-fields`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ values }),
+                          });
+                          if (r.ok) { setCfValues({ ...cfDraft }); setCfEditing(false); }
+                        } finally { setCfSaving(false); }
+                      }}
+                      className="text-xs font-semibold text-navy hover:underline disabled:opacity-50">
+                      {cfSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button type="button" onClick={() => setCfEditing(false)}
+                      className="text-xs text-ink-soft hover:underline">
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                {customFieldDefs.map(d => (
+                  <div key={d.id}>
+                    <p className="mb-0.5 text-xs font-semibold text-ink-soft">
+                      {d.label}{d.required && <span className="ml-1 text-red-400">*</span>}
+                    </p>
+                    {cfEditing ? (
+                      d.type === "DROPDOWN" ? (
+                        <select value={cfDraft[d.id] ?? ""} onChange={e => setCfDraft(x => ({ ...x, [d.id]: e.target.value }))}
+                          className="w-full rounded-lg border border-navy/15 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30">
+                          <option value="">— Select —</option>
+                          {d.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : d.type === "CHECKBOX" ? (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={cfDraft[d.id] === "true"}
+                            onChange={e => setCfDraft(x => ({ ...x, [d.id]: e.target.checked ? "true" : "" }))}
+                            className="accent-navy" />
+                          Yes
+                        </label>
+                      ) : d.type === "TEXTAREA" ? (
+                        <textarea value={cfDraft[d.id] ?? ""} onChange={e => setCfDraft(x => ({ ...x, [d.id]: e.target.value }))} rows={2}
+                          className="w-full rounded-lg border border-navy/15 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                      ) : (
+                        <input type={d.type === "NUMBER" ? "number" : d.type === "DATE" ? "date" : d.type === "URL" ? "url" : "text"}
+                          value={cfDraft[d.id] ?? ""}
+                          onChange={e => setCfDraft(x => ({ ...x, [d.id]: e.target.value }))}
+                          className="w-full rounded-lg border border-navy/15 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                      )
+                    ) : (
+                      <p className="text-sm text-ink">
+                        {cfValues[d.id]
+                          ? (d.type === "CHECKBOX" ? (cfValues[d.id] === "true" ? "Yes" : "No") : cfValues[d.id])
+                          : <span className="italic text-ink-soft">—</span>
+                        }
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Lists */}
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Lists</h2>
@@ -677,7 +765,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const { id } = ctx.params as { id: string };
 
-  const [contact, allLists] = await Promise.all([
+  type CfDb = {
+    customFieldDefinition: { findMany: (a: unknown) => Promise<{ id: string; slug: string; label: string; type: string; options: unknown; required: boolean }[]> };
+    customFieldValue: { findMany: (a: unknown) => Promise<{ fieldId: string; value: string }[]> };
+  };
+  const cfDb = db as never as CfDb;
+
+  const [contact, allLists, cfDefs, cfVals] = await Promise.all([
     db.contact.findUnique({
       where: { id },
       include: {
@@ -698,6 +792,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       where: { ownerType: "FN_ADMIN" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    cfDb.customFieldDefinition.findMany({
+      where: { active: true } as never,
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] as never,
+    }),
+    cfDb.customFieldValue.findMany({
+      where: { contactId: id } as never,
+      select: { fieldId: true, value: true } as never,
     }),
   ]);
 
@@ -746,6 +848,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         })),
       },
       allLists,
+      customFieldDefs: cfDefs.map(d => ({
+        id: d.id,
+        slug: d.slug,
+        label: d.label,
+        type: d.type,
+        options: Array.isArray(d.options) ? d.options as string[] : null,
+        required: d.required,
+      })),
+      customFieldValues: cfVals.map(v => ({ fieldId: v.fieldId, value: v.value })),
     },
   };
 };
