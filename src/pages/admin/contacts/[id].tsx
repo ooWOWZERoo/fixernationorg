@@ -156,20 +156,6 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
     }
   }, [activeTab, activityLoaded, contact.id]);
 
-  useEffect(() => {
-    if (!mergeOpen || mergeSearch.length < 2) { setMergeResults([]); return; }
-    const timer = setTimeout(async () => {
-      setMergeSearching(true);
-      try {
-        const r = await fetch(`/api/admin/contacts?q=${encodeURIComponent(mergeSearch)}&limit=8`);
-        const data = await r.json();
-        const all: ContactSearchResult[] = Array.isArray(data?.contacts) ? data.contacts : [];
-        setMergeResults(all.filter((c) => c.id !== contact.id));
-      } catch { /* ignore */ } finally { setMergeSearching(false); }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [mergeSearch, mergeOpen, contact.id]);
-
   // Custom fields
   const [cfValues, setCfValues] = useState<Record<string, string>>(
     Object.fromEntries(initialCfv.map((v) => [v.fieldId, v.value]))
@@ -221,6 +207,20 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
   const [mergeSearching, setMergeSearching] = useState(false);
   const [mergeTarget, setMergeTarget] = useState<ContactSearchResult | null>(null);
   const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    if (!mergeOpen || mergeSearch.length < 2) { setMergeResults([]); return; }
+    const timer = setTimeout(async () => {
+      setMergeSearching(true);
+      try {
+        const r = await fetch(`/api/admin/contacts?q=${encodeURIComponent(mergeSearch)}&limit=8`);
+        const data = await r.json();
+        const all: ContactSearchResult[] = Array.isArray(data?.contacts) ? data.contacts : [];
+        setMergeResults(all.filter((c) => c.id !== contact.id));
+      } catch { /* ignore */ } finally { setMergeSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [mergeSearch, mergeOpen, contact.id]);
 
   async function addIdentity() {
     if (!idForm.value.trim()) return;
