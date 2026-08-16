@@ -98,12 +98,21 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
                 {featured.excerpt && (
                   <p className="mt-3 text-sm leading-relaxed text-ink-soft">{featured.excerpt}</p>
                 )}
-                <Link
-                  href={`/blog/${featured.slug}`}
-                  className="mt-6 inline-flex self-start items-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-                >
-                  Read the Post
-                </Link>
+                {userIsMember ? (
+                  <Link
+                    href={`/blog/${featured.slug}`}
+                    className="mt-6 inline-flex self-start items-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                  >
+                    Read the Post
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/join?callbackUrl=${encodeURIComponent(`/blog/${featured.slug}`)}`}
+                    className="mt-6 inline-flex self-start items-center gap-2 rounded-[10px] border-2 border-navy/30 bg-navy/5 px-6 py-3 text-sm font-bold text-navy/60 no-underline"
+                  >
+                    <span>🔒</span> Members only
+                  </Link>
+                )}
                 <p className="mt-6 text-xs font-bold text-ink-soft">{featured.authorName}</p>
               </div>
             </div>

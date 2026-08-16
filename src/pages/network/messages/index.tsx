@@ -5,6 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { NetworkTabBar } from "@/components/network/NetworkTabBar";
 import type { NextPageWithLayout } from "@/types/next";
@@ -221,10 +222,10 @@ NetworkMessagesPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) {
+  if (!session || !isMember(session.user.role)) {
     return {
       redirect: {
-        destination: `/signin?callbackUrl=${encodeURIComponent("/network/messages")}`,
+        destination: `/join?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`,
         permanent: false,
       },
     };

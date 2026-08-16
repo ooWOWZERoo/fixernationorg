@@ -5,6 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { NetworkTabBar } from "@/components/network/NetworkTabBar";
 import { PostCard, type PostData } from "@/components/network/PostCard";
@@ -24,6 +25,7 @@ interface Props {
   myGroups: GroupSidebarItem[];
   discoverGroups: GroupSidebarItem[];
   currentUser: { id: string; name: string | null } | null;
+  gated: boolean;
 }
 
 const NetworkPage: NextPageWithLayout<Props> = ({
@@ -32,6 +34,7 @@ const NetworkPage: NextPageWithLayout<Props> = ({
   myGroups,
   discoverGroups,
   currentUser,
+  gated,
 }) => {
   const [posts, setPosts] = useState(initialPosts);
   const [cursor, setCursor] = useState(initCursor);
@@ -73,6 +76,37 @@ const NetworkPage: NextPageWithLayout<Props> = ({
         </div>
       </section>
 
+      {gated && (
+        <section className="px-6 py-20 text-center lg:px-8">
+          <div className="mx-auto max-w-xl">
+            <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-navy/8 text-3xl">
+              👥
+            </div>
+            <h2 className="text-2xl font-extrabold text-navy">
+              The FN Network is for members
+            </h2>
+            <p className="mt-3 text-base leading-relaxed text-ink-soft">
+              Join Fixer Nation to access the community feed, group discussions, member directory, and direct messaging.
+            </p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Link
+                href="/join"
+                className="inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+              >
+                Join Fixer Nation
+              </Link>
+              <Link
+                href="/signin"
+                className="inline-flex items-center justify-center rounded-[10px] border border-navy/20 bg-white px-8 py-3.5 text-sm font-bold text-navy no-underline transition-all hover:border-navy/40 hover:bg-cream-panel"
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!gated && (
       <section className="px-6 py-10 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="flex gap-8">
@@ -209,23 +243,6 @@ const NetworkPage: NextPageWithLayout<Props> = ({
         </div>
       </section>
 
-      {!currentUser && (
-        <section className="bg-navy px-6 py-20 text-center lg:px-8">
-          <div className="mx-auto max-w-xl">
-            <span className="eyebrow" style={{ background: "rgba(255,255,255,0.12)", color: "#F2D9AE" }}>
-              Membership
-            </span>
-            <h2 className="mt-4 text-3xl font-extrabold text-white">
-              Full network access comes with your membership
-            </h2>
-            <Link
-              href="/join"
-              className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-            >
-              Join Fixer Nation
-            </Link>
-          </div>
-        </section>
       )}
     </>
   );
@@ -235,6 +252,19 @@ NetworkPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
+
+  if (!session || !isMember(session.user.role)) {
+    return {
+      props: {
+        initialPosts: [],
+        nextCursor: null,
+        myGroups: [],
+        discoverGroups: [],
+        currentUser: null,
+        gated: true,
+      },
+    };
+  }
 
   // Fetch public posts + posts in user's private groups
   let groupIds: string[] | undefined;
@@ -316,6 +346,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       myGroups,
       discoverGroups,
       currentUser: session ? { id: session.user.id, name: session.user.name ?? null } : null,
+      gated: false,
     },
   };
 };
