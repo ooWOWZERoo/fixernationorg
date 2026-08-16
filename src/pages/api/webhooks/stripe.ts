@@ -131,7 +131,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: message });
   }
 
-  console.log(`[stripe] event ${event.id} type=${event.type}`);
 
   switch (event.type) {
     // ── Onboarding / SP+BA payment ────────────────────────────────────────────

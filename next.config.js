@@ -25,6 +25,23 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https://res.cloudinary.com",
+              "font-src 'self' data:",
+              "connect-src 'self' https://api.stripe.com",
+              "frame-src https://js.stripe.com https://hooks.stripe.com",
+              "worker-src 'self'",
+              "media-src 'self' https://res.cloudinary.com",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join("; "),
+          },
         ],
       },
     ];

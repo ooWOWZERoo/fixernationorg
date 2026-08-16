@@ -11,6 +11,14 @@
     {
       "path": "/api/cron?job=automation-tick",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron?job=campaign-recovery",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron?job=expired-token-cleanup",
+      "schedule": "0 3 * * *"
     }
   ]
 }

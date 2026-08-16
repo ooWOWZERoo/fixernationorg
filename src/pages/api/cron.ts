@@ -332,6 +332,38 @@ async function runAutomationTick(): Promise<{ message: string }> {
   };
 }
 
+async function runCampaignRecovery(): Promise<{ message: string }> {
+  const stuckThreshold = new Date(Date.now() - 30 * 60 * 1000);
+
+  const stuck = await db.campaign.findMany({
+    where: { status: "SENDING", updatedAt: { lt: stuckThreshold } },
+    select: { id: true },
+  });
+
+  if (stuck.length === 0) return { message: "No stuck campaigns found" };
+
+  const stuckIds = stuck.map((c) => c.id);
+
+  await db.campaignSend.updateMany({
+    where: { campaignId: { in: stuckIds }, status: "QUEUED" },
+    data: { status: "FAILED" },
+  });
+
+  const result = await db.campaign.updateMany({
+    where: { id: { in: stuckIds } },
+    data: { status: "DRAFT" },
+  });
+
+  return { message: `Recovered ${result.count} stuck campaign${result.count !== 1 ? "s" : ""}` };
+}
+
+async function runExpiredTokenCleanup(): Promise<{ message: string }> {
+  const result = await db.verificationToken.deleteMany({
+    where: { expires: { lt: new Date() } },
+  });
+  return { message: `Deleted ${result.count} expired verification token${result.count !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
@@ -340,6 +372,8 @@ const JOBS: Record<string, JobHandler> = {
   "application-expiration": runApplicationExpiration,
   "application-expiration-reminders": runApplicationExpirationReminders,
   "account-invitation-reminders": runAccountInvitationReminders,
+  "campaign-recovery": runCampaignRecovery,
+  "expired-token-cleanup": runExpiredTokenCleanup,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
