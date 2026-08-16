@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { AppProps } from "next/app";
 import type { NextComponentType, NextPageContext } from "next";
 import { SessionProvider } from "next-auth/react";
@@ -14,6 +15,12 @@ type AppPropsWithLayout = AppProps & {
 
 export default function App({ Component, pageProps: { session, ...pageProps } }: AppPropsWithLayout) {
   const getLayout = Component.getLayout ?? ((page: React.ReactElement) => page);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   return (
     <SessionProvider session={session}>

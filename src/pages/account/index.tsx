@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface Props {
@@ -191,6 +192,7 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
                 {prefsMsg.text}
               </p>
             )}
+            <PushNotificationToggle />
           </div>
 
           {/* Password */}
