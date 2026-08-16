@@ -18,7 +18,7 @@ type VarDb = {
   campaignVariant: {
     findMany: (a: unknown) => Promise<{
       id: string; name: string; subject: string; fromName: string;
-      fromEmail: string; htmlBody: string; textBody: string | null; splitPct: number;
+      fromEmail: string; htmlBody: string | null; textBody: string | null; splitPct: number;
     }[]>;
   };
 };
@@ -404,7 +404,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const controlPct = 100 - totalVariantPct;
 
-      type Group = { variantId: string | null; content: { subject: string; fromName: string; fromEmail: string; htmlBody: string; textBody: string | null }; contacts: typeof eligibleContacts };
+      type Group = { variantId: string | null; content: { subject: string; fromName: string; fromEmail: string; htmlBody: string | null; textBody: string | null }; contacts: typeof eligibleContacts };
       const groups: Group[] = [];
 
       // Variant A = campaign's own content
