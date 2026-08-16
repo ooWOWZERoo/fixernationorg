@@ -6,12 +6,12 @@ const FOOTER_LINKS = {
     { href: "/books", label: "Library" },
   ],
   Resources: [
-    { href: "/blog", label: "FN Blog" },
+    { href: "/blog", label: "Blog" },
     { href: "/resources", label: "Member Library" },
     { href: "/ask-the-fixer", label: "Ask The Fixer" },
   ],
   Community: [
-    { href: "/network", label: "FN Network" },
+    { href: "/network", label: "Community" },
     { href: "/events", label: "Events" },
     { href: "/providers", label: "Find a Provider" },
     { href: "/ambassadors", label: "Find an Ambassador" },

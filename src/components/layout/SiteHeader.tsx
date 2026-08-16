@@ -8,8 +8,8 @@ const NAV_LINKS = [
     { href: "/about", label: "About" },
   ]},
   { href: "/books", label: "Books" },
-  { href: "/blog", label: "FN Blogs" },
-  { href: "/network", label: "FN Network" },
+  { href: "/blog", label: "Blogs" },
+  { href: "/network", label: "Community" },
   { href: "/events", label: "Events" },
   { href: "/providers", label: "Find a Provider" },
   { href: "/join", label: "Join Fixer Nation", dropdown: [

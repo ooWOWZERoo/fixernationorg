@@ -57,14 +57,14 @@ const NetworkPage: NextPageWithLayout<Props> = ({
   return (
     <>
       <Head>
-        <title>FN Network — Fixer Nation</title>
+        <title>Community — Fixer Nation</title>
         <meta name="description" content="Connect with groups and members across Fixer Nation." />
       </Head>
 
       {/* Page header */}
       <section className="border-b border-navy/10 px-6 pb-0 pt-14 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <span className="eyebrow">FN Network</span>
+          <span className="eyebrow">Community</span>
           <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-navy">Community Feed</h1>
           <p className="mt-2 text-base text-ink-soft">
             What's happening across Fixer Nation.

@@ -40,7 +40,7 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
   return (
     <>
       <Head>
-        <title>FN Blog — Fixer Nation</title>
+        <title>Blog — Fixer Nation</title>
         <meta
           name="description"
           content="Positivity, health, and wellness content from Fixer Nation. Real talk, mindset tools, and Morning Boost inspiration."
@@ -50,7 +50,7 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
       {/* Header */}
       <section className="px-6 pb-4 pt-16 text-center lg:px-8">
         <div className="mx-auto max-w-2xl">
-          <span className="eyebrow">FN Blog</span>
+          <span className="eyebrow">Blog</span>
           <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-navy lg:text-5xl">
             Positivity, Health &amp; Wellness
           </h1>

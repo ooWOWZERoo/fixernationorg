@@ -11,12 +11,12 @@ const CHECK_CARDS = [
     body: "Books and resources selected to feed your mind, with new titles added regularly. Chosen content, not random content.",
   },
   {
-    title: "FN Blogs",
+    title: "Blogs",
     href: "/blog",
     body: "Practical perspective on mindset, well-being, and getting unstuck — written for people who want to grow.",
   },
   {
-    title: "FN Network",
+    title: "Community",
     href: "/network",
     body: "A private community built around growth, encouragement, and people who believe their time online should mean something.",
   },
@@ -45,7 +45,7 @@ const BENEFITS = [
   },
   {
     title: "Stronger support system",
-    body: "The FN Network and Vetted Pro Network give members somewhere real to turn.",
+    body: "The Community and Vetted Pro Network give members somewhere real to turn.",
     accent: "bg-amber",
   },
   {
