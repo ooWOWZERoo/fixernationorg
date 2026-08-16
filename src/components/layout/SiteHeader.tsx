@@ -26,12 +26,23 @@ export function SiteHeader() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/public/site-settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    // Seed from the JWT immediately, then refresh from the profile API so
+    // avatar updates appear without requiring a re-login.
+    if (session.user?.image) setAvatarUrl(session.user.image);
+    fetch("/api/account/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.socialProfile?.avatarUrl) setAvatarUrl(d.socialProfile.avatarUrl); });
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session) return;
@@ -128,9 +139,9 @@ export function SiteHeader() {
                 onClick={() => setUserMenuOpen((o) => !o)}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-navy hover:text-navy/70 transition-colors"
               >
-                {session.user?.image ? (
+                {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={session.user.image} alt="" className="h-7 w-7 rounded-full object-cover" />
+                  <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
                 ) : (
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-xs font-bold text-amber">
                     {session.user?.name?.[0]?.toUpperCase() ?? "U"}

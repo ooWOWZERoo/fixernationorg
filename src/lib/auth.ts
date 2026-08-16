@@ -11,6 +11,7 @@ import { db } from "./db";
 declare module "next-auth" {
   interface User {
     role?: string;
+    image?: string | null;
   }
   interface Session {
     user: {
@@ -23,6 +24,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
+    picture?: string | null;
   }
 }
 
@@ -71,6 +73,8 @@ export const authOptions: NextAuthOptions = {
             emailVerified: true,
             mfaEnabled: true,
             mfaSecret: true,
+            image: true,
+            socialProfile: { select: { avatarUrl: true } },
           },
         });
 
@@ -98,6 +102,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email ?? "",
           name: user.name,
           role: user.role,
+          image: user.socialProfile?.avatarUrl ?? user.image ?? null,
         };
       },
     }),
@@ -106,11 +111,13 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt({ token, user }) {
       if (user?.role) token.role = user.role;
+      if (user?.image !== undefined) token.picture = user.image;
       return token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       if (token.role) session.user.role = token.role;
+      if (token.picture) session.user.image = token.picture as string;
       return session;
     },
   },
