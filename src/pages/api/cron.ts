@@ -116,9 +116,8 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
   });
   if (stuck.length > 0) {
     const stuckIds = stuck.map((c) => c.id);
-    await db.campaignSend.updateMany({
+    await db.campaignSend.deleteMany({
       where: { campaignId: { in: stuckIds }, status: "QUEUED" },
-      data: { status: "FAILED" },
     });
     await db.campaign.updateMany({
       where: { id: { in: stuckIds } },
@@ -363,9 +362,8 @@ async function runCampaignRecovery(): Promise<{ message: string }> {
 
   const stuckIds = stuck.map((c) => c.id);
 
-  await db.campaignSend.updateMany({
+  await db.campaignSend.deleteMany({
     where: { campaignId: { in: stuckIds }, status: "QUEUED" },
-    data: { status: "FAILED" },
   });
 
   const result = await db.campaign.updateMany({
