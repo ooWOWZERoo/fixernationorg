@@ -7,16 +7,22 @@ import { db } from "@/lib/db";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+const STEP_TYPES = ["WAIT", "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "SEND_PUSH", "CONDITION", "EXIT"] as const;
+
 const createSchema = z.object({
   journeyId: z.string(),
-  type: z.enum(["WAIT", "SEND_EMAIL", "ADD_TAG", "WEBHOOK"]),
+  type: z.enum(STEP_TYPES),
   config: z.record(z.unknown()),
+  posX: z.number().optional(),
+  posY: z.number().optional(),
 });
 
 const patchSchema = z.object({
   id: z.string(),
   config: z.record(z.unknown()).optional(),
   action: z.enum(["move_up", "move_down"]).optional(),
+  posX: z.number().nullable().optional(),
+  posY: z.number().nullable().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -45,6 +51,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         type: parsed.data.type,
         config: parsed.data.config as Prisma.InputJsonValue,
         order: nextOrder,
+        posX: parsed.data.posX ?? null,
+        posY: parsed.data.posY ?? null,
       },
     });
 
@@ -85,10 +93,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(updated);
     }
 
-    if (parsed.data.config) {
+    const updateData: Prisma.AutomationStepUpdateInput = {};
+    if (parsed.data.config) updateData.config = parsed.data.config as Prisma.InputJsonValue;
+    if (parsed.data.posX !== undefined) updateData.posX = parsed.data.posX;
+    if (parsed.data.posY !== undefined) updateData.posY = parsed.data.posY;
+
+    if (Object.keys(updateData).length > 0) {
       const updated = await db.automationStep.update({
         where: { id: parsed.data.id },
-        data: { config: parsed.data.config as Prisma.InputJsonValue },
+        data: updateData,
       });
       return res.status(200).json(updated);
     }

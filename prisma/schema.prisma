@@ -1450,7 +1450,11 @@ enum AutomationStepType {
   WAIT
   SEND_EMAIL
   ADD_TAG
+  REMOVE_TAG
   WEBHOOK
+  SEND_PUSH
+  CONDITION
+  EXIT
 }
 
 enum AutomationEnrollmentStatus {
@@ -1484,6 +1488,8 @@ model AutomationStep {
   order     Int
   type      AutomationStepType
   config    Json
+  posX      Float?
+  posY      Float?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 

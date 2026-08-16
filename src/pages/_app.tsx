@@ -4,6 +4,7 @@ import type { NextComponentType, NextPageContext } from "next";
 import { SessionProvider } from "next-auth/react";
 import Head from "next/head";
 import "../styles/globals.css";
+import "@xyflow/react/dist/style.css";
 
 type NextPageWithLayout = NextComponentType<NextPageContext, unknown, Record<string, unknown>> & {
   getLayout?: (page: React.ReactElement) => React.ReactNode;

@@ -27,6 +27,7 @@
     "clsx": "^2.1.1",
     "formidable": "^3.5.4",
     "multer": "^2.2.0",
+    "@xyflow/react": "^12.3.6",
     "next": "^15.3.0",
     "next-auth": "^4.24.11",
     "nodemailer": "^9.0.5",
