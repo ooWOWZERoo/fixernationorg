@@ -61,7 +61,7 @@ const PrivacyPage: NextPageWithLayout = () => {
           </p>
           <ul>
             <li><strong>Stripe</strong> — payment processing. Subject to Stripe's privacy policy.</li>
-            <li><strong>Postmark</strong> — transactional and notification emails.</li>
+            <li><strong>Cloudinary</strong> — media storage and image delivery.</li>
             <li><strong>PostHog</strong> — product analytics (anonymized usage data).</li>
             <li><strong>Neon</strong> — managed PostgreSQL database hosting.</li>
             <li><strong>Vercel</strong> — web hosting and deployment infrastructure.</li>
