@@ -44,8 +44,8 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-6 py-14 lg:px-8">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-7">
 
-          {/* Brand column — wider to accommodate logo */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+          {/* Brand column — wider, visually separated from nav links */}
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:border-r lg:border-amber/25 lg:pr-8">
             <Link href="/" className="flex items-center gap-2.5 no-underline hover:no-underline">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -61,9 +61,15 @@ export function SiteFooter() {
                 </>
               )}
             </Link>
-            <p className="mt-3.5 text-sm leading-relaxed text-white/60 max-w-[240px]">
-              "There are no problems in life... only issues and answers." — Fixer Nation Credo
-            </p>
+            <div className="mt-5 max-w-[240px]">
+              <span className="block font-serif text-5xl leading-none text-amber opacity-40 select-none">&ldquo;</span>
+              <p className="mt-1 text-sm italic leading-relaxed text-white/85">
+                There are no problems in life&hellip; only issues and answers.
+              </p>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber/60">
+                Fixer Nation Credo
+              </p>
+            </div>
           </div>
 
           {/* Link columns */}
