@@ -290,6 +290,12 @@ function AmbassadorDashboard({ data, email }: { data: AmbassadorData; email: str
           Campaign materials →
         </Link>
         <Link
+          href="/account/referrals"
+          className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
+        >
+          Referral history →
+        </Link>
+        <Link
           href="/ambassadors"
           className="text-sm font-semibold text-ink-soft underline underline-offset-2 hover:text-navy"
         >
