@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "GET") {
-    const { q, tag, page = "1" } = req.query;
+    const { q, tag, attribution: attributionFilter, page = "1" } = req.query;
     const take = 50;
     const skip = (parseInt(page as string) - 1) * take;
 
@@ -40,6 +40,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (tag) {
       where.tags = { some: { tag: tag as string } };
     }
+    if (attributionFilter) {
+      where.attribution = { source: attributionFilter as string };
+    }
 
     const [contacts, total] = await Promise.all([
       db.contact.findMany({
@@ -50,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: {
           tags: { select: { tag: true } },
           consents: { select: { topic: true, optedIn: true } },
+          attribution: { select: { source: true } },
           _count: { select: { listMemberships: true, campaignSends: true } },
         },
       }),
@@ -70,8 +74,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { ...parsed.data, source: parsed.data.source ?? "admin" },
     });
 
-    db.contactAttribution.create({
-      data: { contactId: contact.id, source: "MANUAL" },
+    db.contactAttribution.upsert({
+      where: { contactId: contact.id },
+      create: { contactId: contact.id, source: "MANUAL" },
+      update: {},
     }).catch(() => {});
 
     return res.status(201).json(contact);

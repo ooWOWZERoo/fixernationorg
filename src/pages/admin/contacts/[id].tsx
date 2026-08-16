@@ -20,7 +20,17 @@ interface ListRow     { id: string; name: string }
 interface SendRow     { id: string; campaignName: string; status: string; sentAt: string | null }
 interface ListOption  { id: string; name: string }
 interface ActivityRow { id: string; type: string; summary: string; occurredAt: string }
-interface AttributionRow { source: string; attributedAt: string }
+interface AttributionRow { source: string; attributedAt: string; campaignId: string | null }
+
+const ATTR_COLORS: Record<string, string> = {
+  ORGANIC: "bg-green-100 text-green-800",
+  REFERRAL: "bg-blue-100 text-blue-800",
+  IMPORT: "bg-navy/8 text-navy",
+  MANUAL: "bg-navy/8 text-navy",
+  INVITE: "bg-purple-100 text-purple-800",
+  SUBSCRIBE_FORM: "bg-amber/20 text-amber-dark",
+  CAMPAIGN: "bg-teal-100 text-teal-800",
+};
 interface CustomFieldDef { id: string; slug: string; label: string; type: string; options: string[] | null; required: boolean }
 interface CustomFieldVal { fieldId: string; value: string }
 interface ActiveSuppression { id: string; type: string; reason: string | null; suppressedAt: string }
@@ -200,6 +210,11 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
   const [idForm, setIdForm] = useState({ type: "EMAIL", value: "", label: "", isPrimary: false });
   const [idSaving, setIdSaving] = useState(false);
 
+  // Attribution
+  const [editingAttribution, setEditingAttribution] = useState(false);
+  const [attrSource, setAttrSource] = useState<string>(initial.attribution?.source ?? "ORGANIC");
+  const [attrSaving, setAttrSaving] = useState(false);
+
   // Merge
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeSearch, setMergeSearch] = useState("");
@@ -337,6 +352,29 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
     if (!confirm("Remove this address?")) return;
     await fetch(`/api/admin/contacts/${contact.id}/addresses/${addrId}`, { method: "DELETE" });
     setContact((c) => ({ ...c, addresses: c.addresses.filter((a) => a.id !== addrId) }));
+  }
+
+  async function saveAttribution() {
+    setAttrSaving(true);
+    try {
+      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-attribution", source: attrSource }),
+      });
+      if (!res.ok) return;
+      const saved = await res.json();
+      setContact((c) => ({
+        ...c,
+        attribution: {
+          source: saved.source,
+          attributedAt: saved.attributedAt,
+          campaignId: saved.campaignId ?? null,
+        },
+      }));
+      setEditingAttribution(false);
+      setActivityLoaded(false);
+    } finally { setAttrSaving(false); }
   }
 
   async function addToList() {
@@ -521,10 +559,56 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
                   </span>
                 )}
                 {contact.userId && <span className="font-semibold text-green-700">Has account</span>}
-                {contact.attribution && (
-                  <span className="capitalize">
-                    Via: {contact.attribution.source.toLowerCase().replace(/_/g, " ")}
-                  </span>
+              </div>
+
+              {/* Attribution */}
+              <div className="mt-2 flex items-center gap-2">
+                {!editingAttribution ? (
+                  <>
+                    {contact.attribution ? (
+                      <>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ATTR_COLORS[contact.attribution.source] ?? "bg-navy/8 text-navy"}`}>
+                          {contact.attribution.source.toLowerCase().replace(/_/g, " ")}
+                        </span>
+                        <span className="text-xs text-ink-soft">
+                          {new Date(contact.attribution.attributedAt).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => { setAttrSource(contact.attribution!.source); setEditingAttribution(true); }}
+                          className="text-xs text-ink-soft hover:text-navy">
+                          Edit
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setAttrSource("ORGANIC"); setEditingAttribution(true); }}
+                        className="text-xs text-ink-soft hover:text-navy">
+                        + Set attribution
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <select
+                      value={attrSource}
+                      onChange={(e) => setAttrSource(e.target.value)}
+                      className="rounded-lg border border-navy/15 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-navy/30">
+                      {["ORGANIC", "REFERRAL", "IMPORT", "MANUAL", "INVITE", "SUBSCRIBE_FORM", "CAMPAIGN"].map((s) => (
+                        <option key={s} value={s}>{s.toLowerCase().replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={saveAttribution}
+                      disabled={attrSaving}
+                      className="rounded-lg bg-navy px-3 py-1 text-xs font-bold text-white hover:bg-navy-dark disabled:opacity-60">
+                      {attrSaving ? "…" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => setEditingAttribution(false)}
+                      className="rounded-lg border border-navy/15 px-2 py-1 text-xs text-ink-soft hover:bg-cream-panel">
+                      Cancel
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -1211,7 +1295,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         createdAt: contact.createdAt.toISOString(),
         userId: contact.userId,
         attribution: contact.attribution
-          ? { source: contact.attribution.source, attributedAt: contact.attribution.attributedAt.toISOString() }
+          ? {
+              source: contact.attribution.source,
+              attributedAt: contact.attribution.attributedAt.toISOString(),
+              campaignId: contact.attribution.campaignId ?? null,
+            }
           : null,
         addresses: contact.addresses.map((a) => ({
           id: a.id, type: a.type, street: a.street, street2: a.street2,

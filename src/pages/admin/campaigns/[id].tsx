@@ -70,6 +70,7 @@ interface Props {
   metric: MetricData | null;
   variants: VariantRow[];
   variantStats: VariantStat[];
+  attributedCount: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -81,7 +82,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats }) => {
+const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats, attributedCount }) => {
   const router = useRouter();
   const [campaign, setCampaign] = useState(initial);
   const [metric, setMetric] = useState(initialMetric);
@@ -569,6 +570,12 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
               )}
             </div>
             <div className="space-y-3">
+              {attributedCount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink-soft">Attributed contacts</span>
+                  <span className="font-bold text-navy">{attributedCount}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-ink-soft">Queued</span>
                 <span className="font-bold text-navy">{campaign.sendCount}</span>
@@ -695,6 +702,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const m = campaign.metric;
 
+  const attributedCount = await (db as never as { contactAttribution: { count: (a: unknown) => Promise<number> } })
+    .contactAttribution.count({ where: { campaignId: id } as never });
+
   // Load variants
   const variantRows = await varDb.campaignVariant.findMany({
     where: { campaignId: id } as never,
@@ -766,6 +776,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         htmlBody: v.htmlBody, textBody: v.textBody, splitPct: v.splitPct, createdAt: v.createdAt.toISOString(),
       })),
       variantStats,
+      attributedCount,
       metric: m ? {
         totalSent: m.totalSent,
         totalDelivered: m.totalDelivered,

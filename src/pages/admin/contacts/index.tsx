@@ -8,6 +8,18 @@ import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
+const ATTR_COLORS: Record<string, string> = {
+  ORGANIC: "bg-green-100 text-green-800",
+  REFERRAL: "bg-blue-100 text-blue-800",
+  IMPORT: "bg-navy/8 text-navy",
+  MANUAL: "bg-navy/8 text-navy",
+  INVITE: "bg-purple-100 text-purple-800",
+  SUBSCRIBE_FORM: "bg-amber/20 text-amber-dark",
+  CAMPAIGN: "bg-teal-100 text-teal-800",
+};
+
+const ATTRIBUTION_SOURCES = ["ORGANIC", "REFERRAL", "IMPORT", "MANUAL", "INVITE", "SUBSCRIBE_FORM", "CAMPAIGN"];
+
 interface ContactRow {
   id: string;
   email: string;
@@ -18,6 +30,7 @@ interface ContactRow {
   createdAt: string;
   tags: string[];
   listCount: number;
+  attributionSource: string | null;
 }
 
 interface Props {
@@ -27,16 +40,21 @@ interface Props {
 
 const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
   const [q, setQ] = useState("");
+  const [attrFilter, setAttrFilter] = useState("");
 
-  const filtered = q
-    ? contacts.filter(
-        (c) =>
-          c.email.includes(q.toLowerCase()) ||
-          (c.firstName ?? "").toLowerCase().includes(q.toLowerCase()) ||
-          (c.lastName ?? "").toLowerCase().includes(q.toLowerCase()) ||
-          (c.company ?? "").toLowerCase().includes(q.toLowerCase())
-      )
-    : contacts;
+  const filtered = contacts.filter((c) => {
+    if (q) {
+      const lower = q.toLowerCase();
+      if (
+        !c.email.includes(lower) &&
+        !(c.firstName ?? "").toLowerCase().includes(lower) &&
+        !(c.lastName ?? "").toLowerCase().includes(lower) &&
+        !(c.company ?? "").toLowerCase().includes(lower)
+      ) return false;
+    }
+    if (attrFilter && c.attributionSource !== attrFilter) return false;
+    return true;
+  });
 
   return (
     <>
@@ -69,7 +87,7 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-3">
         <input
           type="search"
           placeholder="Search by name, email, or company…"
@@ -77,6 +95,16 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
           onChange={(e) => setQ(e.target.value)}
           className="w-full max-w-sm rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
         />
+        <select
+          value={attrFilter}
+          onChange={(e) => setAttrFilter(e.target.value)}
+          className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+        >
+          <option value="">All attribution sources</option>
+          {ATTRIBUTION_SOURCES.map((s) => (
+            <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ")}</option>
+          ))}
+        </select>
       </div>
 
       {filtered.length === 0 ? (
@@ -93,6 +121,7 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
                 <th className="px-5 py-3">Tags</th>
                 <th className="px-5 py-3">Lists</th>
                 <th className="px-5 py-3">Source</th>
+                <th className="px-5 py-3">Attribution</th>
                 <th className="px-5 py-3">Added</th>
               </tr>
             </thead>
@@ -119,6 +148,15 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
                   </td>
                   <td className="px-5 py-3 text-center text-ink-soft">{c.listCount}</td>
                   <td className="px-5 py-3 text-ink-soft">{c.source ?? "—"}</td>
+                  <td className="px-5 py-3">
+                    {c.attributionSource ? (
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ATTR_COLORS[c.attributionSource] ?? "bg-navy/8 text-navy"}`}>
+                        {c.attributionSource.charAt(0) + c.attributionSource.slice(1).toLowerCase().replace(/_/g, " ")}
+                      </span>
+                    ) : (
+                      <span className="text-ink-soft">—</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-ink-soft">
                     {new Date(c.createdAt).toLocaleDateString()}
                   </td>
@@ -154,6 +192,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       createdAt: true,
       tags: { select: { tag: true } },
       _count: { select: { listMemberships: true } },
+      attribution: { select: { source: true } },
     },
   });
 
@@ -169,6 +208,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         createdAt: c.createdAt.toISOString(),
         tags: c.tags.map((t) => t.tag),
         listCount: c._count.listMemberships,
+        attributionSource: (c.attribution as { source: string } | null)?.source ?? null,
       })),
       total: contacts.length,
     },

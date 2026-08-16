@@ -28,6 +28,13 @@ const updateSchema = z.object({
   source: z.string().optional(),
 });
 
+const ATTRIBUTION_SOURCES = ["ORGANIC", "REFERRAL", "IMPORT", "MANUAL", "INVITE", "SUBSCRIBE_FORM", "CAMPAIGN"] as const;
+const attributionSchema = z.object({
+  source: z.enum(ATTRIBUTION_SOURCES),
+  campaignId: z.string().nullable().optional(),
+  referrerId: z.string().nullable().optional(),
+});
+
 const noteSchema = z.object({
   body: z.string().min(1),
 });
@@ -62,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         take: 20,
         include: { campaign: { select: { id: true, name: true, sentAt: true } } },
       },
+      attribution: true,
     },
   });
 
@@ -129,6 +137,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await db.contactTag.deleteMany({ where: { contactId: id, tag: parsed.data.tag } });
       writeActivity(id, "TAG_REMOVED", `Tag removed: "${parsed.data.tag}"`, { tag: parsed.data.tag });
       return res.status(204).end();
+    }
+
+    if (action === "set-attribution") {
+      const parsed = attributionSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+      const attribution = await db.contactAttribution.upsert({
+        where: { contactId: id },
+        create: {
+          contactId: id,
+          source: parsed.data.source,
+          campaignId: parsed.data.campaignId ?? null,
+          referrerId: parsed.data.referrerId ?? null,
+        },
+        update: {
+          source: parsed.data.source,
+          campaignId: parsed.data.campaignId ?? null,
+          referrerId: parsed.data.referrerId ?? null,
+        },
+      });
+      writeActivity(id, "CONTACT_UPDATED", `Attribution updated to ${parsed.data.source.toLowerCase().replace(/_/g, " ")}`);
+      return res.status(200).json(attribution);
     }
 
     if (action === "set-consent") {
