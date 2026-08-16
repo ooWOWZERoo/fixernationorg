@@ -33,6 +33,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     update: { firstName: firstName ?? undefined, lastName: lastName ?? undefined },
   });
 
+  // Attribution: only set on first touch (upsert with no-op update preserves original)
+  db.contactAttribution.upsert({
+    where: { contactId: contact.id },
+    create: { contactId: contact.id, source: "SUBSCRIBE_FORM" },
+    update: {},
+  }).catch(() => {});
+
   const results: { consent?: boolean; subscription?: boolean } = {};
 
   // System consent (enum topic)

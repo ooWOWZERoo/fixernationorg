@@ -69,6 +69,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const contact = await db.contact.create({
       data: { ...parsed.data, source: parsed.data.source ?? "admin" },
     });
+
+    db.contactAttribution.create({
+      data: { contactId: contact.id, source: "MANUAL" },
+    }).catch(() => {});
+
     return res.status(201).json(contact);
   }
 

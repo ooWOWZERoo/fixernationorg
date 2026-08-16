@@ -14,12 +14,20 @@ interface CampaignRow {
   subject: string;
   listName: string | null;
   sendCount: number;
+  openRate: number | null;
   scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
 }
 
-interface Props { campaigns: CampaignRow[] }
+interface Stats {
+  totalCampaigns: number;
+  sentCampaigns: number;
+  totalSent: number;
+  avgOpenRate: number | null;
+}
+
+interface Props { campaigns: CampaignRow[]; stats: Stats }
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-navy/8 text-navy",
@@ -30,7 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns }) => {
+const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => {
   return (
     <>
       <Head><title>Campaigns — Admin</title></Head>
@@ -41,6 +49,22 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns }) => {
           + New campaign
         </Link>
       </div>
+
+      {stats.totalCampaigns > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: "Total campaigns", value: stats.totalCampaigns },
+            { label: "Sent", value: stats.sentCampaigns },
+            { label: "Emails sent", value: stats.totalSent.toLocaleString() },
+            { label: "Avg open rate", value: stats.avgOpenRate != null ? `${Math.round(stats.avgOpenRate * 100)}%` : "—" },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-2xl border border-navy/8 bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">{label}</p>
+              <p className="mt-1 text-2xl font-extrabold text-navy">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {campaigns.length === 0 ? (
         <div className="rounded-2xl border border-navy/8 bg-white p-12 text-center">
@@ -55,6 +79,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns }) => {
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">List</th>
                 <th className="px-5 py-3">Sends</th>
+                <th className="px-5 py-3">Open rate</th>
                 <th className="px-5 py-3">Date</th>
               </tr>
             </thead>
@@ -74,6 +99,11 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns }) => {
                   </td>
                   <td className="px-5 py-3 text-ink-soft">{c.listName ?? "—"}</td>
                   <td className="px-5 py-3 text-center text-ink-soft">{c.sendCount}</td>
+                  <td className="px-5 py-3 text-center">
+                    {c.openRate != null
+                      ? <span className="font-semibold text-green-700">{Math.round(c.openRate * 100)}%</span>
+                      : <span className="text-ink-soft/50">—</span>}
+                  </td>
                   <td className="px-5 py-3 text-ink-soft">
                     {c.sentAt
                       ? new Date(c.sentAt).toLocaleDateString()
@@ -100,13 +130,23 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return { redirect: { destination: "/", permanent: false } };
   }
 
-  const campaigns = await db.campaign.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      list: { select: { name: true } },
-      _count: { select: { sends: true } },
-    },
-  });
+  const [campaigns, metricsAgg] = await Promise.all([
+    db.campaign.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        list: { select: { name: true } },
+        _count: { select: { sends: true } },
+        metric: { select: { openRate: true } },
+      },
+    }),
+    db.campaignMetric.aggregate({
+      _avg: { openRate: true },
+      _sum: { totalSent: true },
+    }),
+  ]);
+
+  const totalCampaigns = campaigns.length;
+  const sentCampaigns = campaigns.filter((c) => c.status === "SENT").length;
 
   return {
     props: {
@@ -117,10 +157,17 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         subject: c.subject,
         listName: c.list?.name ?? null,
         sendCount: c._count.sends,
+        openRate: c.metric?.openRate ?? null,
         scheduledAt: c.scheduledAt?.toISOString() ?? null,
         sentAt: c.sentAt?.toISOString() ?? null,
         createdAt: c.createdAt.toISOString(),
       })),
+      stats: {
+        totalCampaigns,
+        sentCampaigns,
+        totalSent: metricsAgg._sum.totalSent ?? 0,
+        avgOpenRate: metricsAgg._avg.openRate ?? null,
+      },
     },
   };
 };

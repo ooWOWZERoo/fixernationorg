@@ -9,6 +9,42 @@ import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+async function computeCampaignMetric(campaignId: string) {
+  const rows = await db.campaignSend.groupBy({
+    by: ["status"],
+    where: { campaignId },
+    _count: { status: true },
+  });
+  const s: Record<string, number> = {};
+  for (const r of rows) s[r.status] = r._count.status;
+
+  const totalSent = (s.SENT ?? 0) + (s.OPENED ?? 0) + (s.CLICKED ?? 0) + (s.BOUNCED ?? 0);
+  const totalDelivered = (s.SENT ?? 0) + (s.OPENED ?? 0) + (s.CLICKED ?? 0);
+  const totalOpened = (s.OPENED ?? 0) + (s.CLICKED ?? 0);
+  const totalClicked = s.CLICKED ?? 0;
+  const totalBounced = s.BOUNCED ?? 0;
+  const totalUnsubscribed = s.UNSUBSCRIBED ?? 0;
+
+  const openRate = totalDelivered > 0 ? totalOpened / totalDelivered : 0;
+  const clickRate = totalDelivered > 0 ? totalClicked / totalDelivered : 0;
+  const bounceRate = totalSent > 0 ? totalBounced / totalSent : 0;
+  const unsubRate = totalDelivered > 0 ? totalUnsubscribed / totalDelivered : 0;
+
+  return db.campaignMetric.upsert({
+    where: { campaignId },
+    create: {
+      campaignId,
+      totalSent, totalDelivered, totalOpened, totalClicked, totalBounced, totalUnsubscribed,
+      openRate, clickRate, bounceRate, unsubRate,
+    },
+    update: {
+      totalSent, totalDelivered, totalOpened, totalClicked, totalBounced, totalUnsubscribed,
+      openRate, clickRate, bounceRate, unsubRate,
+      computedAt: new Date(),
+    },
+  });
+}
+
 const audienceRulesSchema = z.object({
   logic: z.enum(["OR", "AND"]).default("OR"),
   include: z.array(z.record(z.unknown())),
@@ -116,10 +152,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(204).end();
   }
 
-  // POST action: send
+  // POST action: send | compute_metrics
   if (req.method === "POST") {
     const { action } = req.body ?? {};
-    if (action !== "send") return res.status(400).json({ error: "Unknown action" });
+    if (!["send", "compute_metrics"].includes(action)) return res.status(400).json({ error: "Unknown action" });
+
+    if (action === "compute_metrics") {
+      const metric = await computeCampaignMetric(id);
+      return res.status(200).json(metric);
+    }
 
     if (campaign.status === "SENDING" || campaign.status === "SENT") {
       return res.status(409).json({ error: "Campaign already sent or sending" });
@@ -257,6 +298,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id },
       data: { status: "SENT", sentAt: now },
     });
+
+    computeCampaignMetric(id).catch(() => {});
 
     return res.status(200).json({ message: `Sent to ${sent} contacts${failed > 0 ? ` (${failed} failed)` : ""}`, sent, failed });
   }

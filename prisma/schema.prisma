@@ -824,6 +824,7 @@ model Contact {
   listMemberships  ContactListMember[]
   campaignSends    CampaignSend[]
   subscriptions    ContactSubscription[]
+  attribution      ContactAttribution?
 
   @@index([email])
   @@index([userId])
@@ -955,6 +956,7 @@ model Campaign {
   sends            CampaignSend[]
   versions         CampaignVersion[]
   audienceSnapshot CampaignAudienceSnapshot?
+  metric           CampaignMetric?
 
   @@index([status])
   @@index([scheduledAt])
@@ -1464,4 +1466,46 @@ model ContactSubscription {
   @@unique([contactId, topicId])
   @@index([contactId])
   @@index([topicId])
+}
+
+// ── SP-30: Campaign metrics + contact attribution ─────────────────────────
+
+enum ContactAttributionSource {
+  ORGANIC
+  REFERRAL
+  IMPORT
+  MANUAL
+  INVITE
+  SUBSCRIBE_FORM
+  CAMPAIGN
+}
+
+model CampaignMetric {
+  id                String   @id @default(cuid())
+  campaignId        String   @unique
+  totalSent         Int      @default(0)
+  totalDelivered    Int      @default(0)
+  totalOpened       Int      @default(0)
+  totalClicked      Int      @default(0)
+  totalBounced      Int      @default(0)
+  totalUnsubscribed Int      @default(0)
+  openRate          Float    @default(0)
+  clickRate         Float    @default(0)
+  bounceRate        Float    @default(0)
+  unsubRate         Float    @default(0)
+  computedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model ContactAttribution {
+  id           String                   @id @default(cuid())
+  contactId    String                   @unique
+  source       ContactAttributionSource
+  campaignId   String?
+  referrerId   String?
+  attributedAt DateTime                 @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 }

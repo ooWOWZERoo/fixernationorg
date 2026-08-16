@@ -112,6 +112,8 @@ function AddressForm({
   );
 }
 
+interface AttributionRow { source: string; attributedAt: string }
+
 interface Props {
   contact: {
     id: string;
@@ -127,6 +129,7 @@ interface Props {
     lastActivityAt: string | null;
     createdAt: string;
     userId: string | null;
+    attribution: AttributionRow | null;
     consents: ConsentRow[];
     tags: string[];
     notes: NoteRow[];
@@ -609,6 +612,21 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({ contact: initial, a
             </div>
           </div>
 
+          {/* Attribution */}
+          {contact.attribution && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Attribution</h2>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-navy/8 px-3 py-1 text-xs font-semibold text-navy capitalize">
+                  {contact.attribution.source.toLowerCase().replace(/_/g, " ")}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-ink-soft">
+                {new Date(contact.attribution.attributedAt).toLocaleDateString()}
+              </p>
+            </div>
+          )}
+
           {/* Lists */}
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Lists</h2>
@@ -673,6 +691,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           take: 20,
           include: { campaign: { select: { name: true } } },
         },
+        attribution: true,
       },
     }),
     db.contactList.findMany({
@@ -700,6 +719,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         lastActivityAt: contact.lastActivityAt?.toISOString() ?? null,
         createdAt: contact.createdAt.toISOString(),
         userId: contact.userId,
+        attribution: contact.attribution ? {
+          source: contact.attribution.source,
+          attributedAt: contact.attribution.attributedAt.toISOString(),
+        } : null,
         addresses: contact.addresses.map((a) => ({
           id: a.id,
           type: a.type,

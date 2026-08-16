@@ -8,8 +8,20 @@ import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
-interface StatRow { status: string; count: number }
 interface AudienceRuleSummary { type: string; label: string }
+interface MetricData {
+  totalSent: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalClicked: number;
+  totalBounced: number;
+  totalUnsubscribed: number;
+  openRate: number;
+  clickRate: number;
+  bounceRate: number;
+  unsubRate: number;
+  computedAt: string;
+}
 interface Props {
   campaign: {
     id: string;
@@ -29,7 +41,7 @@ interface Props {
     sentAt: string | null;
     createdAt: string;
   };
-  stats: StatRow[];
+  metric: MetricData | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -41,12 +53,40 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, stats }) => {
+const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric }) => {
   const router = useRouter();
   const [campaign, setCampaign] = useState(initial);
+  const [metric, setMetric] = useState(initialMetric);
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function refreshMetrics() {
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaign.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "compute_metrics" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setMetric({
+        totalSent: data.totalSent,
+        totalDelivered: data.totalDelivered,
+        totalOpened: data.totalOpened,
+        totalClicked: data.totalClicked,
+        totalBounced: data.totalBounced,
+        totalUnsubscribed: data.totalUnsubscribed,
+        openRate: data.openRate,
+        clickRate: data.clickRate,
+        bounceRate: data.bounceRate,
+        unsubRate: data.unsubRate,
+        computedAt: data.computedAt,
+      });
+    } catch { /* silent */ } finally { setRefreshing(false); }
+  }
 
   async function triggerSend() {
     if (!confirm(`Send "${campaign.name}" to all contacts on the list now?`)) return;
@@ -74,9 +114,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
     router.push("/admin/campaigns");
   }
 
-  const statMap = Object.fromEntries(stats.map((s) => [s.status, s.count]));
-  const totalSent = statMap.SENT ?? 0;
-  const opened = statMap.OPENED ?? 0;
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
 
   return (
     <>
@@ -174,34 +212,81 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
         {/* Stats */}
         <div className="space-y-5">
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
-            <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-ink-soft">Send stats</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-ink-soft">Delivery</h2>
+              {campaign.status === "SENT" && (
+                <button onClick={refreshMetrics} disabled={refreshing}
+                  className="text-xs font-semibold text-navy hover:underline disabled:opacity-60">
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </button>
+              )}
+            </div>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-ink-soft">Total sends</span>
+                <span className="text-ink-soft">Queued</span>
                 <span className="font-bold text-navy">{campaign.sendCount}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-ink-soft">Delivered</span>
-                <span className="font-bold text-navy">{totalSent}</span>
+                <span className="text-ink-soft">Sent</span>
+                <span className="font-bold text-navy">{metric?.totalSent ?? "—"}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-ink-soft">Opened</span>
-                <span className="font-bold text-navy">{opened}</span>
+                <span className="text-ink-soft">Delivered</span>
+                <span className="font-bold text-navy">{metric?.totalDelivered ?? "—"}</span>
               </div>
-              {campaign.sendCount > 0 && opened > 0 && (
+              {metric && metric.totalBounced > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-ink-soft">Open rate</span>
-                  <span className="font-bold text-green-700">{Math.round((opened / Math.max(totalSent, 1)) * 100)}%</span>
+                  <span className="text-ink-soft">Bounced</span>
+                  <span className="font-bold text-red-600">{metric.totalBounced}</span>
                 </div>
               )}
-              {Object.entries(statMap).filter(([s]) => !["SENT", "OPENED", "QUEUED"].includes(s)).map(([status, count]) => (
-                <div key={status} className="flex justify-between text-sm">
-                  <span className="text-ink-soft capitalize">{status.toLowerCase()}</span>
-                  <span className="font-bold text-navy">{count}</span>
+              {metric && metric.totalUnsubscribed > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink-soft">Cancelled (pre-send)</span>
+                  <span className="font-bold text-navy">{metric.totalUnsubscribed}</span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
+
+          {(metric || campaign.status === "SENT") && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-5">
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-ink-soft">Engagement</h2>
+              {!metric ? (
+                <p className="text-sm text-ink-soft">No metrics yet — click Refresh above.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ink-soft">Opened</span>
+                    <span className="font-bold text-navy">{metric.totalOpened}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ink-soft">Clicked</span>
+                    <span className="font-bold text-navy">{metric.totalClicked}</span>
+                  </div>
+                  <div className="mt-3 border-t border-navy/8 pt-3 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-ink-soft">Open rate</span>
+                      <span className="font-bold text-green-700">{pct(metric.openRate)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-ink-soft">Click rate</span>
+                      <span className="font-bold text-blue-700">{pct(metric.clickRate)}</span>
+                    </div>
+                    {metric.totalBounced > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-ink-soft">Bounce rate</span>
+                        <span className="font-bold text-red-600">{pct(metric.bounceRate)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink-soft/60">
+                    Computed {new Date(metric.computedAt).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -224,15 +309,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     include: {
       list: { select: { name: true } },
       _count: { select: { sends: true } },
+      metric: true,
     },
   });
   if (!campaign) return { notFound: true };
-
-  const statsRaw = await db.campaignSend.groupBy({
-    by: ["status"],
-    where: { campaignId: id },
-    _count: { status: true },
-  });
 
   // Build a human-readable summary of audienceRules for display
   type RuleShape = { type: string; listId?: string; role?: string; tag?: string; topic?: string; label?: string };
@@ -250,6 +330,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         })),
       ]
     : [];
+
+  const m = campaign.metric;
 
   return {
     props: {
@@ -271,7 +353,19 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         sentAt: campaign.sentAt?.toISOString() ?? null,
         createdAt: campaign.createdAt.toISOString(),
       },
-      stats: statsRaw.map((s) => ({ status: s.status, count: s._count.status })),
+      metric: m ? {
+        totalSent: m.totalSent,
+        totalDelivered: m.totalDelivered,
+        totalOpened: m.totalOpened,
+        totalClicked: m.totalClicked,
+        totalBounced: m.totalBounced,
+        totalUnsubscribed: m.totalUnsubscribed,
+        openRate: m.openRate,
+        clickRate: m.clickRate,
+        bounceRate: m.bounceRate,
+        unsubRate: m.unsubRate,
+        computedAt: m.computedAt.toISOString(),
+      } : null,
     },
   };
 };
