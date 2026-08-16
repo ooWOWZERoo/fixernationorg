@@ -128,9 +128,14 @@ export function SiteHeader() {
                 onClick={() => setUserMenuOpen((o) => !o)}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-navy hover:text-navy/70 transition-colors"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-xs font-bold text-amber">
-                  {session.user?.name?.[0]?.toUpperCase() ?? "U"}
-                </span>
+                {session.user?.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={session.user.image} alt="" className="h-7 w-7 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-xs font-bold text-amber">
+                    {session.user?.name?.[0]?.toUpperCase() ?? "U"}
+                  </span>
+                )}
                 <span>{session.user?.name ?? session.user?.email}</span>
               </button>
               {userMenuOpen && (
@@ -168,12 +173,6 @@ export function SiteHeader() {
                 className="text-sm font-bold text-navy no-underline hover:text-navy/70 transition-colors"
               >
                 Log In
-              </Link>
-              <Link
-                href="/join"
-                className="rounded-[10px] bg-amber px-5 py-2.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-              >
-                ★ Join Fixer Nation
               </Link>
             </div>
           )}
