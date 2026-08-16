@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -315,13 +315,13 @@ function MediaPickerModal({ onSelect, onClose }: { onSelect: (url: string) => vo
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
-  useState(() => {
+  useEffect(() => {
     fetch("/api/admin/media")
       .then(r => r.json())
       .then(data => setAssets(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  });
+  }, []);
 
   const filtered = q ? assets.filter(a => a.name.toLowerCase().includes(q.toLowerCase())) : assets;
 

@@ -86,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         to: recipient,
         subject: `[Test] ${template.subject}`,
         html: template.htmlBody,
-        text: template.textBody ?? undefined,
+        text: template.textBody ?? "",
       });
       return res.status(200).json({ ok: true });
     }
