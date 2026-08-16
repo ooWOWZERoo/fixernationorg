@@ -22,11 +22,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       select: { id: true, name: true, email: true, role: true, createdAt: true },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     }),
-    db.adminInvite.findMany({
-      where: { claimedAt: null, expiresAt: { gt: now } },
-      select: { id: true, email: true, role: true, invitedById: true, createdAt: true, expiresAt: true },
-      orderBy: { createdAt: "desc" },
-    }),
+    (db as never as { adminInvite: { findMany: (a: unknown) => Promise<unknown[]> } })
+      .adminInvite.findMany({
+        where: { claimedAt: null, expiresAt: { gt: now } },
+        select: { id: true, email: true, role: true, invitedById: true, createdAt: true, expiresAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
   ]);
 
   return res.status(200).json({

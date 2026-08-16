@@ -40,8 +40,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
+  type AdminInviteDb = {
+    adminInvite: {
+      updateMany: (a: unknown) => Promise<unknown>;
+      create: (a: unknown) => Promise<{ id: string; email: string; role: string; createdAt: Date; expiresAt: Date }>;
+    };
+  };
+  const inviteDb = db as never as AdminInviteDb;
+
   // Expire any previous pending invites for this address
-  await db.adminInvite.updateMany({
+  await inviteDb.adminInvite.updateMany({
     where: { email, claimedAt: null },
     data: { expiresAt: new Date() },
   });
@@ -49,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-  const invite = await db.adminInvite.create({
+  const invite = await inviteDb.adminInvite.create({
     data: { email, role, token, invitedById: session.user.id, expiresAt },
   });
 

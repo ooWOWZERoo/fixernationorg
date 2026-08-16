@@ -8,8 +8,16 @@ const ClaimSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+type AdminInviteDb = {
+  adminInvite: {
+    findUnique: (a: unknown) => Promise<{ id: string; email: string; role: string; claimedAt: Date | null; expiresAt: Date } | null>;
+    update: (a: unknown) => Promise<unknown>;
+  };
+};
+const inviteDb = db as never as AdminInviteDb;
+
 async function resolveInvite(token: string) {
-  const invite = await db.adminInvite.findUnique({
+  const invite = await inviteDb.adminInvite.findUnique({
     where: { token },
     select: { id: true, email: true, role: true, claimedAt: true, expiresAt: true },
   });
@@ -57,13 +65,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: invite.email,
         name: name.trim(),
         passwordHash,
-        role: invite.role,
+        role: invite.role as import("@prisma/client").UserRole,
         emailVerified: new Date(),
       },
       select: { id: true },
     });
 
-    await db.adminInvite.update({
+    await inviteDb.adminInvite.update({
       where: { id: invite.id },
       data: { claimedAt: new Date(), claimedById: user.id },
     });

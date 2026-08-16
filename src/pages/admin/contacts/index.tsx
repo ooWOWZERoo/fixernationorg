@@ -1,12 +1,15 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+
+const PAGE_SIZE = 50;
 
 const ATTR_COLORS: Record<string, string> = {
   ORGANIC: "bg-green-100 text-green-800",
@@ -36,25 +39,47 @@ interface ContactRow {
 interface Props {
   contacts: ContactRow[];
   total: number;
+  page: number;
+  pageSize: number;
+  q: string;
+  attrFilter: string;
 }
 
-const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
-  const [q, setQ] = useState("");
-  const [attrFilter, setAttrFilter] = useState("");
+const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, pageSize, q: initialQ, attrFilter: initialAttr }) => {
+  const router = useRouter();
+  const [q, setQ] = useState(initialQ);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filtered = contacts.filter((c) => {
-    if (q) {
-      const lower = q.toLowerCase();
-      if (
-        !c.email.includes(lower) &&
-        !(c.firstName ?? "").toLowerCase().includes(lower) &&
-        !(c.lastName ?? "").toLowerCase().includes(lower) &&
-        !(c.company ?? "").toLowerCase().includes(lower)
-      ) return false;
-    }
-    if (attrFilter && c.attributionSource !== attrFilter) return false;
-    return true;
-  });
+  useEffect(() => { setQ(initialQ); }, [initialQ]);
+
+  function navigate(updates: { q?: string; attr?: string; page?: number }) {
+    const current = {
+      q: initialQ,
+      attr: initialAttr,
+      page: 1,
+      ...updates,
+    };
+    const params = new URLSearchParams();
+    if (current.q) params.set("q", current.q);
+    if (current.attr) params.set("attr", current.attr);
+    if (current.page > 1) params.set("page", String(current.page));
+    const qs = params.toString();
+    router.push(`/admin/contacts${qs ? `?${qs}` : ""}`, undefined, { shallow: false });
+  }
+
+  function handleSearchChange(val: string) {
+    setQ(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => navigate({ q: val, page: 1 }), 400);
+  }
+
+  function handleAttrChange(val: string) {
+    navigate({ attr: val, page: 1 });
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
 
   return (
     <>
@@ -62,11 +87,11 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-navy">Contacts</h1>
-          <p className="mt-0.5 text-sm text-ink-soft">{total} total</p>
+          <p className="mt-0.5 text-sm text-ink-soft">{total.toLocaleString()} total</p>
         </div>
         <div className="flex gap-2">
           <a
-            href="/api/admin/contacts/export"
+            href={`/api/admin/contacts/export`}
             download
             className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-bold text-ink-soft no-underline hover:bg-cream-panel"
           >
@@ -92,12 +117,12 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
           type="search"
           placeholder="Search by name, email, or company…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full max-w-sm rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
         />
         <select
-          value={attrFilter}
-          onChange={(e) => setAttrFilter(e.target.value)}
+          value={initialAttr}
+          onChange={(e) => handleAttrChange(e.target.value)}
           className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
         >
           <option value="">All attribution sources</option>
@@ -107,9 +132,9 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
         </select>
       </div>
 
-      {filtered.length === 0 ? (
+      {contacts.length === 0 ? (
         <div className="rounded-2xl border border-navy/8 bg-white p-12 text-center">
-          <p className="text-sm text-ink-soft">{q ? "No contacts match your search." : "No contacts yet."}</p>
+          <p className="text-sm text-ink-soft">{initialQ || initialAttr ? "No contacts match your search." : "No contacts yet."}</p>
         </div>
       ) : (
         <div className="rounded-2xl border border-navy/8 bg-white">
@@ -126,7 +151,7 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {contacts.map((c) => (
                 <tr key={c.id} className="border-b border-navy/5 hover:bg-cream-panel/40">
                   <td className="px-5 py-3">
                     <Link href={`/admin/contacts/${c.id}`} className="font-semibold text-navy hover:underline">
@@ -164,6 +189,33 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
               ))}
             </tbody>
           </table>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-navy/8 px-5 py-3">
+              <span className="text-xs text-ink-soft">
+                {start}–{end} of {total.toLocaleString()}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate({ page: page - 1 })}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Prev
+                </button>
+                <span className="flex items-center px-2 text-xs text-ink-soft">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => navigate({ page: page + 1 })}
+                  disabled={page >= totalPages}
+                  className="rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
@@ -179,22 +231,44 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return { redirect: { destination: "/", permanent: false } };
   }
 
-  const contacts = await db.contact.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 500,
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      company: true,
-      source: true,
-      createdAt: true,
-      tags: { select: { tag: true } },
-      _count: { select: { listMemberships: true } },
-      attribution: { select: { source: true } },
-    },
-  });
+  const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
+  const attrFilter = typeof ctx.query.attr === "string" ? ctx.query.attr : "";
+  const page = Math.max(1, parseInt(typeof ctx.query.page === "string" ? ctx.query.page : "1", 10) || 1);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {
+    ...(q ? {
+      OR: [
+        { email: { contains: q, mode: "insensitive" } },
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { company: { contains: q, mode: "insensitive" } },
+      ],
+    } : {}),
+    ...(attrFilter ? { attribution: { source: attrFilter } } : {}),
+  };
+
+  const [total, contacts] = await Promise.all([
+    db.contact.count({ where }),
+    db.contact.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        company: true,
+        source: true,
+        createdAt: true,
+        tags: { select: { tag: true } },
+        _count: { select: { listMemberships: true } },
+        attribution: { select: { source: true } },
+      },
+    }),
+  ]);
 
   return {
     props: {
@@ -210,7 +284,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         listCount: c._count.listMemberships,
         attributionSource: (c.attribution as { source: string } | null)?.source ?? null,
       })),
-      total: contacts.length,
+      total,
+      page,
+      pageSize: PAGE_SIZE,
+      q,
+      attrFilter,
     },
   };
 };
