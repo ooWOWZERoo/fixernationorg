@@ -1,6 +1,26 @@
 import { db } from "@/lib/db";
 import type { NextApiRequest } from "next";
 
+// -- Application submission guards (SP-20) ------------------------------------
+
+const APP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const APP_MAX_SUBMISSIONS = 3;
+
+export async function isSubmissionThrottled(email: string): Promise<boolean> {
+  const since = new Date(Date.now() - APP_WINDOW_MS);
+  const count = await db.userApplication.count({
+    where: { email, createdAt: { gte: since } },
+  });
+  return count >= APP_MAX_SUBMISSIONS;
+}
+
+export async function isEmailBlocked(email: string): Promise<boolean> {
+  const row = await db.blockedEmail.findUnique({ where: { email } });
+  return row !== null;
+}
+
+// -- Generic DB-backed rate limiter (SP-42) -----------------------------------
+
 export function getClientIp(req: NextApiRequest): string {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
