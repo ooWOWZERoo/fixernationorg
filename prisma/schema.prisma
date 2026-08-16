@@ -826,6 +826,7 @@ model Contact {
   subscriptions     ContactSubscription[]
   attribution       ContactAttribution?
   customFieldValues CustomFieldValue[]
+  activities        ContactActivity[]
 
   @@index([email])
   @@index([userId])
@@ -1579,6 +1580,37 @@ model CustomFieldDefinition {
   values    CustomFieldValue[]
 
   @@index([active])
+}
+
+// ─── SP-33 ────────────────────────────────────────────────────────────────────
+
+enum ContactActivityType {
+  NOTE_ADDED
+  TAG_ADDED
+  TAG_REMOVED
+  LIST_JOINED
+  LIST_REMOVED
+  CONSENT_UPDATED
+  CAMPAIGN_SENT
+  CAMPAIGN_OPENED
+  CAMPAIGN_CLICKED
+  CAMPAIGN_BOUNCED
+  CAMPAIGN_UNSUBSCRIBED
+  CONTACT_UPDATED
+  CONTACT_CREATED
+}
+
+model ContactActivity {
+  id         String              @id @default(cuid())
+  contactId  String
+  type       ContactActivityType
+  summary    String
+  metadata   Json?
+  occurredAt DateTime            @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, occurredAt(sort: Desc)])
 }
 
 model CustomFieldValue {

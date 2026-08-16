@@ -5,6 +5,16 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enrollInJourneys } from "@/lib/automation";
 
+type ActDb = {
+  contactActivity: { create: (a: unknown) => Promise<unknown> };
+};
+
+function writeActivity(contactId: string, type: string, summary: string, metadata?: Record<string, unknown>) {
+  (db as never as ActDb).contactActivity.create({
+    data: { contactId, type, summary, metadata: metadata ?? null } as never,
+  }).catch(() => {});
+}
+
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const updateSchema = z.object({
@@ -77,6 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id },
       data: { ...rest, ...(normalizedEmail ? { email: normalizedEmail } : {}) },
     });
+    writeActivity(id, "CONTACT_UPDATED", "Contact information updated");
     return res.status(200).json(updated);
   }
 
@@ -95,6 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const note = await db.contactNote.create({
         data: { contactId: id, body: parsed.data.body, authorId: session.user.id },
       });
+      writeActivity(id, "NOTE_ADDED", `Note added: "${parsed.data.body.slice(0, 80)}${parsed.data.body.length > 80 ? "…" : ""}"`);
       return res.status(201).json(note);
     }
 
@@ -107,6 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         update: {},
       });
       enrollInJourneys({ trigger: "TAG_ADDED", contactId: id, triggerConfig: { tag: parsed.data.tag } }).catch(() => {});
+      writeActivity(id, "TAG_ADDED", `Tag added: "${parsed.data.tag}"`, { tag: parsed.data.tag });
       return res.status(200).json(tag);
     }
 
@@ -114,6 +127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const parsed = tagSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
       await db.contactTag.deleteMany({ where: { contactId: id, tag: parsed.data.tag } });
+      writeActivity(id, "TAG_REMOVED", `Tag removed: "${parsed.data.tag}"`, { tag: parsed.data.tag });
       return res.status(204).end();
     }
 
@@ -138,6 +152,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           source: "admin",
         },
       });
+      const label = parsed.data.topic.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+      writeActivity(id, "CONSENT_UPDATED", `${label}: ${parsed.data.optedIn ? "opted in" : "opted out"}`, { topic: parsed.data.topic, optedIn: parsed.data.optedIn });
       return res.status(200).json(consent);
     }
 
