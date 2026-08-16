@@ -20,7 +20,7 @@ interface Props {
     subject: string;
     fromName: string;
     fromEmail: string;
-    htmlBody: string;
+    htmlBody: string | null;
     textBody: string | null;
     listId: string | null;
     audienceRules: AudienceDefinition | null;
@@ -36,7 +36,7 @@ const AdminEditCampaignPage: NextPageWithLayout<Props> = ({ campaign, lists }) =
     subject: campaign.subject,
     fromName: campaign.fromName,
     fromEmail: campaign.fromEmail,
-    htmlBody: campaign.htmlBody,
+    htmlBody: campaign.htmlBody ?? "",
     textBody: campaign.textBody ?? "",
     scheduledAt: campaign.scheduledAt
       ? new Date(campaign.scheduledAt).toISOString().slice(0, 16)

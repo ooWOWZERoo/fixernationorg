@@ -7,14 +7,14 @@ function substituteVars(template: string, vars: Record<string, string>): string 
 }
 
 export function buildCampaignEmail(
-  campaign: { subject: string; htmlBody: string; textBody: string | null },
+  campaign: { subject: string; htmlBody: string | null; textBody: string | null },
   contactId: string,
   firstName: string | null | undefined,
   sendId?: string
 ): { subject: string; html: string; text: string } {
   const vars = { first_name: firstName ?? "" };
   const subject = substituteVars(campaign.subject, vars);
-  const bodyHtml = substituteVars(campaign.htmlBody, vars);
+  const bodyHtml = substituteVars(campaign.htmlBody ?? "", vars);
   const bodyText = substituteVars(campaign.textBody ?? campaign.subject, vars);
 
   const unsubUrl = makeUnsubUrl(contactId, BASE_URL);
