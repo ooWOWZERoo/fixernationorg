@@ -108,6 +108,25 @@ async function runMorningBoost(): Promise<{ message: string }> {
 async function runCampaignScheduler(): Promise<{ message: string }> {
   const now = new Date();
 
+  // Reset any campaigns stuck in SENDING for > 30 min (e.g. serverless timeout mid-send)
+  const stuckThreshold = new Date(now.getTime() - 30 * 60 * 1000);
+  const stuck = await db.campaign.findMany({
+    where: { status: "SENDING", updatedAt: { lt: stuckThreshold } },
+    select: { id: true },
+  });
+  if (stuck.length > 0) {
+    const stuckIds = stuck.map((c) => c.id);
+    await db.campaignSend.updateMany({
+      where: { campaignId: { in: stuckIds }, status: "QUEUED" },
+      data: { status: "FAILED" },
+    });
+    await db.campaign.updateMany({
+      where: { id: { in: stuckIds } },
+      data: { status: "DRAFT" },
+    });
+  }
+
+
   const campaigns = await db.campaign.findMany({
     where: { status: "SCHEDULED", scheduledAt: { lte: now } },
     select: { id: true, name: true },
