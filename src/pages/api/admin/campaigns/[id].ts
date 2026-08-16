@@ -13,6 +13,23 @@ type SupDb = {
   };
 };
 
+type VarDb = {
+  campaignVariant: {
+    findMany: (a: unknown) => Promise<{
+      id: string; name: string; subject: string; fromName: string;
+      fromEmail: string; htmlBody: string; textBody: string | null; splitPct: number;
+    }[]>;
+  };
+};
+
+type AbSendDb = {
+  campaignSend: {
+    createMany: (a: unknown) => Promise<{ count: number }>;
+    findMany: (a: unknown) => Promise<{ id: string; contactId: string; variantId: string | null }[]>;
+    update: (a: unknown) => Promise<unknown>;
+  };
+};
+
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 async function computeCampaignMetric(campaignId: string) {
@@ -67,6 +84,7 @@ const updateSchema = z.object({
   listId: z.string().nullable().optional(),
   audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().nullable().optional(),
+  isAbTest: z.boolean().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -85,6 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
   if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+  const isAbTest = (campaign as unknown as { isAbTest: boolean }).isAbTest ?? false;
 
   if (req.method === "GET") {
     const stats = await db.campaignSend.groupBy({
@@ -275,46 +294,118 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Mark campaign as SENDING
     await db.campaign.update({ where: { id }, data: { status: "SENDING" } });
 
-    // Queue CampaignSend rows and fetch their IDs for tracking
-    await db.campaignSend.createMany({
-      data: eligibleContacts.map((c) => ({ campaignId: id, contactId: c.id })),
-      skipDuplicates: true,
-    });
-    const sendRows = await db.campaignSend.findMany({
-      where: { campaignId: id, status: "QUEUED" },
-      select: { id: true, contactId: true },
-    });
-    const sendIdByContact = Object.fromEntries(sendRows.map((r) => [r.contactId, r.id]));
-
-    // Send in batches of 20
     const BATCH = 20;
     let sent = 0;
     let failed = 0;
     const now = new Date();
 
-    for (let i = 0; i < eligibleContacts.length; i += BATCH) {
-      const batch = eligibleContacts.slice(i, i + BATCH);
-      await Promise.allSettled(
-        batch.map(async (c) => {
-          try {
-            const sendId = sendIdByContact[c.id];
-            const { subject, html, text } = buildCampaignEmail(
-              campaign,
-              c.id,
-              c.firstName,
-              sendId
-            );
-            await sendEmail({ to: c.email, subject, html, text });
-            await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: id, contactId: c.id } },
-              data: { status: "SENT", sentAt: now },
-            });
-            sent++;
-          } catch {
-            failed++;
-          }
-        })
+    if (isAbTest) {
+      // ── A/B send: split audience by variant, stamp variantId on each send ──
+      const varDb = db as never as VarDb;
+      const abDb = db as never as AbSendDb;
+
+      const variants = await varDb.campaignVariant.findMany({
+        where: { campaignId: id } as never,
+        orderBy: { createdAt: "asc" } as never,
+      });
+
+      if (variants.length === 0) {
+        // Fallback to standard send if A/B enabled but no variants defined
+        await db.campaign.update({ where: { id }, data: { status: "DRAFT" } });
+        return res.status(400).json({ error: "A/B test enabled but no variants defined" });
+      }
+
+      // Build variant groups: variant A (campaign content) gets remaining %, explicit variants get their splitPct
+      const totalVariantPct = variants.reduce((s, v) => s + v.splitPct, 0);
+      if (totalVariantPct > 99) {
+        await db.campaign.update({ where: { id }, data: { status: "DRAFT" } });
+        return res.status(400).json({ error: "Variant split percentages must leave at least 1% for control (variant A)" });
+      }
+      const controlPct = 100 - totalVariantPct;
+
+      type Group = { variantId: string | null; content: { subject: string; fromName: string; fromEmail: string; htmlBody: string; textBody: string | null }; contacts: typeof eligibleContacts };
+      const groups: Group[] = [];
+
+      // Variant A = campaign's own content
+      const controlCount = Math.round(eligibleContacts.length * (controlPct / 100));
+      groups.push({ variantId: null, content: campaign, contacts: eligibleContacts.slice(0, controlCount) });
+
+      let offset = controlCount;
+      for (let i = 0; i < variants.length; i++) {
+        const v = variants[i];
+        const count = i === variants.length - 1
+          ? eligibleContacts.length - offset
+          : Math.round(eligibleContacts.length * (v.splitPct / 100));
+        groups.push({ variantId: v.id, content: v, contacts: eligibleContacts.slice(offset, offset + count) });
+        offset += count;
+      }
+
+      for (const group of groups) {
+        if (group.contacts.length === 0) continue;
+
+        await abDb.campaignSend.createMany({
+          data: group.contacts.map((c) => ({ campaignId: id, contactId: c.id, variantId: group.variantId })) as never,
+          skipDuplicates: true,
+        } as never);
+      }
+
+      const sendRows = await abDb.campaignSend.findMany({
+        where: { campaignId: id, status: "QUEUED" } as never,
+        select: { id: true, contactId: true, variantId: true } as never,
+      });
+      const sendInfoByContact = Object.fromEntries(
+        sendRows.map((r) => [r.contactId, { sendId: r.id, variantId: r.variantId }])
       );
+
+      for (const group of groups) {
+        for (let i = 0; i < group.contacts.length; i += BATCH) {
+          const batch = group.contacts.slice(i, i + BATCH);
+          await Promise.allSettled(
+            batch.map(async (c) => {
+              try {
+                const info = sendInfoByContact[c.id];
+                if (!info) return;
+                const { subject, html, text } = buildCampaignEmail(group.content, c.id, c.firstName, info.sendId);
+                await sendEmail({ to: c.email, subject, html, text });
+                await abDb.campaignSend.update({
+                  where: { campaignId_contactId: { campaignId: id, contactId: c.id } } as never,
+                  data: { status: "SENT", sentAt: now } as never,
+                } as never);
+                sent++;
+              } catch { failed++; }
+            })
+          );
+        }
+      }
+    } else {
+      // ── Standard (non-A/B) send ──────────────────────────────────────────
+      await db.campaignSend.createMany({
+        data: eligibleContacts.map((c) => ({ campaignId: id, contactId: c.id })),
+        skipDuplicates: true,
+      });
+      const sendRows = await db.campaignSend.findMany({
+        where: { campaignId: id, status: "QUEUED" },
+        select: { id: true, contactId: true },
+      });
+      const sendIdByContact = Object.fromEntries(sendRows.map((r) => [r.contactId, r.id]));
+
+      for (let i = 0; i < eligibleContacts.length; i += BATCH) {
+        const batch = eligibleContacts.slice(i, i + BATCH);
+        await Promise.allSettled(
+          batch.map(async (c) => {
+            try {
+              const sendId = sendIdByContact[c.id];
+              const { subject, html, text } = buildCampaignEmail(campaign, c.id, c.firstName, sendId);
+              await sendEmail({ to: c.email, subject, html, text });
+              await db.campaignSend.update({
+                where: { campaignId_contactId: { campaignId: id, contactId: c.id } },
+                data: { status: "SENT", sentAt: now },
+              });
+              sent++;
+            } catch { failed++; }
+          })
+        );
+      }
     }
 
     await db.campaign.update({

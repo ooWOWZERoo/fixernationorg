@@ -22,6 +22,27 @@ interface MetricData {
   unsubRate: number;
   computedAt: string;
 }
+interface VariantRow {
+  id: string;
+  name: string;
+  subject: string;
+  fromName: string;
+  fromEmail: string;
+  htmlBody: string;
+  textBody: string | null;
+  splitPct: number;
+  createdAt: string;
+}
+interface VariantStat {
+  variantId: string | null; // null = control (variant A)
+  name: string;
+  subject: string;
+  sent: number;
+  opened: number;
+  clicked: number;
+  openRate: number;
+  clickRate: number;
+}
 interface Props {
   campaign: {
     id: string;
@@ -40,8 +61,11 @@ interface Props {
     scheduledAt: string | null;
     sentAt: string | null;
     createdAt: string;
+    isAbTest: boolean;
   };
   metric: MetricData | null;
+  variants: VariantRow[];
+  variantStats: VariantStat[];
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -53,7 +77,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric }) => {
+const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats }) => {
   const router = useRouter();
   const [campaign, setCampaign] = useState(initial);
   const [metric, setMetric] = useState(initialMetric);
@@ -61,6 +85,18 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const [refreshing, setRefreshing] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A/B variants
+  const [variants, setVariants] = useState<VariantRow[]>(initialVariants);
+  const [variantStats] = useState<VariantStat[]>(initialVariantStats);
+  const [addingVariant, setAddingVariant] = useState(false);
+  const [variantSaving, setVariantSaving] = useState(false);
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+  const [variantForm, setVariantForm] = useState({
+    subject: initial.subject, fromName: initial.fromName, fromEmail: initial.fromEmail,
+    htmlBody: initial.htmlBody, textBody: initial.textBody ?? "", splitPct: 50,
+  });
+  const [editVariantForm, setEditVariantForm] = useState<Partial<VariantRow>>({});
 
   async function refreshMetrics() {
     setRefreshing(true);
@@ -113,6 +149,49 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
     await fetch(`/api/admin/campaigns/${campaign.id}`, { method: "DELETE" });
     router.push("/admin/campaigns");
   }
+
+  async function addVariant() {
+    setVariantSaving(true);
+    try {
+      const usedNames = new Set(variants.map((v) => v.name));
+      const nextName = ["B", "C", "D"].find((n) => !usedNames.has(n)) ?? "B";
+      const r = await fetch(`/api/admin/campaigns/${campaign.id}/variants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...variantForm, name: nextName, textBody: variantForm.textBody || undefined }),
+      });
+      if (!r.ok) { const d = await r.json(); setError(d.error ?? "Failed"); return; }
+      const saved: VariantRow = await r.json();
+      setVariants((prev) => [...prev, saved]);
+      setCampaign((c) => ({ ...c, isAbTest: true }));
+      setAddingVariant(false);
+    } finally { setVariantSaving(false); }
+  }
+
+  async function saveVariantEdit(vid: string) {
+    setVariantSaving(true);
+    try {
+      const r = await fetch(`/api/admin/campaigns/${campaign.id}/variants/${vid}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editVariantForm),
+      });
+      if (!r.ok) return;
+      const saved: VariantRow = await r.json();
+      setVariants((prev) => prev.map((v) => v.id === vid ? saved : v));
+      setEditingVariantId(null);
+    } finally { setVariantSaving(false); }
+  }
+
+  async function deleteVariant(vid: string) {
+    if (!confirm("Remove this variant?")) return;
+    await fetch(`/api/admin/campaigns/${campaign.id}/variants/${vid}`, { method: "DELETE" });
+    const remaining = variants.filter((v) => v.id !== vid);
+    setVariants(remaining);
+    if (remaining.length === 0) setCampaign((c) => ({ ...c, isAbTest: false }));
+  }
+
+  const controlSplitPct = Math.max(0, 100 - variants.reduce((s, v) => s + v.splitPct, 0));
 
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
@@ -207,6 +286,194 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
               {campaign.htmlBody.slice(0, 2000)}{campaign.htmlBody.length > 2000 ? "\n…" : ""}
             </div>
           </div>
+
+          {/* A/B Testing */}
+          {(campaign.status === "DRAFT" || campaign.status === "SCHEDULED" || campaign.isAbTest) && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-navy">A/B testing</h2>
+                  {campaign.isAbTest && (
+                    <p className="mt-0.5 text-xs text-ink-soft">
+                      Control (A): {controlSplitPct}% · {variants.length} variant{variants.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+                {(campaign.status === "DRAFT" || campaign.status === "SCHEDULED") && variants.length < 3 && !addingVariant && (
+                  <button
+                    onClick={() => {
+                      setVariantForm({ subject: campaign.subject, fromName: campaign.fromName, fromEmail: campaign.fromEmail, htmlBody: campaign.htmlBody, textBody: campaign.textBody ?? "", splitPct: 50 });
+                      setAddingVariant(true);
+                    }}
+                    className="rounded-xl bg-navy/8 px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy/15">
+                    + Add variant
+                  </button>
+                )}
+              </div>
+
+              {!campaign.isAbTest && !addingVariant && (
+                <p className="text-sm text-ink-soft">
+                  Add a variant to split your audience and test different subject lines or content.
+                  Control (A) always uses this campaign&#39;s current content.
+                </p>
+              )}
+
+              {/* Existing variants */}
+              {variants.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  {/* Control row */}
+                  <div className="rounded-xl border border-navy/8 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 flex items-center justify-center rounded-full bg-navy text-white text-xs font-extrabold shrink-0">A</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-navy truncate">{campaign.subject}</p>
+                          <p className="text-xs text-ink-soft">{campaign.fromName} · Control</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-ink-soft">{controlSplitPct}%</span>
+                    </div>
+                  </div>
+
+                  {variants.map((v) => (
+                    <div key={v.id} className="rounded-xl border border-navy/8 px-4 py-3">
+                      {editingVariantId === v.id ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="mb-0.5 block text-xs font-semibold text-ink-soft">Subject</label>
+                              <input type="text" value={editVariantForm.subject ?? v.subject}
+                                onChange={(e) => setEditVariantForm((f) => ({ ...f, subject: e.target.value }))}
+                                className="w-full rounded-lg border border-navy/15 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-xs font-semibold text-ink-soft">Split %</label>
+                              <input type="number" min={1} max={99} value={editVariantForm.splitPct ?? v.splitPct}
+                                onChange={(e) => setEditVariantForm((f) => ({ ...f, splitPct: parseInt(e.target.value) || 1 }))}
+                                className="w-full rounded-lg border border-navy/15 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={() => saveVariantEdit(v.id)} disabled={variantSaving}
+                              className="rounded-lg bg-navy px-3 py-1 text-xs font-bold text-white hover:bg-navy-dark disabled:opacity-60">
+                              {variantSaving ? "…" : "Save"}
+                            </button>
+                            <button onClick={() => setEditingVariantId(null)}
+                              className="rounded-lg border border-navy/15 px-3 py-1 text-xs text-ink-soft hover:bg-cream-panel">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 flex items-center justify-center rounded-full bg-amber/30 text-navy-dark text-xs font-extrabold shrink-0">{v.name}</span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-navy truncate">{v.subject}</p>
+                              <p className="text-xs text-ink-soft">{v.fromName}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs font-semibold text-ink-soft">{v.splitPct}%</span>
+                            {(campaign.status === "DRAFT" || campaign.status === "SCHEDULED") && (
+                              <div className="flex gap-2 text-xs">
+                                <button onClick={() => { setEditingVariantId(v.id); setEditVariantForm({ subject: v.subject, splitPct: v.splitPct }); }}
+                                  className="text-ink-soft hover:text-navy">Edit</button>
+                                <button onClick={() => deleteVariant(v.id)} className="text-ink-soft hover:text-red-600">Remove</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add variant form */}
+              {addingVariant && (
+                <div className="rounded-xl border border-navy/15 bg-cream-panel/40 p-4 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">
+                    Variant {["B", "C", "D"].find((n) => !variants.map((v) => v.name).includes(n)) ?? "B"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs font-semibold text-ink-soft">Subject line</label>
+                      <input type="text" value={variantForm.subject}
+                        onChange={(e) => setVariantForm((f) => ({ ...f, subject: e.target.value }))}
+                        className="w-full rounded-lg border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-ink-soft">From name</label>
+                      <input type="text" value={variantForm.fromName}
+                        onChange={(e) => setVariantForm((f) => ({ ...f, fromName: e.target.value }))}
+                        className="w-full rounded-lg border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-ink-soft">Split %</label>
+                      <input type="number" min={1} max={99} value={variantForm.splitPct}
+                        onChange={(e) => setVariantForm((f) => ({ ...f, splitPct: parseInt(e.target.value) || 1 }))}
+                        className="w-full rounded-lg border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={addVariant} disabled={variantSaving || !variantForm.subject.trim()}
+                      className="rounded-xl bg-navy px-4 py-1.5 text-xs font-bold text-white hover:bg-navy-dark disabled:opacity-60">
+                      {variantSaving ? "Saving…" : "Save variant"}
+                    </button>
+                    <button onClick={() => setAddingVariant(false)}
+                      className="rounded-xl border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* A/B results comparison — shown after send */}
+          {campaign.isAbTest && campaign.status === "SENT" && variantStats.length > 1 && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-sm font-extrabold text-navy">A/B test results</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
+                      <th className="pb-2 pr-4">Variant</th>
+                      <th className="pb-2 pr-4">Subject</th>
+                      <th className="pb-2 pr-4 text-right">Sent</th>
+                      <th className="pb-2 pr-4 text-right">Opens</th>
+                      <th className="pb-2 pr-4 text-right">Open rate</th>
+                      <th className="pb-2 text-right">Click rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-navy/5">
+                    {variantStats.map((vs) => {
+                      const bestOpenRate = Math.max(...variantStats.map((s) => s.openRate));
+                      const isWinner = vs.openRate === bestOpenRate && variantStats.filter((s) => s.openRate === bestOpenRate).length === 1;
+                      return (
+                        <tr key={vs.variantId ?? "control"} className={isWinner ? "bg-green-50/50" : ""}>
+                          <td className="py-2.5 pr-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-extrabold ${vs.variantId === null ? "bg-navy text-white" : "bg-amber/30 text-navy-dark"}`}>
+                                {vs.name}
+                              </span>
+                              {isWinner && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Winner</span>}
+                            </div>
+                          </td>
+                          <td className="py-2.5 pr-4 max-w-xs truncate text-ink">{vs.subject}</td>
+                          <td className="py-2.5 pr-4 text-right font-medium">{vs.sent}</td>
+                          <td className="py-2.5 pr-4 text-right font-medium">{vs.opened}</td>
+                          <td className="py-2.5 pr-4 text-right font-bold text-green-700">{pct(vs.openRate)}</td>
+                          <td className="py-2.5 text-right font-bold text-blue-700">{pct(vs.clickRate)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Stats */}
@@ -304,6 +571,16 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const { id } = ctx.params as { id: string };
 
+  type VarDb = {
+    campaignVariant: {
+      findMany: (a: unknown) => Promise<{
+        id: string; name: string; subject: string; fromName: string; fromEmail: string;
+        htmlBody: string; textBody: string | null; splitPct: number; createdAt: Date;
+      }[]>;
+    };
+  };
+  const varDb = db as never as VarDb;
+
   const campaign = await db.campaign.findUnique({
     where: { id },
     include: {
@@ -313,6 +590,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     },
   });
   if (!campaign) return { notFound: true };
+
+  const isAbTest = (campaign as unknown as { isAbTest: boolean }).isAbTest ?? false;
 
   // Build a human-readable summary of audienceRules for display
   type RuleShape = { type: string; listId?: string; role?: string; tag?: string; topic?: string; label?: string };
@@ -333,6 +612,47 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const m = campaign.metric;
 
+  // Load variants
+  const variantRows = await varDb.campaignVariant.findMany({
+    where: { campaignId: id } as never,
+    orderBy: { createdAt: "asc" } as never,
+  });
+
+  // Compute per-variant stats (only meaningful after send)
+  type SendStatRow = { variantId: string | null; status: string };
+  const allSendStats: SendStatRow[] = campaign.status === "SENT"
+    ? await (db as never as { campaignSend: { findMany: (a: unknown) => Promise<SendStatRow[]> } })
+        .campaignSend.findMany({
+          where: { campaignId: id } as never,
+          select: { variantId: true, status: true } as never,
+        })
+    : [];
+
+  function computeVariantStat(vsRows: SendStatRow[], variantId: string | null, name: string, subject: string): VariantStat {
+    const rows = vsRows.filter((r) => r.variantId === variantId);
+    const sent = rows.filter((r) => ["SENT", "OPENED", "CLICKED", "BOUNCED"].includes(r.status)).length;
+    const opened = rows.filter((r) => r.status === "OPENED" || r.status === "CLICKED").length;
+    const clicked = rows.filter((r) => r.status === "CLICKED").length;
+    const delivered = rows.filter((r) => ["SENT", "OPENED", "CLICKED"].includes(r.status)).length;
+    return {
+      variantId,
+      name,
+      subject,
+      sent,
+      opened,
+      clicked,
+      openRate: delivered > 0 ? opened / delivered : 0,
+      clickRate: delivered > 0 ? clicked / delivered : 0,
+    };
+  }
+
+  const variantStats: VariantStat[] = allSendStats.length > 0
+    ? [
+        computeVariantStat(allSendStats, null, "A", campaign.subject),
+        ...variantRows.map((v) => computeVariantStat(allSendStats, v.id, v.name, v.subject)),
+      ].filter((s) => s.sent > 0)
+    : [];
+
   return {
     props: {
       campaign: {
@@ -352,7 +672,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         scheduledAt: campaign.scheduledAt?.toISOString() ?? null,
         sentAt: campaign.sentAt?.toISOString() ?? null,
         createdAt: campaign.createdAt.toISOString(),
+        isAbTest,
       },
+      variants: variantRows.map((v) => ({
+        id: v.id, name: v.name, subject: v.subject, fromName: v.fromName, fromEmail: v.fromEmail,
+        htmlBody: v.htmlBody, textBody: v.textBody, splitPct: v.splitPct, createdAt: v.createdAt.toISOString(),
+      })),
+      variantStats,
       metric: m ? {
         totalSent: m.totalSent,
         totalDelivered: m.totalDelivered,
