@@ -259,14 +259,9 @@ export function SiteHeader() {
                 </button>
               </>
             ) : (
-              <>
-                <Link href="/signin" className="rounded-lg px-3 py-2.5 text-center text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
-                  Log In
-                </Link>
-                <Link href="/join" className="rounded-[10px] bg-amber px-4 py-2.5 text-center text-sm font-bold text-navy-dark no-underline" onClick={() => setMenuOpen(false)}>
-                  ★ Join Fixer Nation
-                </Link>
-              </>
+              <Link href="/signin" className="rounded-lg px-3 py-2.5 text-center text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
+                Log In
+              </Link>
             )}
           </div>
         </div>
