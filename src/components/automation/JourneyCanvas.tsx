@@ -13,7 +13,6 @@ import {
   type Node,
   type Edge,
   type NodeProps,
-  type NodeMouseHandler,
 } from "@xyflow/react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -418,7 +417,7 @@ function CanvasInner({
   const [nodes, , onNodesChange] = useNodesState(rfNodes);
   const [edges, , onEdgesChange] = useEdgesState(rfEdges);
 
-  const handleNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
+  const handleNodeDragStop = useCallback((_: MouseEvent | TouchEvent, node: Node) => {
     if (node.id === "__trigger__") return;
     const { x, y } = node.position;
     // Debounce PATCH to avoid hammering the API
@@ -501,7 +500,7 @@ function CanvasInner({
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeDragStop={handleNodeDragStop as NodeMouseHandler}
+          onNodeDragStop={handleNodeDragStop}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.3 }}
