@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -12,12 +13,21 @@ const schema = z.object({
   topicId: z.string().optional(),
   topicSlug: z.string().optional(),
   source: z.string().optional(),
+  _hp: z.string().optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Honeypot: silently succeed if bot filled in the hidden field
+  if (req.body?._hp) return res.status(200).json({ ok: true });
+
+  const rl = await checkRateLimit(`sub:${getClientIp(req)}`, 15, 60 * 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: "Too many requests. Please try again later." });
   }
 
   const parsed = schema.safeParse(req.body);

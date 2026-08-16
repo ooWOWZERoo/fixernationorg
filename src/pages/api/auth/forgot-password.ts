@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const Schema = z.object({ email: z.string().email() });
 
@@ -10,6 +11,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const rl = await checkRateLimit(`fp:${getClientIp(req)}`, 5, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: "Too many attempts. Please try again later." });
   }
 
   const parsed = Schema.safeParse(req.body);

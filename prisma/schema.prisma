@@ -1791,6 +1791,16 @@ model ContactImportBatch {
   @@index([importedAt])
 }
 
+// ─── SP-42: Rate limiting ─────────────────────────────────────────────────────
+
+model RateLimitEntry {
+  key         String   @id
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
+}
+
 // ─── SP-41: Provider Campaign Creation ───────────────────────────────────────
 
 enum ProviderCampaignStatus {

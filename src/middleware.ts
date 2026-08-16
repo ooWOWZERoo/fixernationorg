@@ -4,8 +4,40 @@ import { getToken } from "next-auth/jwt";
 const DESIGN_COOKIE = "fn_design_preview";
 const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
 
+// User-agents that are never legitimate browsers submitting forms
+const BOT_UA_PATTERNS = [
+  /python-requests/i,
+  /go-http-client/i,
+  /scrapy/i,
+  /wget\//i,
+  /curl\//i,
+  /libwww-perl/i,
+  /masscan/i,
+  /zgrab/i,
+  /nikto/i,
+  /sqlmap/i,
+];
+
+// Public POST endpoints that should never be hit by headless scripts
+const BOT_GUARDED_PATHS = new Set([
+  "/api/public/subscribe",
+  "/api/contact",
+  "/api/ask-the-fixer",
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+]);
+
 export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ── Bot protection on public POST endpoints ──────────────────────────────────
+  if (req.method === "POST" && BOT_GUARDED_PATHS.has(pathname)) {
+    const ua = req.headers.get("user-agent") ?? "";
+    if (!ua || BOT_UA_PATTERNS.some((p) => p.test(ua))) {
+      // Silently succeed so bots don't know they were blocked
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+  }
 
   // ── HTTPS enforcement ───────────────────────────────────────────────────────
   const proto = req.headers.get("x-forwarded-proto");
