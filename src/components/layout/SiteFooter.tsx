@@ -49,7 +49,7 @@ export function SiteFooter() {
             <Link href="/" className="flex items-center gap-2.5 no-underline hover:no-underline">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Fixer Nation" className="h-12 w-auto max-w-[200px] object-contain" />
+                <img src={logoUrl} alt="Fixer Nation" className="h-14 w-auto max-w-[200px] object-contain brightness-0 invert" />
               ) : (
                 <>
                   <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
