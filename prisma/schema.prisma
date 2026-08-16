@@ -827,6 +827,7 @@ model Contact {
   attribution       ContactAttribution?
   customFieldValues CustomFieldValue[]
   activities        ContactActivity[]
+  identities        ContactIdentity[]
 
   @@index([email])
   @@index([userId])
@@ -1634,6 +1635,40 @@ model ContactActivity {
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([contactId, occurredAt(sort: Desc)])
+}
+
+// ─── SP-35 ────────────────────────────────────────────────────────────────────
+
+enum ContactIdentityType {
+  EMAIL
+  PHONE
+  EXTERNAL_ID
+}
+
+model ContactIdentity {
+  id        String              @id @default(cuid())
+  contactId String
+  type      ContactIdentityType
+  value     String
+  label     String?
+  isPrimary Boolean             @default(false)
+  createdAt DateTime            @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([value])
+}
+
+model ContactMergeHistory {
+  id            String   @id @default(cuid())
+  survivorId    String
+  absorbedId    String
+  absorbedEmail String
+  mergedBy      String
+  mergedAt      DateTime @default(now())
+
+  @@index([survivorId])
 }
 
 model CustomFieldValue {

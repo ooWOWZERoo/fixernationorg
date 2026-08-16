@@ -24,6 +24,8 @@ interface AttributionRow { source: string; attributedAt: string }
 interface CustomFieldDef { id: string; slug: string; label: string; type: string; options: string[] | null; required: boolean }
 interface CustomFieldVal { fieldId: string; value: string }
 interface ActiveSuppression { id: string; type: string; reason: string | null; suppressedAt: string }
+interface IdentityRow { id: string; type: string; value: string; label: string | null; isPrimary: boolean; createdAt: string }
+interface ContactSearchResult { id: string; email: string; firstName: string | null; lastName: string | null }
 
 interface AddressRow {
   id: string;
@@ -106,7 +108,7 @@ const ACTIVITY_ICONS: Record<string, string> = {
   CONTACT_CREATED: "🎉",
 };
 
-type Tab = "activity" | "notes" | "lists" | "consent" | "campaigns" | "addresses" | "custom-fields";
+type Tab = "activity" | "notes" | "lists" | "consent" | "campaigns" | "addresses" | "custom-fields" | "identities";
 
 interface Props {
   contact: {
@@ -123,10 +125,12 @@ interface Props {
   customFieldDefs: CustomFieldDef[];
   customFieldValues: CustomFieldVal[];
   activeSuppression: ActiveSuppression | null;
+  identities: IdentityRow[];
 }
 
 const AdminContactDetailPage: NextPageWithLayout<Props> = ({
   contact: initial, allLists, customFieldDefs, customFieldValues: initialCfv, activeSuppression: initialSuppression,
+  identities: initialIdentities,
 }) => {
   const router = useRouter();
   const [contact, setContact] = useState(initial);
@@ -151,6 +155,20 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
         .finally(() => setActivityLoading(false));
     }
   }, [activeTab, activityLoaded, contact.id]);
+
+  useEffect(() => {
+    if (!mergeOpen || mergeSearch.length < 2) { setMergeResults([]); return; }
+    const timer = setTimeout(async () => {
+      setMergeSearching(true);
+      try {
+        const r = await fetch(`/api/admin/contacts?q=${encodeURIComponent(mergeSearch)}&limit=8`);
+        const data = await r.json();
+        const all: ContactSearchResult[] = Array.isArray(data?.contacts) ? data.contacts : [];
+        setMergeResults(all.filter((c) => c.id !== contact.id));
+      } catch { /* ignore */ } finally { setMergeSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [mergeSearch, mergeOpen, contact.id]);
 
   // Custom fields
   const [cfValues, setCfValues] = useState<Record<string, string>>(
@@ -189,6 +207,61 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [addingAddress, setAddingAddress] = useState(false);
   const [addrSaving, setAddrSaving] = useState(false);
+
+  // Identities
+  const [identities, setIdentities] = useState<IdentityRow[]>(initialIdentities);
+  const [addingIdentity, setAddingIdentity] = useState(false);
+  const [idForm, setIdForm] = useState({ type: "EMAIL", value: "", label: "", isPrimary: false });
+  const [idSaving, setIdSaving] = useState(false);
+
+  // Merge
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeSearch, setMergeSearch] = useState("");
+  const [mergeResults, setMergeResults] = useState<ContactSearchResult[]>([]);
+  const [mergeSearching, setMergeSearching] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<ContactSearchResult | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  async function addIdentity() {
+    if (!idForm.value.trim()) return;
+    setIdSaving(true);
+    try {
+      const r = await fetch(`/api/admin/contacts/${contact.id}/identities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: idForm.type, value: idForm.value.trim(), label: idForm.label.trim() || undefined, isPrimary: idForm.isPrimary }),
+      });
+      if (!r.ok) return;
+      const saved: IdentityRow = await r.json();
+      setIdentities((prev) => [...prev, saved].sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0)));
+      setIdForm({ type: "EMAIL", value: "", label: "", isPrimary: false });
+      setAddingIdentity(false);
+    } finally { setIdSaving(false); }
+  }
+
+  async function deleteIdentity(identityId: string) {
+    if (!confirm("Remove this identity?")) return;
+    await fetch(`/api/admin/contacts/${contact.id}/identities/${identityId}`, { method: "DELETE" });
+    setIdentities((prev) => prev.filter((i) => i.id !== identityId));
+  }
+
+  async function doMerge() {
+    if (!mergeTarget) return;
+    const targetName = [mergeTarget.firstName, mergeTarget.lastName].filter(Boolean).join(" ") || mergeTarget.email;
+    if (!confirm(`Merge "${targetName} <${mergeTarget.email}>" into this contact? The other record will be permanently deleted.`)) return;
+    setMerging(true);
+    try {
+      const r = await fetch(`/api/admin/contacts/${contact.id}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId: mergeTarget.id }),
+      });
+      if (r.ok) {
+        setMergeOpen(false);
+        router.replace(router.asPath);
+      }
+    } finally { setMerging(false); }
+  }
 
   async function patch(action: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/admin/contacts/${contact.id}`, {
@@ -341,6 +414,7 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
     { key: "consent", label: "Consent" },
     { key: "campaigns", label: "Campaigns", count: contact.sends.length || undefined },
     { key: "addresses", label: "Addresses", count: contact.addresses.length || undefined },
+    { key: "identities", label: "Identities", count: identities.length || undefined },
     ...(customFieldDefs.length > 0 ? [{ key: "custom-fields" as Tab, label: "Custom fields" }] : []),
   ];
 
@@ -470,6 +544,10 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
               <button onClick={() => setEditing(true)}
                 className="rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel">
                 Edit
+              </button>
+              <button onClick={() => { setMergeOpen(true); setMergeSearch(""); setMergeTarget(null); setMergeResults([]); }}
+                className="rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel">
+                Merge
               </button>
               <button onClick={deleteContact}
                 className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">
@@ -808,6 +886,92 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
           </div>
         )}
 
+        {/* ── Identities ── */}
+        {activeTab === "identities" && (
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-ink-soft">Identity records</h2>
+              {!addingIdentity && (
+                <button onClick={() => setAddingIdentity(true)}
+                  className="text-xs font-semibold text-navy hover:underline">
+                  + Add identity
+                </button>
+              )}
+            </div>
+
+            {identities.length === 0 && !addingIdentity && (
+              <p className="mb-4 text-sm text-ink-soft">No additional identities on file. Add alternate emails, phone numbers, or external IDs.</p>
+            )}
+
+            <div className="space-y-2 mb-4">
+              {identities.map((i) => (
+                <div key={i.id} className="flex items-center justify-between rounded-xl border border-navy/8 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-widest text-ink-soft w-20 shrink-0">
+                        {i.type.replace("_", " ").toLowerCase()}
+                      </span>
+                      <span className="text-sm font-medium text-ink truncate">{i.value}</span>
+                      {i.isPrimary && (
+                        <span className="rounded-full bg-amber/30 px-2 py-0.5 text-xs font-semibold text-navy-dark">Primary</span>
+                      )}
+                    </div>
+                    {i.label && <p className="mt-0.5 text-xs text-ink-soft ml-[5.5rem]">{i.label}</p>}
+                  </div>
+                  <button onClick={() => deleteIdentity(i.id)}
+                    className="ml-3 shrink-0 text-xs text-ink-soft hover:text-red-600">
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {addingIdentity && (
+              <div className="rounded-xl border border-navy/15 bg-cream-panel/40 p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Type</label>
+                    <select value={idForm.type} onChange={(e) => setIdForm((f) => ({ ...f, type: e.target.value }))}
+                      className={inputCls}>
+                      <option value="EMAIL">Email</option>
+                      <option value="PHONE">Phone</option>
+                      <option value="EXTERNAL_ID">External ID</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Value</label>
+                    <input type="text" value={idForm.value} onChange={(e) => setIdForm((f) => ({ ...f, value: e.target.value }))}
+                      placeholder="e.g. jane@other.com" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Label (optional)</label>
+                    <input type="text" value={idForm.label} onChange={(e) => setIdForm((f) => ({ ...f, label: e.target.value }))}
+                      placeholder="e.g. Work email" className={inputCls} />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
+                      <input type="checkbox" checked={idForm.isPrimary}
+                        onChange={(e) => setIdForm((f) => ({ ...f, isPrimary: e.target.checked }))}
+                        className="accent-navy" />
+                      Mark as primary
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={addIdentity} disabled={idSaving || !idForm.value.trim()}
+                    className="rounded-xl bg-navy px-4 py-1.5 text-xs font-bold text-white hover:bg-navy-dark disabled:opacity-60">
+                    {idSaving ? "Saving…" : "Save"}
+                  </button>
+                  <button onClick={() => { setAddingIdentity(false); setIdForm({ type: "EMAIL", value: "", label: "", isPrimary: false }); }}
+                    className="rounded-xl border border-navy/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:bg-cream-panel">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Custom fields ── */}
         {activeTab === "custom-fields" && customFieldDefs.length > 0 && (
           <div>
@@ -886,6 +1050,72 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
         )}
 
       </div>
+
+      {/* Merge modal */}
+      {mergeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-extrabold text-navy">Merge another contact into this one</h2>
+              <button onClick={() => setMergeOpen(false)} className="text-ink-soft hover:text-navy text-lg leading-none">×</button>
+            </div>
+            <p className="mb-4 text-sm text-ink-soft">
+              Search for the contact to absorb. Their data will be merged here and their record deleted. This cannot be undone.
+            </p>
+
+            <input type="search" value={mergeSearch} onChange={(e) => { setMergeSearch(e.target.value); setMergeTarget(null); }}
+              placeholder="Search by name or email…"
+              className="mb-3 w-full rounded-xl border border-navy/15 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+
+            {mergeSearching && <p className="py-2 text-center text-sm text-ink-soft">Searching…</p>}
+
+            {!mergeSearching && mergeSearch.length >= 2 && mergeResults.length === 0 && (
+              <p className="py-2 text-center text-sm text-ink-soft">No contacts found.</p>
+            )}
+
+            {mergeResults.length > 0 && !mergeTarget && (
+              <div className="mb-4 max-h-48 overflow-y-auto rounded-xl border border-navy/8 divide-y divide-navy/5">
+                {mergeResults.map((c) => {
+                  const name = [c.firstName, c.lastName].filter(Boolean).join(" ");
+                  return (
+                    <button key={c.id} onClick={() => setMergeTarget(c)}
+                      className="w-full px-4 py-2.5 text-left text-sm hover:bg-cream-panel transition-colors">
+                      <span className="font-medium text-navy">{name || c.email}</span>
+                      {name && <span className="ml-2 text-ink-soft text-xs">{c.email}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {mergeTarget && (
+              <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3">
+                <p className="text-sm font-semibold text-navy-dark">
+                  Absorb: {[mergeTarget.firstName, mergeTarget.lastName].filter(Boolean).join(" ") || mergeTarget.email}
+                </p>
+                <p className="text-xs text-ink-soft mt-0.5">{mergeTarget.email}</p>
+                <p className="mt-2 text-xs text-ink-soft">
+                  All their tags, lists, consents, campaign history, notes, and addresses will be moved here. Duplicate entries will be dropped. Their contact record will be deleted.
+                </p>
+                <button onClick={() => setMergeTarget(null)} className="mt-2 text-xs text-ink-soft hover:underline">
+                  Choose a different contact
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={doMerge} disabled={!mergeTarget || merging}
+                className="rounded-xl bg-navy px-5 py-2 text-sm font-bold text-white hover:bg-navy-dark disabled:opacity-50">
+                {merging ? "Merging…" : "Confirm merge"}
+              </button>
+              <button onClick={() => setMergeOpen(false)}
+                className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-cream-panel">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
@@ -910,13 +1140,19 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       findFirst: (a: unknown) => Promise<{ id: string; type: string; reason: string | null; suppressedAt: Date } | null>;
     };
   };
+  type IdDb = {
+    contactIdentity: {
+      findMany: (a: unknown) => Promise<{ id: string; type: string; value: string; label: string | null; isPrimary: boolean; createdAt: Date }[]>;
+    };
+  };
   const cfDb = db as never as CfDb;
   const supDb = db as never as SupDb;
+  const idDb = db as never as IdDb;
 
   const contactRaw = await db.contact.findUnique({ where: { id }, select: { email: true } });
   if (!contactRaw) return { notFound: true };
 
-  const [contact, allLists, cfDefs, cfVals, suppression] = await Promise.all([
+  const [contact, allLists, cfDefs, cfVals, suppression, identitiesRaw] = await Promise.all([
     db.contact.findUnique({
       where: { id },
       include: {
@@ -949,6 +1185,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     supDb.suppressionRecord.findFirst({
       where: { email: contactRaw.email, liftedAt: null } as never,
       orderBy: { suppressedAt: "desc" } as never,
+    }),
+    idDb.contactIdentity.findMany({
+      where: { contactId: id } as never,
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] as never,
     }),
   ]);
 
@@ -998,6 +1238,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       activeSuppression: suppression
         ? { id: suppression.id, type: suppression.type, reason: suppression.reason, suppressedAt: suppression.suppressedAt.toISOString() }
         : null,
+      identities: identitiesRaw.map((i) => ({
+        id: i.id,
+        type: i.type,
+        value: i.value,
+        label: i.label,
+        isPrimary: i.isPrimary,
+        createdAt: i.createdAt.toISOString(),
+      })),
     },
   };
 };
