@@ -83,6 +83,7 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
@@ -156,6 +157,7 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers }) => {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

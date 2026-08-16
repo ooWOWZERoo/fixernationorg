@@ -163,7 +163,8 @@ const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initial
           <p className="text-sm text-ink-soft">No contacts on this list yet.</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-navy/8 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
@@ -190,6 +191,7 @@ const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initial
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

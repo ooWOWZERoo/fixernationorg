@@ -341,6 +341,7 @@ const TerritoriesPage: NextPageWithLayout<Props> = ({ territories: initial }) =>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50">
               <tr>
@@ -386,6 +387,7 @@ const TerritoriesPage: NextPageWithLayout<Props> = ({ territories: initial }) =>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

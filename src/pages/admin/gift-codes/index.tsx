@@ -130,6 +130,7 @@ const AdminGiftCodesPage: NextPageWithLayout<Props> = ({ codes: initialCodes }) 
         <div className="mb-8">
           <h2 className="mb-3 text-sm font-extrabold uppercase tracking-widest text-ink-soft">Available ({available.length})</h2>
           <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-navy/8">
@@ -169,6 +170,7 @@ const AdminGiftCodesPage: NextPageWithLayout<Props> = ({ codes: initialCodes }) 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -178,6 +180,7 @@ const AdminGiftCodesPage: NextPageWithLayout<Props> = ({ codes: initialCodes }) 
         <div>
           <h2 className="mb-3 text-sm font-extrabold uppercase tracking-widest text-ink-soft">Redeemed ({redeemed.length})</h2>
           <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white opacity-75">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-navy/8">
@@ -200,6 +203,7 @@ const AdminGiftCodesPage: NextPageWithLayout<Props> = ({ codes: initialCodes }) 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

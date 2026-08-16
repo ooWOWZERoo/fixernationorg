@@ -84,12 +84,12 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, p
   return (
     <>
       <Head><title>Contacts — Admin</title></Head>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-y-3">
         <div>
           <h1 className="text-2xl font-extrabold text-navy">Contacts</h1>
           <p className="mt-0.5 text-sm text-ink-soft">{total.toLocaleString()} total</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <a
             href={`/api/admin/contacts/export`}
             download
@@ -137,7 +137,8 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, p
           <p className="text-sm text-ink-soft">{initialQ || initialAttr ? "No contacts match your search." : "No contacts yet."}</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-navy/8 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
@@ -189,6 +190,7 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, p
               ))}
             </tbody>
           </table>
+          </div>
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-navy/8 px-5 py-3">

@@ -215,7 +215,8 @@ const CustomFieldsPage: NextPageWithLayout<Props> = ({ fields: initial }) => {
           <p className="text-sm text-ink-soft">No custom fields defined. Add one to extend contact records.</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-navy/8 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
@@ -312,6 +313,7 @@ const CustomFieldsPage: NextPageWithLayout<Props> = ({ fields: initial }) => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

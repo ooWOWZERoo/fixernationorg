@@ -48,6 +48,7 @@ const AdminBlogPage: NextPageWithLayout<Props> = ({ posts }) => {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
@@ -96,6 +97,7 @@ const AdminBlogPage: NextPageWithLayout<Props> = ({ posts }) => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

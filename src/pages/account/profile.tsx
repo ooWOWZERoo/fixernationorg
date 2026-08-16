@@ -81,29 +81,22 @@ const EditProfilePage: NextPageWithLayout<Props> = ({ initial, role }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-6 flex items-center gap-3 flex-wrap">
+          <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Settings
             </Link>
-            <span className="text-ink-soft/40">·</span>
             <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Security
             </Link>
             {isProvider && (
-              <>
-                <span className="text-ink-soft/40">·</span>
-                <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Business profile
-                </Link>
-              </>
+              <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                Business profile
+              </Link>
             )}
             {role === "AMBASSADOR" && (
-              <>
-                <span className="text-ink-soft/40">·</span>
-                <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Ambassador profile
-                </Link>
-              </>
+              <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+                Ambassador profile
+              </Link>
             )}
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Your Profile</h1>

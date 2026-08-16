@@ -97,25 +97,21 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2 flex items-center gap-3 flex-wrap">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link href="/account/profile" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               ← My Profile
             </Link>
-            <span className="text-ink-soft/40">·</span>
             <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Security
             </Link>
             {isProvider && (
               <>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   Business profile
                 </Link>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/provider/contacts" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   My contacts
                 </Link>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/provider/campaigns" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   My campaigns
                 </Link>
@@ -123,21 +119,17 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
             )}
             {user.role === "AMBASSADOR" && (
               <>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   Ambassador profile
                 </Link>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/ambassador/materials" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   Campaign materials
                 </Link>
-                <span className="text-ink-soft/40">·</span>
                 <Link href="/account/referrals" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
                   Referrals
                 </Link>
               </>
             )}
-            <span className="text-ink-soft/40">·</span>
             <Link href="/account/billing" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Billing
             </Link>

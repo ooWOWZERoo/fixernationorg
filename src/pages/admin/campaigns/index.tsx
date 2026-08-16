@@ -72,6 +72,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
         </div>
       ) : (
         <div className="rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
@@ -115,6 +116,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

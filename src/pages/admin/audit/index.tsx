@@ -126,6 +126,7 @@ const AdminAuditPage: NextPageWithLayout<Props> = ({ entries, total, category, r
             No entries match these filters.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
@@ -169,6 +170,7 @@ const AdminAuditPage: NextPageWithLayout<Props> = ({ entries, total, category, r
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -262,7 +262,7 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
       </div>
 
       {/* Recent sign-ups */}
-      <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-700">Recent Sign-ups</h2>
           <Link href="/admin/users" className="text-xs font-medium text-navy no-underline hover:text-navy-dark">
@@ -272,6 +272,7 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
         {recentUsers.length === 0 ? (
           <p className="p-6 text-sm text-slate-400">No users yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead>
               <tr>
@@ -299,6 +300,7 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

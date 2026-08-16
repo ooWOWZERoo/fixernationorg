@@ -127,6 +127,18 @@ Vercel Cron (or external caller) hits `POST /api/cron` with `Authorization: Bear
 
 ---
 
+## Session hygiene
+
+Update memory after each completed sprint or fix — do not wait until the end of a session. After every discrete unit of work (a sprint, a bug fix, a feature audit), update the three files:
+
+- `~/.claude/projects/.../memory/session_snapshot.md` — add a dated block at the top with what changed and the commit hash
+- `~/.claude/projects/.../memory/project_fixernation_org.md` — update the latest commit hash and status section
+- `~/.claude/projects/.../memory/MEMORY.md` — update index lines if the hook text changed
+
+Keep each memory update minimal — only what changed. Do not re-describe things already recorded.
+
+---
+
 ## Governing rules
 
 1. The project owner retains all design, development, staging, production, and release authority.

@@ -170,7 +170,8 @@ const SuppressionPage: NextPageWithLayout<Props> = ({ records: initial, total })
           <p className="text-sm text-ink-soft">No records match your filters.</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-navy/8 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
@@ -216,6 +217,7 @@ const SuppressionPage: NextPageWithLayout<Props> = ({ records: initial, total })
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

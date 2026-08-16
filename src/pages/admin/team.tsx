@@ -134,7 +134,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="admin@example.com"
-                className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
               />
             </div>
             <div>
@@ -169,6 +169,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
         <div className="border-b border-slate-100 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-slate-700">Current team</h2>
         </div>
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-100">
           <thead className="bg-slate-50">
             <tr>
@@ -195,6 +196,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pending invites */}
@@ -203,6 +205,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
           <div className="border-b border-slate-100 px-5 py-3.5">
             <h2 className="text-sm font-semibold text-slate-700">Pending invitations</h2>
           </div>
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50">
               <tr>
@@ -241,6 +244,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

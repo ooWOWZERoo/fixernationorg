@@ -45,6 +45,7 @@ const AdminEventsPage: NextPageWithLayout<Props> = ({ events }) => {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-navy/8 bg-white">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy/8">
@@ -88,6 +89,7 @@ const AdminEventsPage: NextPageWithLayout<Props> = ({ events }) => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
