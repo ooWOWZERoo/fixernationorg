@@ -7,6 +7,12 @@ import { sendEmail } from "@/lib/email";
 import { buildCampaignEmail } from "@/lib/campaign-email";
 import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
 
+type SupDb = {
+  suppressionRecord: {
+    findMany: (a: unknown) => Promise<{ email: string }[]>;
+  };
+};
+
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 async function computeCampaignMetric(campaignId: string) {
@@ -243,6 +249,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           rules: { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] },
         },
       });
+    }
+
+    // Filter out actively suppressed email addresses
+    if (eligibleContacts.length > 0) {
+      const supDb = db as never as SupDb;
+      const suppressed = await supDb.suppressionRecord.findMany({
+        where: {
+          email: { in: eligibleContacts.map((c) => c.email) },
+          liftedAt: null,
+        } as never,
+        select: { email: true } as never,
+      });
+      if (suppressed.length > 0) {
+        const suppressedEmails = new Set(suppressed.map((s) => s.email));
+        suppressedCount += suppressed.length;
+        eligibleContacts = eligibleContacts.filter((c) => !suppressedEmails.has(c.email));
+      }
     }
 
     if (eligibleContacts.length === 0) {

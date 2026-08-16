@@ -1582,6 +1582,29 @@ model CustomFieldDefinition {
   @@index([active])
 }
 
+// ─── SP-34 ────────────────────────────────────────────────────────────────────
+
+enum SuppressionType {
+  BOUNCE
+  COMPLAINT
+  UNSUBSCRIBE
+  ADMIN
+}
+
+model SuppressionRecord {
+  id           String          @id @default(cuid())
+  email        String
+  type         SuppressionType
+  reason       String?
+  source       String?
+  suppressedAt DateTime        @default(now())
+  liftedAt     DateTime?
+  liftedBy     String?
+
+  @@index([email])
+  @@index([type])
+}
+
 // ─── SP-33 ────────────────────────────────────────────────────────────────────
 
 enum ContactActivityType {

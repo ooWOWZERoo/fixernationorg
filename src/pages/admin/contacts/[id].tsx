@@ -23,6 +23,7 @@ interface ActivityRow { id: string; type: string; summary: string; occurredAt: s
 interface AttributionRow { source: string; attributedAt: string }
 interface CustomFieldDef { id: string; slug: string; label: string; type: string; options: string[] | null; required: boolean }
 interface CustomFieldVal { fieldId: string; value: string }
+interface ActiveSuppression { id: string; type: string; reason: string | null; suppressedAt: string }
 
 interface AddressRow {
   id: string;
@@ -121,14 +122,19 @@ interface Props {
   allLists: ListOption[];
   customFieldDefs: CustomFieldDef[];
   customFieldValues: CustomFieldVal[];
+  activeSuppression: ActiveSuppression | null;
 }
 
 const AdminContactDetailPage: NextPageWithLayout<Props> = ({
-  contact: initial, allLists, customFieldDefs, customFieldValues: initialCfv,
+  contact: initial, allLists, customFieldDefs, customFieldValues: initialCfv, activeSuppression: initialSuppression,
 }) => {
   const router = useRouter();
   const [contact, setContact] = useState(initial);
   const [activeTab, setActiveTab] = useState<Tab>("activity");
+
+  // Suppression
+  const [suppression, setSuppression] = useState<ActiveSuppression | null>(initialSuppression);
+  const [liftingSupp, setLiftingSupp] = useState(false);
 
   // Activity
   const [activity, setActivity] = useState<ActivityRow[]>([]);
@@ -599,36 +605,94 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
 
         {/* ── Consent ── */}
         {activeTab === "consent" && (
-          <div>
-            <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-ink-soft">Email consent</h2>
-            <div className="space-y-3">
-              {TOPICS.map((topic) => {
-                const opted = consentMap[topic] ?? null;
-                return (
-                  <div key={topic} className="flex items-center justify-between rounded-xl border border-navy/8 px-4 py-3">
-                    <span className="text-sm font-medium text-ink">
-                      {topic.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </span>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setConsent(topic, true)}
-                        className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
-                          opted === true ? "bg-green-600 text-white" : "bg-navy/8 text-ink-soft hover:bg-green-100"
-                        }`}>
-                        In
-                      </button>
-                      <button onClick={() => setConsent(topic, false)}
-                        className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
-                          opted === false ? "bg-red-600 text-white" : "bg-navy/8 text-ink-soft hover:bg-red-100"
-                        }`}>
-                        Out
-                      </button>
-                      {opted === null && (
-                        <span className="rounded-lg bg-navy/4 px-3 py-1 text-xs text-ink-soft/60">No record</span>
-                      )}
+          <div className="space-y-6">
+
+            {/* Implied consent banner */}
+            <div className={`rounded-xl border px-4 py-3 ${
+              contact.userId
+                ? "border-green-200 bg-green-50"
+                : "border-navy/8 bg-cream-panel/40"
+            }`}>
+              <div className="flex items-start gap-3">
+                <span className="text-lg">{contact.userId ? "✅" : "ℹ️"}</span>
+                <div>
+                  <p className="text-sm font-semibold text-navy">
+                    {contact.userId ? "Implied consent — has account" : "No platform account"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-soft">
+                    {contact.userId
+                      ? "This contact signed up for a Fixer Nation account, which implies consent to receive transactional communications."
+                      : "This contact does not have a linked platform account. Explicit opt-in is required before sending campaigns."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Active suppression warning */}
+            {suppression && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-lg">🚫</span>
+                    <div>
+                      <p className="text-sm font-semibold text-red-800">Suppressed — will not receive campaigns</p>
+                      <p className="mt-0.5 text-xs text-red-700">
+                        Type: {suppression.type.toLowerCase()} · Suppressed {new Date(suppression.suppressedAt).toLocaleDateString()}
+                        {suppression.reason ? ` · ${suppression.reason}` : ""}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+                  {suppression.type === "ADMIN" && (
+                    <button
+                      disabled={liftingSupp}
+                      onClick={async () => {
+                        if (!confirm("Lift this suppression? The address will be eligible for campaigns again.")) return;
+                        setLiftingSupp(true);
+                        try {
+                          const r = await fetch(`/api/admin/suppression/${suppression.id}`, { method: "DELETE" });
+                          if (r.ok) setSuppression(null);
+                        } finally { setLiftingSupp(false); }
+                      }}
+                      className="shrink-0 rounded-lg border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">
+                      {liftingSupp ? "…" : "Lift"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Consent topic toggles */}
+            <div>
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Topic preferences</h2>
+              <div className="space-y-3">
+                {TOPICS.map((topic) => {
+                  const opted = consentMap[topic] ?? null;
+                  return (
+                    <div key={topic} className="flex items-center justify-between rounded-xl border border-navy/8 px-4 py-3">
+                      <span className="text-sm font-medium text-ink">
+                        {topic.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => setConsent(topic, true)}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                            opted === true ? "bg-green-600 text-white" : "bg-navy/8 text-ink-soft hover:bg-green-100"
+                          }`}>
+                          In
+                        </button>
+                        <button onClick={() => setConsent(topic, false)}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                            opted === false ? "bg-red-600 text-white" : "bg-navy/8 text-ink-soft hover:bg-red-100"
+                          }`}>
+                          Out
+                        </button>
+                        {opted === null && (
+                          <span className="rounded-lg bg-navy/4 px-3 py-1 text-xs text-ink-soft/60">No record</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -841,9 +905,18 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     customFieldDefinition: { findMany: (a: unknown) => Promise<{ id: string; slug: string; label: string; type: string; options: unknown; required: boolean }[]> };
     customFieldValue: { findMany: (a: unknown) => Promise<{ fieldId: string; value: string }[]> };
   };
+  type SupDb = {
+    suppressionRecord: {
+      findFirst: (a: unknown) => Promise<{ id: string; type: string; reason: string | null; suppressedAt: Date } | null>;
+    };
+  };
   const cfDb = db as never as CfDb;
+  const supDb = db as never as SupDb;
 
-  const [contact, allLists, cfDefs, cfVals] = await Promise.all([
+  const contactRaw = await db.contact.findUnique({ where: { id }, select: { email: true } });
+  if (!contactRaw) return { notFound: true };
+
+  const [contact, allLists, cfDefs, cfVals, suppression] = await Promise.all([
     db.contact.findUnique({
       where: { id },
       include: {
@@ -872,6 +945,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     cfDb.customFieldValue.findMany({
       where: { contactId: id } as never,
       select: { fieldId: true, value: true } as never,
+    }),
+    supDb.suppressionRecord.findFirst({
+      where: { email: contactRaw.email, liftedAt: null } as never,
+      orderBy: { suppressedAt: "desc" } as never,
     }),
   ]);
 
@@ -918,6 +995,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         required: d.required,
       })),
       customFieldValues: cfVals.map((v) => ({ fieldId: v.fieldId, value: v.value })),
+      activeSuppression: suppression
+        ? { id: suppression.id, type: suppression.type, reason: suppression.reason, suppressedAt: suppression.suppressedAt.toISOString() }
+        : null,
     },
   };
 };
