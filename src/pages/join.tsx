@@ -2,6 +2,8 @@ import Head from "next/head";
 import Link from "next/link";
 import { useState } from "react";
 import type { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
@@ -11,6 +13,7 @@ interface PriceData {
   interval: string;
   amount: number;
   trialDays: number | null;
+  stripePriceId: string | null;
 }
 
 interface ProductData {
@@ -23,6 +26,7 @@ interface ProductData {
 interface Props {
   freeWithBook: ProductData | null;
   consumerMembership: ProductData | null;
+  isSignedIn: boolean;
 }
 
 const FAQS = [
@@ -40,8 +44,10 @@ const FAQS = [
   },
 ];
 
-const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership }) => {
+const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership, isSignedIn }) => {
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const monthlyPrice = consumerMembership?.prices.find((p) => p.interval === "MONTHLY");
   const annualPrice = consumerMembership?.prices.find((p) => p.interval === "ANNUAL");
@@ -53,6 +59,46 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
     billing === "MONTHLY"
       ? "30-day free trial, then $10/mo."
       : "30-day free trial, then $60/yr — $5/mo, save 50%.";
+
+  async function startCheckout() {
+    if (!selectedPrice) return;
+
+    if (!isSignedIn) {
+      window.location.href = "/signin?callbackUrl=/join";
+      return;
+    }
+
+    if (!selectedPrice.stripePriceId) {
+      setCheckoutError("This plan isn't available for purchase yet. Please check back soon or contact support.");
+      return;
+    }
+
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/checkout/create-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId: selectedPrice.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = "/signin?callbackUrl=/join";
+          return;
+        }
+        if (res.status === 409) {
+          window.location.href = "/account/billing";
+          return;
+        }
+        throw new Error(data.error ?? "Something went wrong");
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : "Something went wrong");
+      setCheckoutLoading(false);
+    }
+  }
 
   return (
     <>
@@ -162,12 +208,17 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
                   ))}
                 </ul>
 
-                <Link
-                  href="/signin"
-                  className="mt-8 flex w-full items-center justify-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                {checkoutError && (
+                  <p className="mt-4 text-xs text-red-600">{checkoutError}</p>
+                )}
+
+                <button
+                  onClick={startCheckout}
+                  disabled={checkoutLoading}
+                  className="mt-8 flex w-full items-center justify-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Start free trial
-                </Link>
+                  {checkoutLoading ? "Opening checkout…" : "Start free trial"}
+                </button>
               </div>
             )}
           </div>
@@ -207,12 +258,13 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
           <p className="mt-3 text-base text-white/75">
             Surround yourself with people who want to grow. Give yourself a better place to spend your time online.
           </p>
-          <Link
-            href="/signin"
-            className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+          <button
+            onClick={startCheckout}
+            disabled={checkoutLoading}
+            className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60"
           >
-            Start your free trial
-          </Link>
+            {checkoutLoading ? "Opening checkout…" : "Start your free trial"}
+          </button>
         </div>
       </section>
     </>
@@ -221,7 +273,9 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership 
 
 JoinPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+
   const memberships = await db.product.findMany({
     where: { type: "MEMBERSHIP", active: true },
     select: {
@@ -231,7 +285,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
       features: true,
       prices: {
         where: { active: true },
-        select: { id: true, interval: true, amount: true, trialDays: true },
+        select: { id: true, interval: true, amount: true, trialDays: true, stripePriceId: true },
       },
     },
     orderBy: { sortOrder: "asc" },
@@ -244,6 +298,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
     props: {
       freeWithBook: freeWithBook ? JSON.parse(JSON.stringify(freeWithBook)) : null,
       consumerMembership: consumerMembership ? JSON.parse(JSON.stringify(consumerMembership)) : null,
+      isSignedIn: !!session?.user?.id,
     },
   };
 };

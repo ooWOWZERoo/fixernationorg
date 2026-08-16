@@ -64,6 +64,9 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product }) => {
   const [addingPrice, setAddingPrice] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
 
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; text: string } | null>(null);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -145,6 +148,25 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product }) => {
     } catch {
       setPriceError("Network error.");
       setAddingPrice(false);
+    }
+  };
+
+  const handleStripeSync = async () => {
+    setSyncLoading(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}/stripe-sync`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncResult({ ok: false, text: data.error ?? "Sync failed." });
+      } else {
+        const priceCount = (data.syncedPrices ?? []).length;
+        setSyncResult({ ok: true, text: `Synced. Stripe product: ${data.stripeProductId}. ${priceCount} price${priceCount !== 1 ? "s" : ""} synced.` });
+      }
+    } catch {
+      setSyncResult({ ok: false, text: "Network error. Please try again." });
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -283,6 +305,31 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product }) => {
           </button>
         </div>
       </form>
+
+      {/* Stripe sync */}
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Stripe</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Creates or updates the Stripe product and syncs any prices that haven't been pushed yet.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleStripeSync}
+            disabled={syncLoading}
+            className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-navy hover:text-navy disabled:opacity-50 transition-colors"
+          >
+            {syncLoading ? "Syncing…" : "Sync to Stripe"}
+          </button>
+        </div>
+        {syncResult && (
+          <p className={`mt-3 text-xs font-medium ${syncResult.ok ? "text-green-700" : "text-red-600"}`}>
+            {syncResult.text}
+          </p>
+        )}
+      </div>
 
       {/* Prices section */}
       <div className="mt-8">
