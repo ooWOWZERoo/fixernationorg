@@ -46,7 +46,14 @@ const ImportSchema = z.object({
   consentTopics: z
     .array(z.enum(["MORNING_BOOST", "CAMPAIGNS", "NEWSLETTERS", "PRODUCT_UPDATES"]))
     .optional(),
+  filename: z.string().max(255).optional(),
 });
+
+type ImportBatchDb = {
+  contactImportBatch: {
+    create: (a: unknown) => Promise<unknown>;
+  };
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -222,6 +229,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       listMembershipsAdded = memberResult.count;
     }
   }
+
+  // Record import batch (fire-and-forget — don't fail the import if this errors)
+  const batchDb = db as never as ImportBatchDb;
+  batchDb.contactImportBatch.create({
+    data: {
+      filename: parsed.data.filename ?? null,
+      totalRows: contacts.length,
+      created,
+      existing,
+      consentAdded,
+      addressesCreated,
+      listMembershipsAdded,
+      importedBy: session.user.id,
+    },
+  }).catch(() => {});
 
   return res.status(200).json({
     created,

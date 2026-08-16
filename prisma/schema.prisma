@@ -1773,3 +1773,18 @@ model PushSubscription {
   @@unique([userId, endpoint])
   @@index([userId])
 }
+
+model ContactImportBatch {
+  id                   String   @id @default(cuid())
+  filename             String?
+  totalRows            Int
+  created              Int      @default(0)
+  existing             Int      @default(0)
+  consentAdded         Int      @default(0)
+  addressesCreated     Int      @default(0)
+  listMembershipsAdded Int      @default(0)
+  importedBy           String?
+  importedAt           DateTime @default(now())
+
+  @@index([importedAt])
+}

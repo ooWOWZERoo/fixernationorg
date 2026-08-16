@@ -47,6 +47,13 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total }) => {
           <p className="mt-0.5 text-sm text-ink-soft">{total} total</p>
         </div>
         <div className="flex gap-2">
+          <a
+            href="/api/admin/contacts/export"
+            download
+            className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-bold text-ink-soft no-underline hover:bg-cream-panel"
+          >
+            Export CSV
+          </a>
           <Link
             href="/admin/contacts/import"
             className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-bold text-ink-soft no-underline hover:bg-cream-panel"

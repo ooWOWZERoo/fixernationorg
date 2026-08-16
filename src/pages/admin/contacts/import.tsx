@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -57,6 +58,15 @@ interface ImportResult {
   consentAdded: number;
   addressesCreated: number;
   listMembershipsAdded: number;
+}
+
+interface BatchRow {
+  id: string;
+  filename: string | null;
+  totalRows: number;
+  created: number;
+  existing: number;
+  importedAt: string;
 }
 
 // ─── CSV parser ─────────────────────────────────────────────────────────────
@@ -264,7 +274,11 @@ function parseCSV(text: string): ParseResult {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-const AdminContactImportPage: NextPageWithLayout = () => {
+interface Props {
+  batches: BatchRow[];
+}
+
+const AdminContactImportPage: NextPageWithLayout<Props> = ({ batches }) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [fileName, setFileName] = useState("");
@@ -305,6 +319,7 @@ const AdminContactImportPage: NextPageWithLayout = () => {
         body: JSON.stringify({
           contacts: parseResult.contacts,
           consentTopics: consentTopics.length > 0 ? consentTopics : undefined,
+          filename: fileName || undefined,
         }),
       });
       const data = await res.json();
@@ -508,6 +523,41 @@ const AdminContactImportPage: NextPageWithLayout = () => {
             </a>
           </div>
         )}
+
+        {/* Import history */}
+        {batches.length > 0 && (
+          <div className="rounded-2xl border border-navy/8 bg-white p-6">
+            <h2 className="mb-4 text-sm font-bold text-navy">Import history</h2>
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              <table className="min-w-full divide-y divide-slate-100 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">File</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Rows</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Added</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Skipped</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {batches.map((b) => (
+                    <tr key={b.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 text-slate-700 max-w-[180px] truncate" title={b.filename ?? undefined}>
+                        {b.filename ?? <span className="text-ink-soft/60 italic">unnamed</span>}
+                      </td>
+                      <td className="px-4 py-2 text-slate-700">{b.totalRows}</td>
+                      <td className="px-4 py-2 font-semibold text-green-700">{b.created}</td>
+                      <td className="px-4 py-2 text-slate-500">{b.existing}</td>
+                      <td className="px-4 py-2 text-slate-500 whitespace-nowrap">
+                        {new Date(b.importedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
@@ -516,10 +566,26 @@ const AdminContactImportPage: NextPageWithLayout = () => {
 AdminContactImportPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 export default AdminContactImportPage;
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
     return { redirect: { destination: "/", permanent: false } };
   }
-  return { props: {} };
+
+  type BatchDb = {
+    contactImportBatch: {
+      findMany: (a: unknown) => Promise<BatchRow[]>;
+    };
+  };
+  const batchDb = db as never as BatchDb;
+  const rawBatches = await batchDb.contactImportBatch.findMany({
+    orderBy: { importedAt: "desc" } as never,
+    take: 20,
+  } as never);
+
+  return {
+    props: {
+      batches: JSON.parse(JSON.stringify(rawBatches)),
+    },
+  };
 };
