@@ -14,6 +14,8 @@ interface SettingRow {
 
 interface Props {
   settings: SettingRow[];
+  userRole: string;
+  currentLogoUrl: string | null;
 }
 
 type BackfillResult = {
@@ -26,6 +28,8 @@ type BackfillResult = {
 
 const AdminSettingsPage: NextPageWithLayout<Props> = ({
   settings: initialSettings,
+  userRole,
+  currentLogoUrl,
 }) => {
   const [settings, setSettings] = useState(initialSettings);
   const [editing, setEditing] = useState<Record<string, string>>({});
@@ -44,6 +48,10 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillResult | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(currentLogoUrl);
+  const [logoSaving, setLogoSaving] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   async function runBackfill() {
     if (!confirm("Run Morning Boost consent backfill? This creates Contact + MORNING_BOOST consent rows for all verified users that don't have one yet. Safe to run multiple times.")) return;
@@ -157,6 +165,47 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
     }
   }
 
+  async function handleLogoUpload(file: File) {
+    setLogoSaving(true);
+    setLogoError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/logo-upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLogoError(data.error ?? "Upload failed");
+      } else {
+        setLogoUrl(data.url);
+      }
+    } catch {
+      setLogoError("Network error");
+    } finally {
+      setLogoSaving(false);
+    }
+  }
+
+  async function handleLogoRemove() {
+    if (!confirm("Remove the site logo?")) return;
+    setLogoSaving(true);
+    setLogoError(null);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "site_logo_url", value: "" }),
+      });
+      if (res.ok) setLogoUrl(null);
+    } catch {
+      setLogoError("Network error");
+    } finally {
+      setLogoSaving(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -164,6 +213,56 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
         <p className="mt-1 text-sm text-slate-500">
           Runtime configuration flags stored in the database — change behavior without a code deploy. Examples: <code className="rounded bg-slate-100 px-1 text-xs">maintenance.mode</code>, <code className="rounded bg-slate-100 px-1 text-xs">banner.message</code>.
         </p>
+      </div>
+
+      {/* Branding */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-4 text-sm font-semibold text-slate-700">Branding</h2>
+        <div className="flex items-start gap-6">
+          <div className="flex h-16 w-32 shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="Site logo" className="max-h-12 max-w-[112px] object-contain" />
+            ) : (
+              <span className="text-xs text-slate-400">No logo</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm text-slate-600">
+              Site logo shown in the website header and admin sidebar.
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">Accepts JPEG, PNG, WebP, or SVG. Max 2 MB.</p>
+            {userRole === "SUPER_ADMIN" ? (
+              <div className="mt-3 flex items-center gap-3">
+                <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                  Choose file
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLogoUpload(file);
+                    }}
+                  />
+                </label>
+                {logoUrl && (
+                  <button
+                    onClick={handleLogoRemove}
+                    disabled={logoSaving}
+                    className="text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+                {logoSaving && <span className="text-xs text-slate-400">Uploading…</span>}
+                {logoError && <span className="text-xs text-red-500">{logoError}</span>}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-400">Logo upload requires SUPER_ADMIN role.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Add new */}
@@ -341,8 +440,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   const settings = await db.setting.findMany({ orderBy: { key: "asc" } });
+  const logoSetting = settings.find((s) => s.key === "site_logo_url");
 
-  return { props: { settings: JSON.parse(JSON.stringify(settings)) } };
+  return {
+    props: {
+      settings: JSON.parse(JSON.stringify(settings)),
+      userRole: session.user.role,
+      currentLogoUrl: logoSetting?.value || null,
+    },
+  };
 };
 
 export default AdminSettingsPage;

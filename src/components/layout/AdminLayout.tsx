@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
@@ -91,6 +91,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       ? router.pathname === href
       : router.pathname === href || router.pathname.startsWith(href + "/");
 
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/public/site-settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
+  }, []);
+
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const open = new Set<string>();
     for (const group of NAV_GROUPS) {
@@ -116,9 +124,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <aside className="flex w-56 shrink-0 flex-col border-r border-navy/10 bg-navy">
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-white/10 px-4">
           <Link href="/" className="flex items-center gap-2 no-underline hover:no-underline">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-navy-dark text-amber text-sm font-extrabold">
-              ✓
-            </span>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="Fixer Nation" className="h-7 w-7 rounded-md bg-white object-contain p-0.5" />
+            ) : (
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-navy-dark text-amber text-sm font-extrabold">
+                ✓
+              </span>
+            )}
             <span className="text-sm font-extrabold text-white">Admin</span>
           </Link>
         </div>

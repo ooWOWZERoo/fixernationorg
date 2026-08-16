@@ -25,6 +25,13 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/public/site-settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -49,9 +56,14 @@ export function SiteHeader() {
           href="/"
           className="flex shrink-0 items-center gap-2.5 no-underline hover:no-underline"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
-            ✓
-          </span>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="Fixer Nation" className="h-9 w-auto max-w-[160px] object-contain" />
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
+              ✓
+            </span>
+          )}
           <span className="text-lg font-extrabold tracking-tight text-navy">
             Fixer Nation
           </span>
