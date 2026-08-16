@@ -26,7 +26,7 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
   const reg = await navigator.serviceWorker.ready;
   return reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as unknown as ArrayBuffer,
   });
 }
 
