@@ -511,7 +511,7 @@ function CanvasInner({
         >
           <Background color="#e2e8f0" gap={20} />
           <Controls className="!bottom-4 !left-4 !top-auto" />
-          <MiniMap nodeColor={(n) => {
+          <MiniMap nodeColor={(n: Node) => {
             if (n.id === "__trigger__") return "#1e3a5f";
             const step = steps.find(s => s.id === n.id);
             return STEP_META[step?.type ?? ""]?.border ?? "#94a3b8";
