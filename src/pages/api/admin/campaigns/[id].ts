@@ -170,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           campaignId: id,
           version: (last?.version ?? 0) + 1,
           subject: updated.subject,
-          htmlBody: updated.htmlBody,
+          htmlBody: updated.htmlBody ?? "",
           textBody: updated.textBody,
           fromName: updated.fromName,
           fromEmail: updated.fromEmail,
