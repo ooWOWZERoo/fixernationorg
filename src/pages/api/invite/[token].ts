@@ -6,6 +6,7 @@ import { autoJoinGroups } from "@/lib/groups";
 import { recordEvent } from "@/lib/application-events";
 import { enrollInJourneys } from "@/lib/automation";
 import { generateUniqueReferralCode } from "@/lib/referral";
+import { provisionAffiliate } from "@/lib/affiliate";
 
 const postSchema = z.object({
   name: z.string().min(2).max(100),
@@ -111,6 +112,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               })
             )
           );
+          ops.push(
+            provisionAffiliate({
+              userId: existing.id,
+              applicationId: application.id,
+              affiliateType: "AMBASSADOR",
+              assignedBy: "invite-claim",
+            })
+          );
         }
       }
 
@@ -155,6 +164,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: user.id,
       role: newRole,
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
+
+    // Ambassador-specific setup
+    if (newRole === "AMBASSADOR") {
+      generateUniqueReferralCode()
+        .then((referralCode) =>
+          db.ambassadorProfile.upsert({
+            where: { userId: user.id },
+            create: { userId: user.id, referralCode },
+            update: {},
+          })
+        )
+        .catch((err) => console.error("[invite] AmbassadorProfile create failed:", err));
+      provisionAffiliate({
+        userId: user.id,
+        applicationId: application.id,
+        affiliateType: "AMBASSADOR",
+        assignedBy: "invite-claim",
+      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
+    }
 
     // Auto-join role-based groups and fire automation triggers
     try {
