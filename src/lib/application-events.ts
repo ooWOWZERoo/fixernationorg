@@ -14,7 +14,8 @@ export type ApplicationEventType =
   | "FIELDS_EDITED"
   | "PAYMENT_LINK_SENT"
   | "PAYMENT_RECEIVED"
-  | "PAYMENT_LINK_EXPIRED";
+  | "PAYMENT_LINK_EXPIRED"
+  | "ACCOUNT_LINKED";
 
 export async function recordEvent(
   applicationId: string,

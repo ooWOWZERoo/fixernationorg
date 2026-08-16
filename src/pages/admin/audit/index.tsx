@@ -181,7 +181,7 @@ AdminAuditPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || !ADMIN_ROLES.includes(session.user.role)) {
+  if (!session || !ADMIN_ROLES.includes(session.user.adminRole)) {
     return { redirect: { destination: "/signin", permanent: false } };
   }
 

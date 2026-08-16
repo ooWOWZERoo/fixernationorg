@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-const AMBASSADOR_ROLES = ["AMBASSADOR", "ADMIN", "SUPER_ADMIN"];
+
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.role || !AMBASSADOR_ROLES.includes(session.user.role)) {
+  if (!session?.user?.role || (session.user.role !== "AMBASSADOR" && !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole))) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

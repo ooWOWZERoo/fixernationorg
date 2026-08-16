@@ -568,7 +568,7 @@ export default AdminContactImportPage;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+  if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: "/", permanent: false } };
   }
 

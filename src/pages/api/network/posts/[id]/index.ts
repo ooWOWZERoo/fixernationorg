@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const post = await db.post.findUnique({ where: { id: postId } });
   if (!post || post.deletedAt) return res.status(404).json({ error: "Post not found." });
 
-  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole);
   const isAuthor = post.authorId === session.user.id;
   if (!isAdmin && !isAuthor) return res.status(403).json({ error: "Forbidden." });
 

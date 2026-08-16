@@ -9,7 +9,7 @@ function isAdmin(role: string) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session || !isAdmin(session.user.role)) {
+  if (!session || !isAdmin(session.user.adminRole)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

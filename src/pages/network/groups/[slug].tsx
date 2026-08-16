@@ -235,7 +235,7 @@ GroupPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const slug = context.params?.slug as string;
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || !isMember(session.user.role)) {
+  if (!session || !isMember(session.user.role, session.user.adminRole)) {
     return {
       redirect: {
         destination: `/join?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`,
@@ -250,7 +250,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   });
   if (!group) return { notFound: true };
 
-  const isAdmin = !!session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+  const isAdmin = !!session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole);
 
   let memberStatus: "member" | "owner" | "moderator" | "requested" | "none" = "none";
   if (session) {

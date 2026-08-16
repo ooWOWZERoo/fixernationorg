@@ -163,8 +163,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   if (!session?.user?.id) {
     return { redirect: { destination: "/signin?callbackUrl=/account/ambassador/materials", permanent: false } };
   }
-  const allowed = ["AMBASSADOR", "ADMIN", "SUPER_ADMIN"];
-  if (!allowed.includes(session.user.role)) {
+  if (session.user.role !== "AMBASSADOR" && !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: "/dashboard", permanent: false } };
   }
 

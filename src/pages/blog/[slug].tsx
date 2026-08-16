@@ -195,7 +195,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   }
 
   const session = await getServerSession(context.req, context.res, authOptions);
-  const gated = !session || !isMember(session.user.role);
+  const gated = !session || !isMember(session.user.role, session.user.adminRole);
 
   return {
     props: { post: JSON.parse(JSON.stringify(post)), gated },

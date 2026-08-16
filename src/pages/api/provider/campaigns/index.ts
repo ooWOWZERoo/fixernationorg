@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-const PROVIDER_ROLES = ["PROVIDER", "ADMIN", "SUPER_ADMIN"];
+
 
 type ProviderCampaignDb = {
   providerCampaign: {
@@ -23,7 +23,7 @@ const CreateSchema = z.object({
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.role || !PROVIDER_ROLES.includes(session.user.role)) {
+  if (!session?.user?.role || (session.user.role !== "PROVIDER" && !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole))) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

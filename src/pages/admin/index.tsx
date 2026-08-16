@@ -311,7 +311,7 @@ AdminDashboard.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
@@ -320,8 +320,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const PAID_ROLES: UserRole[] = [
     UserRole.MEMBER,
-    UserRole.ADMIN,
-    UserRole.SUPER_ADMIN,
     UserRole.AMBASSADOR,
     UserRole.PROVIDER,
   ];

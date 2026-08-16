@@ -253,7 +253,7 @@ NetworkPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
 
-  if (!session || !isMember(session.user.role)) {
+  if (!session || !isMember(session.user.role, session.user.adminRole)) {
     return {
       props: {
         initialPosts: [],

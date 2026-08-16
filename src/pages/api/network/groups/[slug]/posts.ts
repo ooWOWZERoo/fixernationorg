@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === "GET") {
     const isAdmin =
-      session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+      session && ["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole);
     const isMember = session
       ? !!(await db.groupMember.findUnique({
           where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "POST") {
     if (!session) return res.status(401).json({ error: "Sign in to post." });
 
-    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole);
     const isMember = !!(await db.groupMember.findUnique({
       where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
     }));

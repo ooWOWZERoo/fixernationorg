@@ -162,7 +162,7 @@ export function SiteHeader() {
                     <Link href="/account" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                       Account Settings
                     </Link>
-                    {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
+                    {["ADMIN", "SUPER_ADMIN"].includes(session.user?.adminRole ?? "") && (
                       <Link href="/admin" className="block border-t border-navy/8 px-4 py-3 text-sm font-semibold text-navy no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                         Admin Dashboard
                       </Link>
@@ -249,7 +249,7 @@ export function SiteHeader() {
                 <Link href="/account/profile" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                   My Profile
                 </Link>
-                {["ADMIN", "SUPER_ADMIN"].includes(session.user?.role ?? "") && (
+                {["ADMIN", "SUPER_ADMIN"].includes(session.user?.adminRole ?? "") && (
                   <Link href="/admin" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                     Admin Dashboard
                   </Link>

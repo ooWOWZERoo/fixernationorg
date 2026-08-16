@@ -101,7 +101,7 @@ export default AdminEventsPage;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: "/", permanent: false } };
   }
 

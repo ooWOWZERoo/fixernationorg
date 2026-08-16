@@ -208,7 +208,7 @@ MorningBoostPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  const activeMember = session ? isMember(session.user.role) : false;
+  const activeMember = session ? isMember(session.user.role, session.user.adminRole) : false;
 
   const all = await db.morningBoost.findMany({
     where: { publishedAt: { not: null } },

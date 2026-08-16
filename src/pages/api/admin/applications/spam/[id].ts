@@ -17,7 +17,7 @@ const bodySchema = z.object({
 // DELETE → unmark spam (does NOT unblock the email — use /api/admin/blocked-emails/[id] for that)
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session || !ADMIN_ROLES.includes(session.user.role)) {
+  if (!session || !ADMIN_ROLES.includes(session.user.adminRole)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

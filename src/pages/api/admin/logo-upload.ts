@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session || session.user.role !== "SUPER_ADMIN") {
+  if (!session || session.user.adminRole !== "SUPER_ADMIN") {
     return res.status(403).json({ error: "Forbidden — SUPER_ADMIN only" });
   }
 

@@ -25,7 +25,8 @@ model User {
 
   // Extended — not part of Auth.js spec
   passwordHash String?
-  role         UserRole @default(CONSUMER)
+  role         UserRole  @default(CONSUMER)
+  adminRole    AdminRole @default(NONE)
   mfaEnabled          Boolean  @default(false)
   mfaSecret           String?  // encrypted TOTP secret; null until MFA enrolled
   morningBoostEmails  Boolean  @default(true)
@@ -636,7 +637,7 @@ model AuditLog {
 model AdminInvite {
   id          String    @id @default(cuid())
   email       String
-  role        UserRole
+  role        AdminRole
   token       String    @unique
   invitedById String
   createdAt   DateTime  @default(now())
@@ -761,6 +762,12 @@ enum UserRole {
   CONSUMER
   PROVIDER
   AMBASSADOR
+}
+
+enum AdminRole {
+  NONE
+  ADMIN
+  SUPER_ADMIN
 }
 
 enum CronJobStatus {

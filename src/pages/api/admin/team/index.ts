@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session || session.user.role !== "SUPER_ADMIN") {
+  if (!session || session.user.adminRole !== "SUPER_ADMIN") {
     return res.status(403).json({ error: "Forbidden — SUPER_ADMIN only" });
   }
 
@@ -18,9 +18,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const [admins, pendingInvites] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
-      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      where: { adminRole: { in: ["ADMIN", "SUPER_ADMIN"] } },
+      select: { id: true, name: true, email: true, adminRole: true, createdAt: true },
+      orderBy: [{ adminRole: "asc" }, { createdAt: "asc" }],
     }),
     (db as never as { adminInvite: { findMany: (a: unknown) => Promise<unknown[]> } })
       .adminInvite.findMany({

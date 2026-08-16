@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: invite.email,
         name: name.trim(),
         passwordHash,
-        role: invite.role as import("@prisma/client").UserRole,
+        adminRole: invite.role as import("@prisma/client").AdminRole,
         emailVerified: new Date(),
       },
       select: { id: true },

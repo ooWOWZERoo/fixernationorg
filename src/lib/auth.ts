@@ -11,12 +11,14 @@ import { db } from "./db";
 declare module "next-auth" {
   interface User {
     role?: string;
+    adminRole?: string;
     image?: string | null;
   }
   interface Session {
     user: {
       id: string;
       role: string;
+      adminRole: string;
     } & DefaultSession["user"];
   }
 }
@@ -24,6 +26,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
+    adminRole?: string;
     picture?: string | null;
   }
 }
@@ -69,6 +72,7 @@ export const authOptions: NextAuthOptions = {
             email: true,
             name: true,
             role: true,
+            adminRole: true,
             passwordHash: true,
             emailVerified: true,
             mfaEnabled: true,
@@ -102,6 +106,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email ?? "",
           name: user.name,
           role: user.role,
+          adminRole: user.adminRole,
           image: user.socialProfile?.avatarUrl ?? user.image ?? null,
         };
       },
@@ -111,18 +116,20 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt({ token, user }) {
       if (user?.role) token.role = user.role;
+      if (user?.adminRole) token.adminRole = user.adminRole;
       if (user?.image !== undefined) token.picture = user.image;
       return token;
     },
     async session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       if (token.picture) session.user.image = token.picture as string;
-      // Re-read role from DB on every session access so admin-side role
-      // changes (e.g. application acceptance) take effect without sign-out.
+      // Re-read role + adminRole from DB on every session access so changes
+      // (e.g. application acceptance, admin promotion) take effect without sign-out.
       const dbUser = token.sub
-        ? await db.user.findUnique({ where: { id: token.sub }, select: { role: true } })
+        ? await db.user.findUnique({ where: { id: token.sub }, select: { role: true, adminRole: true } })
         : null;
       session.user.role = dbUser?.role ?? (token.role as string) ?? "CONSUMER";
+      session.user.adminRole = dbUser?.adminRole ?? (token.adminRole as string) ?? "NONE";
       return session;
     },
   },

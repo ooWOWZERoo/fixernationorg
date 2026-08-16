@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const comment = await db.comment.findUnique({ where: { id: commentId } });
   if (!comment || comment.deletedAt) return res.status(404).json({ error: "Comment not found." });
 
-  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole);
   const isAuthor = comment.authorId === session.user.id;
   if (!isAdmin && !isAuthor) return res.status(403).json({ error: "Forbidden." });
 

@@ -44,6 +44,7 @@ interface Props {
   name: string | null;
   email: string;
   role: string;
+  adminRole: string;
   pendingApplication: { type: "PROVIDER" | "AMBASSADOR"; submittedAt: string } | null;
   totalPoints: number;
   ambassadorData: AmbassadorData | null;
@@ -306,8 +307,8 @@ function AmbassadorDashboard({ data, email }: { data: AmbassadorData; email: str
   );
 }
 
-const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, pendingApplication, totalPoints, ambassadorData }) => {
-  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole, pendingApplication, totalPoints, ambassadorData }) => {
+  const isAdmin = adminRole === "ADMIN" || adminRole === "SUPER_ADMIN";
   const roleLabel = ROLE_LABEL[role] ?? role;
 
   return (
@@ -565,6 +566,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       name: session.user.name ?? null,
       email: session.user.email ?? "",
       role: session.user.role,
+      adminRole: session.user.adminRole,
       pendingApplication: pendingApp
         ? { type: pendingApp.type as "PROVIDER" | "AMBASSADOR", submittedAt: pendingApp.createdAt.toISOString() }
         : null,

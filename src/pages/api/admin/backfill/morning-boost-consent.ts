@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+  if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   if (req.method !== "POST") {

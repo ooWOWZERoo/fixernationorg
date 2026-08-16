@@ -260,7 +260,7 @@ BlogPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  const userIsMember = session ? isMember(session.user.role) : false;
+  const userIsMember = session ? isMember(session.user.role, session.user.adminRole) : false;
 
   const allPosts = await db.blogPost.findMany({
     where: { publishedAt: { not: null } },

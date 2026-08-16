@@ -10,7 +10,7 @@ interface AdminUser {
   id: string;
   name: string | null;
   email: string;
-  role: string;
+  adminRole: string;
   createdAt: string;
 }
 
@@ -185,8 +185,8 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
                 <td className="px-4 py-3 text-sm font-medium text-slate-900">{u.name ?? "—"}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{u.email}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${ROLE_BADGE[u.role] ?? "bg-slate-100 text-slate-600"}`}>
-                    {ROLE_LABEL[u.role] ?? u.role}
+                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${ROLE_BADGE[u.adminRole] ?? "bg-slate-100 text-slate-600"}`}>
+                    {ROLE_LABEL[u.adminRole] ?? u.adminRole}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-400">
@@ -261,7 +261,7 @@ AdminTeamPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || session.user.role !== "SUPER_ADMIN") {
+  if (!session || session.user.adminRole !== "SUPER_ADMIN") {
     return { redirect: { destination: "/admin", permanent: false } };
   }
 
@@ -269,9 +269,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const [admins, pendingInvites] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
-      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      where: { adminRole: { in: ["ADMIN", "SUPER_ADMIN"] } },
+      select: { id: true, name: true, email: true, adminRole: true, createdAt: true },
+      orderBy: [{ adminRole: "asc" }, { createdAt: "asc" }],
     }),
     (db as never as { adminInvite: { findMany: (a: unknown) => Promise<unknown[]> } })
       .adminInvite.findMany({

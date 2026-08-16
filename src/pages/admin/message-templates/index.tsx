@@ -116,7 +116,7 @@ MessageTemplatesPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.role)) {
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 

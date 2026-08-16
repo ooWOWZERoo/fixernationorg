@@ -55,7 +55,7 @@ export default async function middleware(req: NextRequest) {
         new URL(`/signin?from=${encodeURIComponent(pathname)}`, req.url)
       );
     }
-    if (!ADMIN_ROLES.has(token.role as string)) {
+    if (!ADMIN_ROLES.has(token.adminRole as string)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
@@ -63,7 +63,7 @@ export default async function middleware(req: NextRequest) {
   // ── Admin API gate ──────────────────────────────────────────────────────────
   if (pathname.startsWith("/api/admin")) {
     const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    if (!token || !ADMIN_ROLES.has(token.role as string)) {
+    if (!token || !ADMIN_ROLES.has(token.adminRole as string)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
