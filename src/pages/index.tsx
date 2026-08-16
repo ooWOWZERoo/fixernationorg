@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -56,6 +57,34 @@ const BENEFITS = [
 ];
 
 const HomePage: NextPageWithLayout = () => {
+  const [subFirstName, setSubFirstName] = useState("");
+  const [subEmail, setSubEmail] = useState("");
+  const [subState, setSubState] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [subError, setSubError] = useState("");
+
+  async function handleSubscribe(e: React.FormEvent) {
+    e.preventDefault();
+    setSubState("submitting");
+    setSubError("");
+    try {
+      const res = await fetch("/api/public/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: subEmail, firstName: subFirstName || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSubError(data.error ?? "That didn't go through. Double-check your email and try again.");
+        setSubState("error");
+      } else {
+        setSubState("done");
+      }
+    } catch {
+      setSubError("That didn't go through. Double-check your email and try again.");
+      setSubState("error");
+    }
+  }
+
   return (
     <>
       <Head>
@@ -298,25 +327,40 @@ const HomePage: NextPageWithLayout = () => {
           <p className="mt-3 text-sm text-white/70">
             A monthly email with book news, mindset prompts, and whatever Anthony is thinking about. No spam.
           </p>
-          <form className="mt-6 flex flex-wrap justify-center gap-2" onSubmit={(e) => e.preventDefault()}>
-            <input
-              type="text"
-              placeholder="First name (optional)"
-              className="min-w-[160px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
-            />
-            <input
-              type="email"
-              placeholder="you@email.com"
-              required
-              className="min-w-[200px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
-            />
-            <button
-              type="submit"
-              className="rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-            >
-              Subscribe
-            </button>
-          </form>
+          {subState === "done" ? (
+            <div className="mt-6 rounded-2xl bg-white/10 px-6 py-5 text-center">
+              <p className="text-base font-extrabold text-white">You&apos;re in.</p>
+              <p className="mt-1 text-sm text-white/70">We&apos;ll send you the next newsletter when it goes out.</p>
+            </div>
+          ) : (
+            <form className="mt-6 flex flex-wrap justify-center gap-2" onSubmit={handleSubscribe}>
+              <input
+                type="text"
+                placeholder="First name (optional)"
+                value={subFirstName}
+                onChange={(e) => setSubFirstName(e.target.value)}
+                className="min-w-[160px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
+              />
+              <input
+                type="email"
+                placeholder="you@email.com"
+                required
+                value={subEmail}
+                onChange={(e) => setSubEmail(e.target.value)}
+                className="min-w-[200px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
+              />
+              <button
+                type="submit"
+                disabled={subState === "submitting"}
+                className="rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60"
+              >
+                {subState === "submitting" ? "Subscribing…" : "Subscribe"}
+              </button>
+              {subState === "error" && (
+                <p className="w-full text-center text-xs text-red-300">{subError}</p>
+              )}
+            </form>
+          )}
         </div>
       </section>
     </>
