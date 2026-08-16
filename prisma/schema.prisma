@@ -631,6 +631,23 @@ model AuditLog {
   @@index([createdAt])
 }
 
+// ─── Admin team invites ───────────────────────────────────────────────────────
+
+model AdminInvite {
+  id          String    @id @default(cuid())
+  email       String
+  role        UserRole
+  token       String    @unique
+  invitedById String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  claimedAt   DateTime?
+  claimedById String?
+
+  @@index([email])
+  @@index([token])
+}
+
 // ─── Contact form submissions ─────────────────────────────────────────────────
 
 model ContactMessage {
