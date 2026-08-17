@@ -46,7 +46,7 @@ export function SiteFooter() {
 
           {/* Brand column — wider, visually separated from nav links */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:border-r lg:border-amber/25 lg:pr-8">
-            <div className="flex items-end justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <span className="block font-serif text-5xl leading-none text-amber opacity-40 select-none">&ldquo;</span>
                 <p className="mt-1 text-sm italic leading-relaxed text-white/85">
