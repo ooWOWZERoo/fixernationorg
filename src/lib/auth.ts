@@ -116,17 +116,18 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user?.role) token.role = user.role;
-      if (user?.adminRole) token.adminRole = user.adminRole;
+      if (user?.adminRole !== undefined) token.adminRole = user.adminRole;
       if (user?.image !== undefined) token.picture = user.image;
-      // Backfill adminRole for tokens issued before SP-45. The JWT callback
-      // fires on every session read, so this runs once and then the updated
-      // token (with adminRole) is written back to the cookie.
-      if (token.sub && !token.adminRole) {
+      // On every session refresh (user is undefined = not a fresh sign-in),
+      // re-sync adminRole from DB so promotions and demotions take effect
+      // without requiring sign-out. The updated token is written back to the
+      // cookie, so the middleware sees the correct value on the next request.
+      if (!user && token.sub) {
         const dbUser = await db.user.findUnique({
           where: { id: token.sub },
           select: { adminRole: true },
         });
-        token.adminRole = dbUser?.adminRole ?? "NONE";
+        if (dbUser) token.adminRole = dbUser.adminRole;
       }
       return token;
     },
