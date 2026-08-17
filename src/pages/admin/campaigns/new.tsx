@@ -198,7 +198,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   return (
     <>
       <Head><title>New Campaign — Admin</title></Head>
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-3xl">
         <div className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
           <a href="/admin/campaigns" className="hover:underline">Campaigns</a>
           <span>/</span>

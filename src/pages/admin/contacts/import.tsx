@@ -349,7 +349,7 @@ const AdminContactImportPage: NextPageWithLayout<Props> = ({ batches }) => {
 
       <h1 className="mb-6 text-2xl font-extrabold text-navy">Import contacts</h1>
 
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-3xl space-y-6">
 
         {/* Upload */}
         <div className="rounded-2xl border border-navy/8 bg-white p-6">

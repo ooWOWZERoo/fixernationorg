@@ -158,7 +158,7 @@ const AdminBlogNew: NextPageWithLayout = () => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <Link href="/admin/blog" className="text-sm text-slate-500 no-underline hover:text-navy">
           ← Blog

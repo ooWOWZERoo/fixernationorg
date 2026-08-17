@@ -41,7 +41,7 @@ const AdminNewContactPage: NextPageWithLayout = () => {
   return (
     <>
       <Head><title>New Contact — Admin</title></Head>
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-3xl">
         <h1 className="mb-6 text-2xl font-extrabold text-navy">New contact</h1>
 
         {error && (

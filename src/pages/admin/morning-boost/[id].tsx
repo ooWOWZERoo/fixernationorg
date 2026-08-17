@@ -157,7 +157,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <Link href="/admin/morning-boost" className="text-sm text-slate-500 no-underline hover:text-navy">
           ← Morning Boost
