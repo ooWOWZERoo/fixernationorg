@@ -46,29 +46,26 @@ export function SiteFooter() {
 
           {/* Brand column — wider, visually separated from nav links */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:border-r lg:border-amber/25 lg:pr-8">
-            <Link href="/" className="flex items-center gap-2.5 no-underline hover:no-underline">
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Fixer Nation" className="h-14 w-auto max-w-[200px] object-contain brightness-0 invert" />
-              ) : (
-                <>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-navy text-amber text-base font-extrabold">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <span className="block font-serif text-5xl leading-none text-amber opacity-40 select-none">&ldquo;</span>
+                <p className="mt-1 text-sm italic leading-relaxed text-white/85">
+                  There are no problems in life&hellip; only issues and answers.
+                </p>
+                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber/60">
+                  Fixer Nation Credo
+                </p>
+              </div>
+              <Link href="/" className="shrink-0 no-underline hover:no-underline">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Fixer Nation" className="h-28 w-auto max-w-[200px] object-contain brightness-0 invert" />
+                ) : (
+                  <span className="flex h-14 w-14 items-center justify-center rounded-[12px] bg-navy text-amber text-2xl font-extrabold">
                     ✓
                   </span>
-                  <span className="text-lg font-extrabold tracking-tight text-white">
-                    Fixer Nation
-                  </span>
-                </>
-              )}
-            </Link>
-            <div className="mt-5 max-w-[240px]">
-              <span className="block font-serif text-5xl leading-none text-amber opacity-40 select-none">&ldquo;</span>
-              <p className="mt-1 text-sm italic leading-relaxed text-white/85">
-                There are no problems in life&hellip; only issues and answers.
-              </p>
-              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.1em] text-amber/60">
-                Fixer Nation Credo
-              </p>
+                )}
+              </Link>
             </div>
           </div>
 

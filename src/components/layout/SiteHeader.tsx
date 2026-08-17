@@ -63,28 +63,25 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-navy/8 bg-white">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 lg:px-8">
+      <div className="mx-auto flex h-28 max-w-6xl items-center justify-between px-6 lg:px-8">
 
         {/* Brand */}
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2.5 no-underline hover:no-underline"
+          className="flex shrink-0 items-center no-underline hover:no-underline"
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Fixer Nation" className="h-12 w-auto max-w-[200px] object-contain" />
+            <img src={logoUrl} alt="Fixer Nation" className="h-24 w-auto max-w-[400px] object-contain" />
           ) : (
-            <span className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-navy text-amber text-xl font-extrabold">
+            <span className="flex h-24 w-24 items-center justify-center rounded-[16px] bg-navy text-amber text-4xl font-extrabold">
               ✓
             </span>
           )}
-          <span className="text-lg font-extrabold tracking-tight text-navy">
-            Fixer Nation
-          </span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-0.5 lg:flex">
+        <nav className="hidden items-center gap-3 lg:flex">
           {NAV_LINKS.map((link) => {
             if (link.dropdown) {
               return (
