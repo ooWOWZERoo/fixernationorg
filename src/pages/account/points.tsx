@@ -42,7 +42,7 @@ const PointsPage: NextPageWithLayout<Props> = ({ total, history }) => {
       </Head>
 
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-3xl">
           <AccountNav />
 
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Community points</h1>

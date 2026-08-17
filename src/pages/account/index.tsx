@@ -97,7 +97,7 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
       </Head>
 
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-3xl">
           <AccountNav />
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Account Settings</h1>
           <p className="mt-1 text-sm text-ink-soft">{user.email}</p>

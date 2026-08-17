@@ -88,7 +88,7 @@ const ProviderContactsPage: NextPageWithLayout<Props> = ({ initialContacts }) =>
       </Head>
 
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-3xl">
 
           <AccountNav />
 

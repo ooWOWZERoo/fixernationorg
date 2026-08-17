@@ -81,7 +81,7 @@ const EditProfilePage: NextPageWithLayout<Props> = ({ initial, role }) => {
       </Head>
 
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-3xl">
           <AccountNav />
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Your Profile</h1>
           <p className="mt-2 text-sm text-ink-soft">

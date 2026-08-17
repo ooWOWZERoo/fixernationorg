@@ -50,7 +50,7 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
         <title>Business Profile — Fixer Nation</title>
       </Head>
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-3xl">
           <AccountNav />
 
           <p className="mt-6 text-xs font-bold uppercase tracking-widest text-amber-dark">
