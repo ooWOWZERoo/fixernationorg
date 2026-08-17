@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { awardPoints, POINTS } from "@/lib/loyalty";
 
 const createBody = z.object({ body: z.string().min(1).max(2000) });
 
@@ -61,6 +62,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         _count: { select: { reactions: true } },
       },
     });
+
+    awardPoints(session.user.id, POINTS.COMMENT_ADDED, "comment_added", comment.id).catch(() => {});
 
     return res.status(201).json({
       ...comment,

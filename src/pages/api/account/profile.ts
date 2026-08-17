@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { awardPoints, POINTS } from "@/lib/loyalty";
 
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
 
@@ -69,6 +70,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       }),
     ]);
+
+    // Award profile completion points once — requires username + (bio or headline)
+    (async () => {
+      const saved = await db.user.findUnique({
+        where: { id: userId },
+        select: { username: true, socialProfile: { select: { bio: true, headline: true } } },
+      });
+      const isComplete = !!(saved?.username && (saved.socialProfile?.bio || saved.socialProfile?.headline));
+      if (!isComplete) return;
+      const alreadyAwarded = await db.loyaltyPoint.findFirst({ where: { userId, reason: "profile_completed" } });
+      if (alreadyAwarded) return;
+      await awardPoints(userId, POINTS.PROFILE_COMPLETED, "profile_completed");
+    })().catch(() => {});
 
     return res.json({ ok: true });
   }

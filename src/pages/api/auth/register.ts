@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/email";
 import { enrollInJourneys } from "@/lib/automation";
+import { awardPoints, POINTS } from "@/lib/loyalty";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const RegisterSchema = z.object({
@@ -55,6 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             convertedAt: new Date(),
           },
         });
+        awardPoints(ambassadorProfile.userId, POINTS.REFERRAL_CONVERTED, "referral_converted", user.id).catch(() => {});
       }
     } catch {
       // fire and forget — referral tracking never breaks signup
