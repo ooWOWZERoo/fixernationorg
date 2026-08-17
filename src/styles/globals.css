@@ -4,18 +4,20 @@
 
 @layer base {
   :root {
-    --font-manrope: 'Manrope', sans-serif;
+    --font-jakarta: 'Plus Jakarta Sans', sans-serif;
     --font-display: 'DM Serif Display', Georgia, serif;
     --color-navy: #1F3A54;
     --color-navy-dark: #142838;
     --color-amber: #F2A93C;
     --color-amber-dark: #D98F1F;
     --color-coral: #FF7A59;
-    --color-cream: #FAF7F1;
-    --color-panel: #F1ECE2;
+    --color-forest: #2C4238;
+    --color-mist: #8C9EA4;
+    --color-cream: #FAF9F6;
+    --color-panel: #EDEAE3;
     --color-ink: #23262B;
     --color-ink-soft: #5C6470;
-    --radius: 1rem;
+    --radius: 0.75rem;
   }
 
   html {

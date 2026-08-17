@@ -96,11 +96,14 @@ const HomePage: NextPageWithLayout = () => {
       </Head>
 
       {/* 1. Hero */}
-      <section className="overflow-hidden px-6 pb-14 pt-16 lg:px-8">
+      <section
+        className="overflow-hidden px-6 pb-16 pt-20 lg:px-8"
+        style={{ background: "radial-gradient(ellipse at 12% 60%, rgba(242,169,60,0.13) 0%, transparent 48%), radial-gradient(ellipse at 88% 20%, rgba(140,158,164,0.11) 0%, transparent 44%), #FAF9F6" }}
+      >
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <span className="eyebrow">Positivity · Health · Wellness</span>
-            <h1 className="mt-4 font-display text-5xl font-normal leading-[1.1] tracking-tight text-navy lg:text-[64px]">
+            <h1 className="mt-4 font-display text-5xl font-normal leading-[1.1] tracking-tight text-navy lg:text-[68px]">
               The Health Club for Your Mind, Body &amp; Soul™
             </h1>
             <p className="mt-5 max-w-[520px] text-lg leading-relaxed text-ink-soft">
@@ -109,20 +112,20 @@ const HomePage: NextPageWithLayout = () => {
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 href="/join"
-                className="inline-flex items-center justify-center rounded-[10px] bg-amber px-6 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                className="inline-flex items-center justify-center rounded-lg bg-amber px-6 py-3.5 text-sm font-bold text-navy-dark no-underline shadow-[0_8px_24px_-6px_rgba(242,169,60,0.55)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
               >
                 Join Fixer Nation
               </Link>
               <Link
                 href="/ask-the-fixer"
-                className="inline-flex items-center justify-center rounded-[10px] border-2 border-navy px-6 py-3.5 text-sm font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
+                className="inline-flex items-center justify-center rounded-lg border-2 border-navy px-6 py-3.5 text-sm font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
               >
                 Ask The Fixer
               </Link>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[18px] shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
+          <div className="overflow-hidden rounded-xl shadow-[0_4px_32px_-4px_rgba(31,58,84,0.12)]">
             <Image
               src="/images/hero-wellness.jpg"
               alt="Morning calm — positivity, health, and wellness"
@@ -136,9 +139,9 @@ const HomePage: NextPageWithLayout = () => {
       </section>
 
       {/* 2. Social media contrast */}
-      <section className="bg-cream-panel px-6 py-16 lg:px-8">
+      <section className="px-6 py-24 lg:px-8">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-[18px] shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
+          <div className="overflow-hidden rounded-xl shadow-[0_4px_32px_-4px_rgba(31,58,84,0.10)]">
             <Image
               src="/images/community.jpg"
               alt="People helping each other reach the top — Fixer Nation community"
@@ -148,8 +151,7 @@ const HomePage: NextPageWithLayout = () => {
             />
           </div>
           <div>
-            <span className="eyebrow">A Different Kind of Online</span>
-            <h2 className="mt-4 font-display text-4xl font-normal leading-[1.15] text-navy lg:text-5xl">
+            <h2 className="font-display text-4xl font-normal leading-[1.15] text-navy lg:text-5xl">
               This is what your time online can become
             </h2>
             <p className="mt-4 text-base leading-relaxed text-ink-soft">
@@ -167,16 +169,10 @@ const HomePage: NextPageWithLayout = () => {
             alt="Anthony J. Placito"
             width={560}
             height={420}
-            className="w-full rounded-[18px] object-cover shadow-[0_24px_50px_-20px_rgba(0,0,0,0.5)]"
+            className="w-full rounded-xl object-cover shadow-[0_8px_40px_-8px_rgba(0,0,0,0.35)]"
           />
           <div>
-            <span
-              className="eyebrow"
-              style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
-            >
-              The founder
-            </span>
-            <h2 className="mt-4 font-display text-4xl font-normal leading-[1.15] text-white lg:text-5xl">
+            <h2 className="font-display text-4xl font-normal leading-[1.15] text-white lg:text-5xl">
               Built on Anthony J. Placito's real-life frameworks
             </h2>
             <p className="mt-4 text-base leading-relaxed text-white/75">
@@ -184,7 +180,7 @@ const HomePage: NextPageWithLayout = () => {
             </p>
             <Link
               href="/about"
-              className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+              className="mt-7 inline-flex items-center justify-center rounded-lg bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_8px_24px_-6px_rgba(242,169,60,0.55)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
             >
               Meet Anthony
             </Link>
@@ -193,11 +189,10 @@ const HomePage: NextPageWithLayout = () => {
       </section>
 
       {/* 4. Benefits */}
-      <section className="px-6 py-20 lg:px-8">
+      <section className="bg-cream-panel px-6 py-28 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-12 max-w-xl text-center">
-            <span className="eyebrow">How Members Benefit</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">
+            <h2 className="text-3xl font-extrabold text-navy">
               What changes for members
             </h2>
             <p className="mt-3 text-sm text-ink-soft">
@@ -208,13 +203,10 @@ const HomePage: NextPageWithLayout = () => {
             {BENEFITS.map((card) => (
               <div
                 key={card.title}
-                className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]"
+                className="overflow-hidden rounded-xl bg-white p-7 shadow-[0_4px_32px_-4px_rgba(31,58,84,0.09)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_40px_-6px_rgba(31,58,84,0.15)]"
               >
-                <div className={`h-24 w-full opacity-15 ${card.accent}`} />
-                <div className="p-6">
-                  <h3 className="mb-2 text-lg font-bold text-navy">{card.title}</h3>
-                  <p className="text-sm leading-relaxed text-ink-soft">{card.body}</p>
-                </div>
+                <h3 className="mb-3 text-lg font-bold text-navy">{card.title}</h3>
+                <p className="text-sm leading-relaxed text-ink-soft">{card.body}</p>
               </div>
             ))}
           </div>
@@ -222,11 +214,10 @@ const HomePage: NextPageWithLayout = () => {
       </section>
 
       {/* 5. What's Inside */}
-      <section className="bg-cream-panel px-6 py-20 lg:px-8">
+      <section className="px-6 py-24 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-12 max-w-xl text-center">
-            <span className="eyebrow">What's Inside</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">
+            <h2 className="text-3xl font-extrabold text-navy">
               What you get with a Fixer Nation membership
             </h2>
           </div>
@@ -235,7 +226,7 @@ const HomePage: NextPageWithLayout = () => {
               <Link
                 key={card.title}
                 href={card.href}
-                className="group rounded-2xl bg-white p-6 shadow-[0_14px_30px_-22px_rgba(20,40,56,0.25)] no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-20px_rgba(20,40,56,0.3)]"
+                className="group rounded-xl bg-white p-6 shadow-[0_4px_32px_-4px_rgba(31,58,84,0.09)] no-underline transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_40px_-6px_rgba(31,58,84,0.15)]"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-navy font-extrabold text-amber">
                   ✓
@@ -249,29 +240,28 @@ const HomePage: NextPageWithLayout = () => {
       </section>
 
       {/* 6. The Statement — signature section */}
-      <section className="bg-amber px-6 py-28 lg:px-8">
+      <section className="bg-forest px-6 py-28 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-white">
+          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-amber">
             "There are no problems in life...
           </p>
-          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-white">
+          <p className="font-display text-[clamp(2rem,4.5vw,4rem)] font-normal italic leading-[1.25] text-amber">
             only issues and answers."
           </p>
-          <p className="mt-8 text-xs font-bold uppercase tracking-[0.2em] text-navy-dark/60">
+          <p className="mt-8 text-xs font-bold uppercase tracking-[0.2em] text-amber/50">
             The Fixer Nation philosophy
           </p>
         </div>
       </section>
 
       {/* 7. Member Story */}
-      <section className="px-6 py-20 lg:px-8">
+      <section className="px-6 py-24 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-10 max-w-xl text-center">
-            <span className="eyebrow">Member Story</span>
-            <h2 className="mt-4 text-3xl font-extrabold text-navy">Real results from real members</h2>
+            <h2 className="text-3xl font-extrabold text-navy">Real results from real members</h2>
           </div>
-          <div className="grid overflow-hidden rounded-3xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="flex items-center justify-center p-8 lg:p-10">
+          <div className="grid overflow-hidden rounded-xl bg-white shadow-[0_4px_32px_-4px_rgba(31,58,84,0.10)] lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="flex items-center justify-center p-10 lg:p-12">
               <Image
                 src="/images/review_profile.png"
                 alt="Fixer Nation member"
@@ -280,9 +270,8 @@ const HomePage: NextPageWithLayout = () => {
                 className="max-w-full"
               />
             </div>
-            <div className="p-10 lg:p-12">
-              <span className="eyebrow">Member Quote</span>
-              <p className="mt-5 text-xl font-semibold leading-snug text-navy">
+            <div className="p-10 lg:p-14">
+              <p className="text-xl font-semibold leading-snug text-navy">
                 "Fixer Nation gave me a daily habit I could actually stick to. It was also the first place I felt comfortable asking real questions when I got stuck."
               </p>
               <p className="mt-5 text-sm font-bold text-ink-soft">Fixer Nation Community Member</p>
@@ -305,7 +294,7 @@ const HomePage: NextPageWithLayout = () => {
           </h2>
           <Link
             href="/join"
-            className="mt-6 inline-flex items-center justify-center rounded-[10px] bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-amber px-8 py-3.5 text-sm font-bold text-navy-dark no-underline transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
           >
             Join Fixer Nation
           </Link>
@@ -315,22 +304,16 @@ const HomePage: NextPageWithLayout = () => {
       {/* 9. Newsletter Band */}
       <section className="bg-navy-dark px-6 py-16 lg:px-8">
         <div className="mx-auto max-w-lg text-center">
-          <span
-            className="eyebrow"
-            style={{ background: "rgba(255,255,255,0.14)", color: "#F2D9AE" }}
-          >
-            Stay Connected
-          </span>
-          <h2 className="mt-4 text-2xl font-extrabold text-white">
+          <h2 className="text-2xl font-extrabold text-white">
             Get the Fixer Nation newsletter
           </h2>
           <p className="mt-3 text-sm text-white/70">
             A monthly email with book news, mindset prompts, and whatever Anthony is thinking about. No spam.
           </p>
           {subState === "done" ? (
-            <div className="mt-6 rounded-2xl bg-white/10 px-6 py-5 text-center">
-              <p className="text-base font-extrabold text-white">You&apos;re in.</p>
-              <p className="mt-1 text-sm text-white/70">We&apos;ll send you the next newsletter when it goes out.</p>
+            <div className="mt-6 rounded-xl bg-white/10 px-6 py-5 text-center">
+              <p className="text-base font-extrabold text-white">You&apos;re subscribed!</p>
+              <p className="mt-1 text-sm text-white/70">Thanks for signing up. We&apos;ll send you the newsletter when it goes out.</p>
             </div>
           ) : (
             <form className="mt-6 flex flex-wrap justify-center gap-2" onSubmit={handleSubscribe}>
@@ -339,7 +322,7 @@ const HomePage: NextPageWithLayout = () => {
                 placeholder="First name (optional)"
                 value={subFirstName}
                 onChange={(e) => setSubFirstName(e.target.value)}
-                className="min-w-[160px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
+                className="min-w-[160px] flex-1 rounded-lg border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
               />
               <input
                 type="email"
@@ -347,12 +330,12 @@ const HomePage: NextPageWithLayout = () => {
                 required
                 value={subEmail}
                 onChange={(e) => setSubEmail(e.target.value)}
-                className="min-w-[200px] flex-1 rounded-[10px] border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
+                className="min-w-[200px] flex-1 rounded-lg border-0 px-4 py-3 text-sm font-medium text-ink placeholder-ink-soft focus:outline-none focus:ring-2 focus:ring-amber"
               />
               <button
                 type="submit"
                 disabled={subState === "submitting"}
-                className="rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60"
+                className="rounded-lg bg-amber px-6 py-3 text-sm font-bold text-navy-dark shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark disabled:opacity-60"
               >
                 {subState === "submitting" ? "Subscribing…" : "Subscribe"}
               </button>

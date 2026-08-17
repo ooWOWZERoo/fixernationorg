@@ -41,10 +41,12 @@ const config: Config = {
         },
         // Semantic design tokens
         cream: {
-          DEFAULT: "#FAF7F1",
-          panel: "#F1ECE2",
+          DEFAULT: "#FAF9F6",
+          panel: "#EDEAE3",
         },
         coral: "#FF7A59",
+        forest: "#2C4238",
+        mist: "#8C9EA4",
         ink: {
           DEFAULT: "#23262B",
           soft: "#5C6470",
@@ -59,7 +61,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-manrope)", "Manrope", "ui-sans-serif", "system-ui"],
+        sans: ["var(--font-jakarta)", "'Plus Jakarta Sans'", "ui-sans-serif", "system-ui"],
         display: ["var(--font-display)", "'DM Serif Display'", "Georgia", "serif"],
       },
       borderRadius: {
