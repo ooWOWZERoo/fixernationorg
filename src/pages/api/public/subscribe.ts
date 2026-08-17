@@ -50,6 +50,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     update: {},
   }).catch(() => {});
 
+  // Add to "Newsletter Subscribers" list — find-or-create the list, then upsert membership
+  (async () => {
+    let list = await db.contactList.findFirst({
+      where: { name: "Newsletter Subscribers", ownerType: "FN_ADMIN" },
+    });
+    if (!list) {
+      try {
+        list = await db.contactList.create({
+          data: { name: "Newsletter Subscribers", ownerType: "FN_ADMIN" },
+        });
+      } catch {
+        list = await db.contactList.findFirst({
+          where: { name: "Newsletter Subscribers", ownerType: "FN_ADMIN" },
+        });
+      }
+    }
+    if (list) {
+      await db.contactListMember.upsert({
+        where: { listId_contactId: { listId: list.id, contactId: contact.id } },
+        create: { listId: list.id, contactId: contact.id },
+        update: {},
+      });
+    }
+  })().catch(() => {});
+
   const results: { consent?: boolean; subscription?: boolean } = {};
 
   // System consent (enum topic)
