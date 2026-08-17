@@ -415,18 +415,25 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole
         )}
 
         {/* Loyalty points */}
-        {totalPoints > 0 && (
-          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
-            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">Community points</p>
-            <div className="flex items-end gap-2">
-              <p className="text-3xl font-extrabold text-navy">{totalPoints}</p>
-              <p className="mb-0.5 text-sm text-ink-soft">pts</p>
-            </div>
-            <p className="mt-1 text-sm text-ink-soft">
-              Earned by showing up: posting, RSVPing, and referring people.
-            </p>
+        <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">Community points</p>
+          <div className="flex items-end gap-2">
+            <p className="text-3xl font-extrabold text-navy">{totalPoints}</p>
+            <p className="mb-0.5 text-sm text-ink-soft">pts</p>
           </div>
-        )}
+          {totalPoints === 0 ? (
+            <p className="mt-1 text-sm text-ink-soft">
+              Post in a group, RSVP to an event, or refer someone to start earning.
+            </p>
+          ) : (
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-sm text-ink-soft">Keep showing up — points add up fast.</p>
+              <Link href="/account/points" className="text-xs font-semibold text-navy no-underline hover:underline">
+                View history →
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Feature tiles */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

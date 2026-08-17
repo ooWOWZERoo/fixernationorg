@@ -133,6 +133,9 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
             <Link href="/account/billing" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
               Billing
             </Link>
+            <Link href="/account/points" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
+              Community points
+            </Link>
           </div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Account Settings</h1>
           <p className="mt-1 text-sm text-ink-soft">{user.email}</p>
