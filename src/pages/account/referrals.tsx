@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -38,15 +39,7 @@ const ReferralsPage: NextPageWithLayout<Props> = ({ referralCode, referrals, sit
       </Head>
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-2xl">
-          <div className="mb-2 flex items-center gap-3 flex-wrap">
-            <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Ambassador profile
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/dashboard" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Dashboard
-            </Link>
-          </div>
+          <AccountNav />
 
           <p className="mt-6 text-xs font-bold uppercase tracking-widest text-amber-dark">
             Brand Ambassador

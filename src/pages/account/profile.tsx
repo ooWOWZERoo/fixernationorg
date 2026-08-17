@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState, useRef } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -81,24 +82,7 @@ const EditProfilePage: NextPageWithLayout<Props> = ({ initial, role }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Settings
-            </Link>
-            <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Security
-            </Link>
-            {isProvider && (
-              <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                Business profile
-              </Link>
-            )}
-            {role === "AMBASSADOR" && (
-              <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                Ambassador profile
-              </Link>
-            )}
-          </div>
+          <AccountNav />
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Your Profile</h1>
           <p className="mt-2 text-sm text-ink-soft">
             This is what other members see when they visit your profile.

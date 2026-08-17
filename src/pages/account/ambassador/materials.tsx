@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -52,15 +53,7 @@ const AmbassadorMaterialsPage: NextPageWithLayout<Props> = ({ materials }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-2xl">
-          <div className="mb-2 flex items-center gap-3 flex-wrap">
-            <Link href="/dashboard" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Dashboard
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Ambassador profile
-            </Link>
-          </div>
+          <AccountNav />
 
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Campaign materials</h1>
           <p className="mt-2 text-sm text-ink-soft">

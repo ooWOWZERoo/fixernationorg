@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -57,15 +58,7 @@ const CommissionsPage: NextPageWithLayout<Props> = ({ affiliate, totals, entries
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-2xl">
 
-          <div className="mb-2 flex flex-wrap items-center gap-3">
-            <Link href="/account/referrals" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← My referrals
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Ambassador profile
-            </Link>
-          </div>
+          <AccountNav />
 
           <p className="mt-6 text-xs font-bold uppercase tracking-widest text-amber-dark">
             Brand Ambassador

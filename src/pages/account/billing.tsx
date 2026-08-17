@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -84,11 +85,7 @@ const BillingPage: NextPageWithLayout<Props> = ({ membership, hasStripeCustomer,
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2 flex items-center gap-3 flex-wrap">
-            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Account settings
-            </Link>
-          </div>
+          <AccountNav />
 
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Billing</h1>
 

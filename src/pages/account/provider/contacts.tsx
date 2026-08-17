@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -89,15 +90,7 @@ const ProviderContactsPage: NextPageWithLayout<Props> = ({ initialContacts }) =>
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-2xl">
 
-          <div className="mb-2 flex flex-wrap items-center gap-3">
-            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Account
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/account/provider/campaigns" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              My campaigns
-            </Link>
-          </div>
+          <AccountNav />
 
           <div className="mt-4 flex items-start justify-between gap-4">
             <div>

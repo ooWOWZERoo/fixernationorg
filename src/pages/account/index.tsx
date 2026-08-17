@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -97,46 +98,7 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Link href="/account/profile" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← My Profile
-            </Link>
-            <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Security
-            </Link>
-            {isProvider && (
-              <>
-                <Link href="/account/business" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Business profile
-                </Link>
-                <Link href="/account/provider/contacts" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  My contacts
-                </Link>
-                <Link href="/account/provider/campaigns" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  My campaigns
-                </Link>
-              </>
-            )}
-            {user.role === "AMBASSADOR" && (
-              <>
-                <Link href="/account/ambassador" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Ambassador profile
-                </Link>
-                <Link href="/account/ambassador/materials" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Campaign materials
-                </Link>
-                <Link href="/account/referrals" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-                  Referrals
-                </Link>
-              </>
-            )}
-            <Link href="/account/billing" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Billing
-            </Link>
-            <Link href="/account/points" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Community points
-            </Link>
-          </div>
+          <AccountNav />
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Account Settings</h1>
           <p className="mt-1 text-sm text-ink-soft">{user.email}</p>
 

@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -50,19 +51,7 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
       </Head>
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2 flex items-center gap-3">
-            <Link href="/account/profile" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← My Profile
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Settings
-            </Link>
-            <span className="text-ink-soft/40">·</span>
-            <Link href="/account/security" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              Security
-            </Link>
-          </div>
+          <AccountNav />
 
           <p className="mt-6 text-xs font-bold uppercase tracking-widest text-amber-dark">
             Service Provider

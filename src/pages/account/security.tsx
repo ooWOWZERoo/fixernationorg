@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -115,11 +116,7 @@ const AccountSecurityPage: NextPageWithLayout<Props> = ({ mfaEnabled: initialEna
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-2">
-            <Link href="/account" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Account Settings
-            </Link>
-          </div>
+          <AccountNav />
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-navy">Security</h1>
           <p className="mt-1 text-sm text-ink-soft">Manage two-factor authentication for your account.</p>
 

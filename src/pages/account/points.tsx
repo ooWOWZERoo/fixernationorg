@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { AccountNav } from "@/components/account/AccountNav";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -42,11 +43,7 @@ const PointsPage: NextPageWithLayout<Props> = ({ total, history }) => {
 
       <section className="px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-xl">
-          <div className="mb-6">
-            <Link href="/dashboard" className="text-sm font-semibold text-ink-soft no-underline hover:text-navy">
-              ← Dashboard
-            </Link>
-          </div>
+          <AccountNav />
 
           <h1 className="text-3xl font-extrabold tracking-tight text-navy">Community points</h1>
 
