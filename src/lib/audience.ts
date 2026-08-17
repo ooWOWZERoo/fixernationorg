@@ -6,6 +6,8 @@ export interface ListRule        { type: "list";          listId: string; label?
 export interface RoleRule        { type: "role";          role: string }
 export interface TagRule         { type: "tag";           tag: string }
 export interface ConsentRule     { type: "consent_topic"; topic: string }
+export interface GroupRule       { type: "group";         groupId: string; label?: string }
+export interface EventRsvpRule   { type: "event_rsvp";   eventId: string; label?: string }
 export interface CustomFieldRule {
   type: "custom_field";
   fieldId: string;
@@ -14,7 +16,7 @@ export interface CustomFieldRule {
   value?: string;
 }
 
-export type AudienceRule = ListRule | RoleRule | TagRule | ConsentRule | CustomFieldRule;
+export type AudienceRule = ListRule | RoleRule | TagRule | ConsentRule | GroupRule | EventRsvpRule | CustomFieldRule;
 
 export interface AudienceDefinition {
   logic:   "OR" | "AND";
@@ -73,6 +75,30 @@ async function resolveRule(rule: AudienceRule): Promise<Set<string>> {
         select: { contactId: true },
       });
       return new Set(rows.map((r) => r.contactId));
+    }
+    case "group": {
+      const members = await db.groupMember.findMany({
+        where: { groupId: rule.groupId },
+        select: { userId: true },
+      });
+      if (members.length === 0) return new Set();
+      const contacts = await db.contact.findMany({
+        where: { userId: { in: members.map((m) => m.userId) } },
+        select: { id: true },
+      });
+      return new Set(contacts.map((c) => c.id));
+    }
+    case "event_rsvp": {
+      const rsvps = await db.eventRsvp.findMany({
+        where: { eventId: rule.eventId, status: { in: ["REGISTERED", "WAITLISTED"] as never } },
+        select: { userId: true },
+      });
+      if (rsvps.length === 0) return new Set();
+      const contacts = await db.contact.findMany({
+        where: { userId: { in: rsvps.map((r) => r.userId) } },
+        select: { id: true },
+      });
+      return new Set(contacts.map((c) => c.id));
     }
     case "custom_field": {
       const cfvDb = db as never as {

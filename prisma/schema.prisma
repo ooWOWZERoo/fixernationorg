@@ -1468,6 +1468,8 @@ enum AutomationTrigger {
   ROLE_CHANGE
   TAG_ADDED
   APPLICATION_ACCEPTED
+  GROUP_JOIN
+  EVENT_RSVP
 }
 
 enum AutomationStepType {

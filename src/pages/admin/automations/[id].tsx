@@ -27,6 +27,8 @@ const TRIGGER_LABELS: Record<string, string> = {
   ROLE_CHANGE: "Role change",
   TAG_ADDED: "Tag added",
   APPLICATION_ACCEPTED: "Application accepted",
+  GROUP_JOIN: "Group join",
+  EVENT_RSVP: "Event RSVP",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -88,9 +90,12 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [editingTriggerConfig, setEditingTriggerConfig] = useState(false);
   const [triggerConfigValue, setTriggerConfigValue] = useState<string>(
-    initial.triggerConfig?.role ?? initial.triggerConfig?.tag ?? ""
+    initial.triggerConfig?.role ?? initial.triggerConfig?.tag ??
+    initial.triggerConfig?.groupId ?? initial.triggerConfig?.eventId ?? ""
   );
   const [savingTriggerConfig, setSavingTriggerConfig] = useState(false);
+  const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
+  const [eventOptions, setEventOptions] = useState<{ id: string; title: string }[]>([]);
 
   const saveMeta = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,6 +140,21 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (journey.trigger === "GROUP_JOIN" && groupOptions.length === 0) {
+      fetch("/api/admin/groups")
+        .then((r) => r.json())
+        .then((d) => setGroupOptions(Array.isArray(d.groups) ? d.groups : []))
+        .catch(() => {});
+    }
+    if (journey.trigger === "EVENT_RSVP" && eventOptions.length === 0) {
+      fetch("/api/admin/events")
+        .then((r) => r.json())
+        .then((d) => setEventOptions(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    }
+  }, [journey.trigger]);
+
   const cancelEnrollment = async (id: string) => {
     setCancellingId(id);
     const res = await fetch(`/api/admin/automations/enrollments?id=${id}`, {
@@ -157,6 +177,10 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
       newConfig = { role: triggerConfigValue };
     } else if (journey.trigger === "TAG_ADDED" && triggerConfigValue) {
       newConfig = { tag: triggerConfigValue };
+    } else if (journey.trigger === "GROUP_JOIN" && triggerConfigValue) {
+      newConfig = { groupId: triggerConfigValue };
+    } else if (journey.trigger === "EVENT_RSVP" && triggerConfigValue) {
+      newConfig = { eventId: triggerConfigValue };
     }
     const res = await fetch(`/api/admin/automations/${journey.id}`, {
       method: "PATCH",
@@ -274,7 +298,7 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
       {activeTab === "steps" && (
         <div>
           {/* Trigger config (configurable triggers only) */}
-          {(journey.trigger === "ROLE_CHANGE" || journey.trigger === "TAG_ADDED") && (
+          {(journey.trigger === "ROLE_CHANGE" || journey.trigger === "TAG_ADDED" || journey.trigger === "GROUP_JOIN" || journey.trigger === "EVENT_RSVP") && (
             <div className="mb-4 rounded-xl border border-navy/20 bg-navy/5 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -289,6 +313,16 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
                       journey.triggerConfig?.tag
                         ? <>When tag <strong>"{journey.triggerConfig.tag}"</strong> is added</>
                         : "Any tag added (no filter set)"
+                    )}
+                    {journey.trigger === "GROUP_JOIN" && (
+                      journey.triggerConfig?.groupId
+                        ? <>When a user joins group <strong>{groupOptions.find((g) => g.id === journey.triggerConfig?.groupId)?.name ?? journey.triggerConfig.groupId}</strong></>
+                        : "Any group join (no filter set)"
+                    )}
+                    {journey.trigger === "EVENT_RSVP" && (
+                      journey.triggerConfig?.eventId
+                        ? <>When a user RSVPs to <strong>{eventOptions.find((e) => e.id === journey.triggerConfig?.eventId)?.title ?? journey.triggerConfig.eventId}</strong></>
+                        : "Any event RSVP (no filter set)"
                     )}
                   </div>
                 </div>
@@ -320,7 +354,7 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
                         <option value="ADMIN">Admin</option>
                       </select>
                     </div>
-                  ) : (
+                  ) : journey.trigger === "TAG_ADDED" ? (
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Trigger when this tag is added</label>
                       <input
@@ -329,6 +363,34 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
                         placeholder="e.g. ambassador-prospect"
                         className="w-full max-w-xs rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
                       />
+                    </div>
+                  ) : journey.trigger === "GROUP_JOIN" ? (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Trigger when a user joins</label>
+                      <select
+                        value={triggerConfigValue}
+                        onChange={(e) => setTriggerConfigValue(e.target.value)}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      >
+                        <option value="">Any group</option>
+                        {groupOptions.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Trigger when a user RSVPs to</label>
+                      <select
+                        value={triggerConfigValue}
+                        onChange={(e) => setTriggerConfigValue(e.target.value)}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                      >
+                        <option value="">Any event</option>
+                        {eventOptions.map((e) => (
+                          <option key={e.id} value={e.id}>{e.title}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -342,7 +404,7 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
                     <button
                       onClick={() => {
                         setEditingTriggerConfig(false);
-                        setTriggerConfigValue(journey.triggerConfig?.role ?? journey.triggerConfig?.tag ?? "");
+                        setTriggerConfigValue(journey.triggerConfig?.role ?? journey.triggerConfig?.tag ?? journey.triggerConfig?.groupId ?? journey.triggerConfig?.eventId ?? "");
                       }}
                       className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >

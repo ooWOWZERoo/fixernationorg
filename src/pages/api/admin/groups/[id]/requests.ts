@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { enrollInJourneys } from "@/lib/automation";
+import type { AutomationTrigger } from "@prisma/client";
 
 function isAdmin(role: string) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
@@ -59,6 +61,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           update: {},
         }),
       ]);
+      enrollInJourneys({
+        trigger: "GROUP_JOIN" as AutomationTrigger,
+        userId: request.userId,
+        triggerConfig: { groupId },
+        metadata: { groupId },
+      }).catch(() => {});
     } else {
       await db.groupRequest.update({
         where: { id: requestId },

@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { awardPoints, POINTS } from "@/lib/loyalty";
+import { enrollInJourneys } from "@/lib/automation";
+import type { AutomationTrigger } from "@prisma/client";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -40,6 +42,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await db.eventRsvp.update({ where: { id: existing.id }, data: { status: newStatus } });
     if (newStatus === "REGISTERED") {
       awardPoints(session.user.id, POINTS.EVENT_RSVP, "event_rsvp", event.id);
+      enrollInJourneys({
+        trigger: "EVENT_RSVP" as AutomationTrigger,
+        userId: session.user.id,
+        triggerConfig: { eventId: event.id },
+        metadata: { eventId: event.id },
+      }).catch(() => {});
     }
     return res.json({ status: newStatus });
   }
@@ -54,6 +62,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (status === "REGISTERED") {
     awardPoints(session.user.id, POINTS.EVENT_RSVP, "event_rsvp", event.id);
+    enrollInJourneys({
+      trigger: "EVENT_RSVP" as AutomationTrigger,
+      userId: session.user.id,
+      triggerConfig: { eventId: event.id },
+      metadata: { eventId: event.id },
+    }).catch(() => {});
   }
 
   return res.status(201).json({ status });
