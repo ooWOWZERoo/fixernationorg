@@ -15,9 +15,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session || session.user.adminRole !== "SUPER_ADMIN") {
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole ?? "")) {
     return res.status(403).json({ error: "Forbidden" });
   }
+
+  try {
 
   const results: Record<string, number> = { blogPosts: 0, morningBoosts: 0, resources: 0 };
 
@@ -360,5 +362,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     results.resources = 3;
   }
 
-  return res.json({ ok: true, created: results });
+    return res.json({ ok: true, created: results });
+  } catch (err) {
+    console.error("[seed-content]", err);
+    return res.status(500).json({ error: String(err) });
+  }
 }
