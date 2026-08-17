@@ -751,7 +751,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         });
         conversionCount = conversions.length;
         conversionRevenue = conversions.reduce((sum, m) => {
-          const monthly = (m.price.interval === "YEARLY" ? m.price.amount / 12 : m.price.amount);
+          const monthly = (m.price.interval === "ANNUAL" ? m.price.amount / 12 : m.price.amount);
           return sum + Math.round(monthly);
         }, 0);
       }
