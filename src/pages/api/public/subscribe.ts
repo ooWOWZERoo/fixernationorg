@@ -36,11 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { email, firstName, lastName, topic, topicId, topicSlug, source } = parsed.data;
   const now = new Date();
 
-  // Upsert contact
+  // Upsert contact — name fields only set on create; never overwrite an existing contact's name
   const contact = await db.contact.upsert({
     where: { email },
     create: { email, firstName, lastName, source: source ?? "subscribe" },
-    update: { firstName: firstName ?? undefined, lastName: lastName ?? undefined },
+    update: {},
   });
 
   // Attribution: only set on first touch (upsert with no-op update preserves original)
