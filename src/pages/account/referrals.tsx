@@ -19,11 +19,17 @@ interface Props {
   referralCode: string;
   referrals: ReferralRow[];
   siteUrl: string;
+  commissionBalance: { pending: number; approved: number } | null;
 }
 
-const ReferralsPage: NextPageWithLayout<Props> = ({ referralCode, referrals, siteUrl }) => {
+function fmt(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+}
+
+const ReferralsPage: NextPageWithLayout<Props> = ({ referralCode, referrals, siteUrl, commissionBalance }) => {
   const referralUrl = `${siteUrl}/register?ref=${referralCode}`;
   const conversions = referrals.filter((r) => r.convertedAt !== null).length;
+  const conversionRate = referrals.length > 0 ? Math.round((conversions / referrals.length) * 100) : 0;
 
   return (
     <>
@@ -53,10 +59,34 @@ const ReferralsPage: NextPageWithLayout<Props> = ({ referralCode, referrals, sit
               <p className="mt-1 text-3xl font-extrabold text-navy">{referrals.length}</p>
             </div>
             <div className="rounded-2xl border border-navy/8 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Signed up</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Converted</p>
               <p className="mt-1 text-3xl font-extrabold text-navy">{conversions}</p>
             </div>
+            <div className="rounded-2xl border border-navy/8 bg-white p-5 col-span-2 sm:col-span-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Conversion rate</p>
+              <p className="mt-1 text-3xl font-extrabold text-navy">{conversionRate}%</p>
+            </div>
           </div>
+
+          {commissionBalance !== null && (
+            <Link
+              href="/account/commissions"
+              className="mt-4 flex items-center justify-between rounded-2xl border border-navy/8 bg-white px-5 py-4 no-underline hover:border-navy/20 hover:shadow-sm transition-shadow"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Commission balance</p>
+                <p className="mt-0.5 text-sm font-bold text-navy">
+                  {fmt(commissionBalance.pending + commissionBalance.approved)} available
+                  {commissionBalance.approved > 0 && (
+                    <span className="ml-2 text-xs font-semibold text-green-700">
+                      ({fmt(commissionBalance.approved)} approved)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-navy">View earnings →</span>
+            </Link>
+          )}
 
           <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
             <h2 className="mb-1 text-base font-extrabold text-navy">Your referral link</h2>
@@ -125,22 +155,31 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return { redirect: { destination: "/dashboard", permanent: false } };
   }
 
-  const ambassadorProfile = await db.ambassadorProfile.findUnique({
-    where: { userId: session.user.id },
-    include: {
-      referrals: {
-        include: {
-          referredUser: {
-            select: { name: true, email: true },
+  const [ambassadorProfile, commissionsRes] = await Promise.all([
+    db.ambassadorProfile.findUnique({
+      where: { userId: session.user.id },
+      include: {
+        referrals: {
+          include: {
+            referredUser: { select: { name: true, email: true } },
           },
+          orderBy: { createdAt: "desc" },
         },
-        orderBy: { createdAt: "desc" },
       },
-    },
-  });
+    }),
+    fetch(`${process.env.NEXTAUTH_URL}/api/account/commissions`, {
+      headers: { cookie: ctx.req.headers.cookie ?? "" },
+    }),
+  ]);
 
   if (!ambassadorProfile) {
     return { redirect: { destination: "/account/ambassador", permanent: false } };
+  }
+
+  let commissionBalance: { pending: number; approved: number } | null = null;
+  if (commissionsRes.ok) {
+    const data = await commissionsRes.json();
+    commissionBalance = { pending: data.totals.pending, approved: data.totals.approved };
   }
 
   const siteUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://fixernation.org";
@@ -149,6 +188,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     props: {
       referralCode: ambassadorProfile.referralCode,
       siteUrl,
+      commissionBalance,
       referrals: ambassadorProfile.referrals.map((r) => ({
         id: r.id,
         referredUserName: r.referredUser?.name ?? null,

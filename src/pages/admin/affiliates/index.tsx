@@ -14,9 +14,15 @@ type AffiliateRow = {
   createdAt: string;
   taxOnboardingDone: boolean;
   payoutOnboardingDone: boolean;
-  user: { id: string; name: string | null; email: string };
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    ambassadorProfile: { territory: string | null; _count: { referrals: number } } | null;
+  };
   application: { id: string; type: string } | null;
   _count: { promoCodes: number; ledgerEntries: number };
+  totalPaid: number;
 };
 
 interface Props {
@@ -67,9 +73,10 @@ const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates }) => {
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Affiliate</th>
                 <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
+                <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Territory</th>
+                <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Referrals</th>
+                <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Paid out</th>
                 <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Setup</th>
-                <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Promo codes</th>
-                <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Commissions</th>
                 <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
               </tr>
             </thead>
@@ -93,6 +100,19 @@ const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates }) => {
                         {STATUS_LABEL[a.status] ?? a.status}
                       </span>
                     </td>
+                    <td className="hidden px-4 py-3.5 text-slate-600 lg:table-cell">
+                      {a.user.ambassadorProfile?.territory ?? <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="hidden px-4 py-3.5 text-right text-slate-600 sm:table-cell">
+                      {a.affiliateType === "AMBASSADOR" && a.user.ambassadorProfile
+                        ? a.user.ambassadorProfile._count.referrals
+                        : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="hidden px-4 py-3.5 text-right text-slate-600 lg:table-cell">
+                      {a.totalPaid > 0
+                        ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(a.totalPaid)
+                        : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="hidden px-4 py-3.5 sm:table-cell">
                       {setupDone ? (
                         <span className="text-xs font-semibold text-green-600">Complete</span>
@@ -101,12 +121,6 @@ const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates }) => {
                       ) : (
                         <span className="text-xs text-slate-400">Not started</span>
                       )}
-                    </td>
-                    <td className="hidden px-4 py-3.5 text-right text-slate-600 sm:table-cell">
-                      {a._count.promoCodes}
-                    </td>
-                    <td className="hidden px-4 py-3.5 text-right text-slate-600 lg:table-cell">
-                      {a._count.ledgerEntries}
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <Link
@@ -141,17 +155,45 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     };
   }
 
-  const affiliates = await db.affiliateAssignment.findMany({
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-      application: { select: { id: true, type: true } },
-      _count: { select: { promoCodes: true, ledgerEntries: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [affiliates, paidTotals] = await Promise.all([
+    db.affiliateAssignment.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            ambassadorProfile: {
+              select: {
+                territory: true,
+                _count: { select: { referrals: true } },
+              },
+            },
+          },
+        },
+        application: { select: { id: true, type: true } },
+        _count: { select: { promoCodes: true, ledgerEntries: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.commissionLedger.groupBy({
+      by: ["affiliateId"],
+      where: { status: "PAID" },
+      _sum: { commissionAmount: true },
+    }),
+  ]);
+
+  const paidMap = new Map(
+    paidTotals.map((p) => [p.affiliateId, parseFloat(String(p._sum.commissionAmount ?? 0))])
+  );
+
+  const rows = affiliates.map((a) => ({
+    ...a,
+    totalPaid: paidMap.get(a.id) ?? 0,
+  }));
 
   return {
-    props: { affiliates: JSON.parse(JSON.stringify(affiliates)) },
+    props: { affiliates: JSON.parse(JSON.stringify(rows)) },
   };
 };
 
