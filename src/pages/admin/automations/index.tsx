@@ -13,7 +13,41 @@ const TRIGGER_LABELS: Record<string, string> = {
   ROLE_CHANGE: "Role change",
   TAG_ADDED: "Tag added",
   APPLICATION_ACCEPTED: "Application accepted",
+  GROUP_JOIN: "Group join",
+  EVENT_RSVP: "Event RSVP",
+  LOYALTY_MILESTONE: "Loyalty milestone",
 };
+
+const JOURNEY_TEMPLATES = [
+  {
+    id: "welcome",
+    name: "Welcome series",
+    trigger: "SIGNUP",
+    stepCount: 5,
+    description: "3 emails over 4 days for new signups.",
+  },
+  {
+    id: "loyalty_milestone",
+    name: "Loyalty milestone reward",
+    trigger: "LOYALTY_MILESTONE",
+    stepCount: 2,
+    description: "Email + tag when a member hits 100 points.",
+  },
+  {
+    id: "event_followup",
+    name: "Event follow-up",
+    trigger: "EVENT_RSVP",
+    stepCount: 3,
+    description: "Confirmation + reminder after RSVP.",
+  },
+  {
+    id: "member_onboarding",
+    name: "New member onboarding",
+    trigger: "APPLICATION_ACCEPTED",
+    stepCount: 5,
+    description: "4 emails over 7 days for newly accepted members.",
+  },
+];
 
 type JourneyRow = {
   id: string;
@@ -33,9 +67,11 @@ interface Props {
 const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
   const [journeys, setJourneys] = useState(initial);
   const [showNew, setShowNew] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTrigger, setNewTrigger] = useState("APPLICATION_ACCEPTED");
   const [creating, setCreating] = useState(false);
+  const [fromTemplate, setFromTemplate] = useState<string | null>(null);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -52,6 +88,20 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
       window.location.href = `/admin/automations/${journey.id}`;
     }
     setCreating(false);
+  };
+
+  const handleFromTemplate = async (templateId: string) => {
+    setFromTemplate(templateId);
+    const res = await fetch("/api/admin/automations/from-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      window.location.href = `/admin/automations/${data.id}`;
+    }
+    setFromTemplate(null);
   };
 
   const handleToggleActive = async (journey: JourneyRow) => {
@@ -86,13 +136,49 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
             {activeCount} active &mdash; {totalEnrollments} running enrollment{totalEnrollments !== 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy/90"
-        >
-          New journey
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowTemplates(true); setShowNew(false); }}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            From template
+          </button>
+          <button
+            onClick={() => { setShowNew(true); setShowTemplates(false); }}
+            className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy/90"
+          >
+            New journey
+          </button>
+        </div>
       </div>
+
+      {showTemplates && (
+        <div className="mb-6 rounded-xl border border-navy/20 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800">Start from a template</h2>
+            <button onClick={() => setShowTemplates(false)} className="text-xs text-slate-400 hover:text-slate-600">Close</button>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {JOURNEY_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleFromTemplate(t.id)}
+                disabled={fromTemplate !== null}
+                className="rounded-xl border border-slate-200 p-4 text-left hover:border-navy/30 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-navy">{t.name}</p>
+                  {fromTemplate === t.id && <span className="shrink-0 text-xs text-slate-400">Creating…</span>}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{t.description}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-400">
+                  {TRIGGER_LABELS[t.trigger] ?? t.trigger} · {t.stepCount} steps
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showNew && (
         <div className="mb-6 rounded-xl border border-navy/20 bg-white p-5">

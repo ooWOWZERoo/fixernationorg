@@ -71,6 +71,8 @@ interface Props {
   variants: VariantRow[];
   variantStats: VariantStat[];
   attributedCount: number;
+  conversionCount: number;
+  conversionRevenue: number;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -82,7 +84,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats, attributedCount }) => {
+const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats, attributedCount, conversionCount, conversionRevenue }) => {
   const router = useRouter();
   const [campaign, setCampaign] = useState(initial);
   const [metric, setMetric] = useState(initialMetric);
@@ -576,6 +578,20 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                   <span className="font-bold text-navy">{attributedCount}</span>
                 </div>
               )}
+              {conversionCount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink-soft">New members (30 days)</span>
+                  <span className="font-bold text-green-700">{conversionCount}</span>
+                </div>
+              )}
+              {conversionRevenue > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-ink-soft">Conversion MRR</span>
+                  <span className="font-bold text-green-700">
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(conversionRevenue / 100)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-ink-soft">Queued</span>
                 <span className="font-bold text-navy">{campaign.sendCount}</span>
@@ -705,6 +721,43 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const attributedCount = await (db as never as { contactAttribution: { count: (a: unknown) => Promise<number> } })
     .contactAttribution.count({ where: { campaignId: id } as never });
 
+  // Campaign conversion: new memberships created within 30 days of send, from contacts in this campaign
+  let conversionCount = 0;
+  let conversionRevenue = 0;
+  if (campaign.sentAt) {
+    const windowStart = campaign.sentAt;
+    const windowEnd = new Date(campaign.sentAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const sendContacts = await db.campaignSend.findMany({
+      where: { campaignId: id },
+      select: { contactId: true },
+    });
+    const contactIds = sendContacts.map((s) => s.contactId);
+
+    if (contactIds.length > 0) {
+      const linkedContacts = await db.contact.findMany({
+        where: { id: { in: contactIds }, userId: { not: null } },
+        select: { userId: true },
+      });
+      const userIds = linkedContacts.map((c) => c.userId).filter((u): u is string => u !== null);
+
+      if (userIds.length > 0) {
+        const conversions = await db.userMembership.findMany({
+          where: {
+            userId: { in: userIds },
+            createdAt: { gte: windowStart, lte: windowEnd },
+          },
+          include: { price: true },
+        });
+        conversionCount = conversions.length;
+        conversionRevenue = conversions.reduce((sum, m) => {
+          const monthly = (m.price.interval === "YEARLY" ? m.price.amount / 12 : m.price.amount);
+          return sum + Math.round(monthly);
+        }, 0);
+      }
+    }
+  }
+
   // Load variants
   const variantRows = await varDb.campaignVariant.findMany({
     where: { campaignId: id } as never,
@@ -777,6 +830,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       })),
       variantStats,
       attributedCount,
+      conversionCount,
+      conversionRevenue,
       metric: m ? {
         totalSent: m.totalSent,
         totalDelivered: m.totalDelivered,

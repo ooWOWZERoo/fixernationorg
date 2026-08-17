@@ -1470,6 +1470,7 @@ enum AutomationTrigger {
   APPLICATION_ACCEPTED
   GROUP_JOIN
   EVENT_RSVP
+  LOYALTY_MILESTONE
 }
 
 enum AutomationStepType {

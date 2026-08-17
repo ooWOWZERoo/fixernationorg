@@ -29,6 +29,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   APPLICATION_ACCEPTED: "Application accepted",
   GROUP_JOIN: "Group join",
   EVENT_RSVP: "Event RSVP",
+  LOYALTY_MILESTONE: "Loyalty milestone",
 };
 
 const STATUS_COLORS: Record<string, string> = {

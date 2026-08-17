@@ -30,6 +30,7 @@ type MembershipRow = {
     interval: string;
     product: { id: string; name: string };
   };
+  ltv: number;
 };
 
 interface Props {
@@ -79,6 +80,9 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
       return sum + monthly;
     }, 0);
 
+  const totalLtv = filtered.reduce((sum, m) => sum + m.ltv, 0);
+  const avgLtv = filtered.length > 0 ? Math.round(totalLtv / filtered.length) : 0;
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Memberships</h1>
@@ -97,9 +101,19 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
         ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 inline-block">
-        <p className="text-sm text-gray-500">Estimated MRR</p>
-        <p className="text-2xl font-semibold text-gray-900">{fmt(Math.round(mrr))}</p>
+      <div className="flex gap-4 flex-wrap mb-6">
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <p className="text-sm text-gray-500">Estimated MRR</p>
+          <p className="text-2xl font-semibold text-gray-900">{fmt(Math.round(mrr))}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <p className="text-sm text-gray-500">Total LTV {statusFilter ? `(${statusFilter.toLowerCase()})` : "(all)"}</p>
+          <p className="text-2xl font-semibold text-gray-900">{fmt(totalLtv)}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <p className="text-sm text-gray-500">Avg LTV per member</p>
+          <p className="text-2xl font-semibold text-gray-900">{fmt(avgLtv)}</p>
+        </div>
       </div>
 
       <div className="flex gap-2 flex-wrap mb-4">
@@ -126,7 +140,7 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Member", "Plan", "Status", "Price", "Period end", "Trial end", "Subscription"].map((h) => (
+                  {["Member", "Plan", "Status", "Price", "LTV", "Period end", "Trial end", "Subscription"].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
@@ -158,6 +172,7 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmt(m.price.amount)}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmt(m.ltv)}</td>
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmtDate(m.currentPeriodEnd)}</td>
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{fmtDate(m.trialEnd)}</td>
                     <td className="px-4 py-3">
@@ -217,20 +232,30 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     price: { id: string; amount: number; interval: string; product: { id: string; name: string } };
   }>;
 
-  const memberships: MembershipRow[] = rows.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    priceId: r.priceId,
-    stripeSubscriptionId: r.stripeSubscriptionId,
-    stripeCustomerId: r.stripeCustomerId,
-    status: r.status,
-    currentPeriodEnd: r.currentPeriodEnd?.toISOString() ?? null,
-    cancelAtPeriodEnd: r.cancelAtPeriodEnd,
-    trialEnd: r.trialEnd?.toISOString() ?? null,
-    createdAt: r.createdAt.toISOString(),
-    user: r.user,
-    price: r.price,
-  }));
+  const nowMs = Date.now();
+
+  const memberships: MembershipRow[] = rows.map((r) => {
+    const monthly = r.price.interval === "YEARLY" ? r.price.amount / 12 : r.price.amount;
+    const msActive = nowMs - r.createdAt.getTime();
+    const monthsActive = Math.max(1, Math.round(msActive / (30 * 24 * 60 * 60 * 1000)));
+    const ltv = Math.round(monthly * monthsActive);
+
+    return {
+      id: r.id,
+      userId: r.userId,
+      priceId: r.priceId,
+      stripeSubscriptionId: r.stripeSubscriptionId,
+      stripeCustomerId: r.stripeCustomerId,
+      status: r.status,
+      currentPeriodEnd: r.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: r.cancelAtPeriodEnd,
+      trialEnd: r.trialEnd?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+      user: r.user,
+      price: r.price,
+      ltv,
+    };
+  });
 
   const counts: Record<string, number> = {};
   for (const m of memberships) {
