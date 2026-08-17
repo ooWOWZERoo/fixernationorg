@@ -1892,6 +1892,7 @@ model ProviderCampaignSend {
   providerContactId String
   status            ProviderCampaignSendStatus @default(QUEUED)
   sentAt            DateTime?
+  openedAt          DateTime?
   createdAt         DateTime                  @default(now())
 
   campaign ProviderCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)

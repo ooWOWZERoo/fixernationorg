@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
-
-
+import { trackingHmac } from "@/lib/track";
 
 type ProviderCampaignDb = {
   providerCampaign: {
@@ -22,6 +21,7 @@ type ProviderContactDb = {
 type ProviderCampaignSendDb = {
   providerCampaignSend: {
     createMany: (a: unknown) => Promise<{ count: number }>;
+    findMany: (a: unknown) => Promise<Array<{ id: string; providerContactId: string }>>;
     updateMany: (a: unknown) => Promise<{ count: number }>;
   };
 };
@@ -94,6 +94,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     skipDuplicates: true,
   });
 
+  const sendRecords = await sdb.providerCampaignSend.findMany({
+    where: { campaignId: id },
+    select: { id: true, providerContactId: true },
+  });
+  const sendIdMap = new Map(sendRecords.map((r) => [r.providerContactId, r.id]));
+
+  const baseUrl = process.env.NEXTAUTH_URL ?? "";
   const fromDisplay = `${campaign.fromName} via Fixer Nation <campaigns@fixernation.org>`;
   const footer = `<br><br><hr style="border:none;border-top:1px solid #eee"><p style="font-size:12px;color:#999">Sent by ${campaign.fromName} through Fixer Nation. Questions? Contact <a href="mailto:support@fixernation.org">support@fixernation.org</a>.</p>`;
   const textFooter = `\n\n---\nSent by ${campaign.fromName} through Fixer Nation. Questions? support@fixernation.org`;
@@ -103,11 +110,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const failedIds: string[] = [];
 
   for (const contact of contacts) {
+    const sendId = sendIdMap.get(contact.id);
+    const pixel = sendId
+      ? `<img src="${baseUrl}/api/track/provider-open?s=${sendId}&t=${trackingHmac(sendId)}" width="1" height="1" style="display:none" alt="">`
+      : "";
     try {
       await sendEmail({
         to: contact.email,
         subject: campaign.subject,
-        html: campaign.htmlBody + footer,
+        html: campaign.htmlBody + pixel + footer,
         text: (campaign.textBody ?? campaign.subject) + textFooter,
         from: fromDisplay,
       });

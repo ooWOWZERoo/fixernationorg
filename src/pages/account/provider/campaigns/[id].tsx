@@ -11,6 +11,7 @@ interface SendRecord {
   id: string;
   status: string;
   sentAt: string | null;
+  openedAt: string | null;
   contact: {
     id: string;
     firstName: string | null;
@@ -80,6 +81,9 @@ const ProviderCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign, conta
 
   const sentCount = campaign.sends.filter((s) => s.status === "SENT").length;
   const failedCount = campaign.sends.filter((s) => s.status === "FAILED").length;
+  const openedCount = campaign.sends.filter((s) => s.openedAt != null).length;
+  const openRate = sentCount > 0 ? Math.round((openedCount / sentCount) * 100) : 0;
+  const deliveryRate = campaign.sends.length > 0 ? Math.round((sentCount / campaign.sends.length) * 100) : 0;
 
   return (
     <>
@@ -130,11 +134,35 @@ const ProviderCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign, conta
               {status === "SENT" && (
                 <div>
                   <p className="font-semibold text-navy">Recipients</p>
-                  <p className="text-ink-soft">{sentCount} sent{failedCount > 0 ? `, ${failedCount} failed` : ""}</p>
+                  <p className="text-ink-soft">{campaign.sends.length} total</p>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Delivery stats — only shown once the campaign has been sent */}
+          {status === "SENT" && campaign.sends.length > 0 && (
+            <div className="rounded-2xl border border-navy/8 bg-white p-6">
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-ink-soft">Delivery stats</h2>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-extrabold text-navy">{deliveryRate}%</p>
+                  <p className="mt-0.5 text-xs text-ink-soft">Delivered</p>
+                  <p className="text-xs text-ink-soft">{sentCount} of {campaign.sends.length}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-extrabold text-navy">{openRate}%</p>
+                  <p className="mt-0.5 text-xs text-ink-soft">Opened</p>
+                  <p className="text-xs text-ink-soft">{openedCount} of {sentCount}</p>
+                </div>
+                <div>
+                  <p className={`text-2xl font-extrabold ${failedCount > 0 ? "text-red-600" : "text-navy"}`}>{failedCount}</p>
+                  <p className="mt-0.5 text-xs text-ink-soft">Failed</p>
+                  <p className="text-xs text-ink-soft">{failedCount > 0 ? "check contacts" : "none"}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Send action */}
           {status === "DRAFT" && (
@@ -194,6 +222,7 @@ const ProviderCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign, conta
                     <th className="px-5 py-3">Contact</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Sent at</th>
+                    <th className="px-5 py-3">Opened</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,6 +243,15 @@ const ProviderCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign, conta
                         </td>
                         <td className="px-5 py-3 text-ink-soft">
                           {s.sentAt ? new Date(s.sentAt).toLocaleString() : "—"}
+                        </td>
+                        <td className="px-5 py-3">
+                          {s.openedAt ? (
+                            <span className="text-xs font-semibold text-green-700">
+                              {new Date(s.openedAt).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-ink-soft">—</span>
+                          )}
                         </td>
                       </tr>
                     );

@@ -36,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           id: true,
           status: true,
           sentAt: true,
+          openedAt: true,
           contact: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
