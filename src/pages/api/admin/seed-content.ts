@@ -24,9 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const results: Record<string, number> = { blogPosts: 0, morningBoosts: 0, resources: 0 };
 
   // ── Blog posts ─────────────────────────────────────────────────────────────
-  const existingBlogs = await db.blogPost.count({ where: { publishedAt: { not: null } } });
-  if (existingBlogs === 0) {
-    await db.blogPost.createMany({
+  {
+    const r = await db.blogPost.createMany({
+      skipDuplicates: true,
       data: [
         {
           slug: "right-person-not-right-tool",
@@ -131,13 +131,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       ],
     });
-    results.blogPosts = 3;
+    results.blogPosts = r.count;
   }
 
   // ── Morning Boost entries ──────────────────────────────────────────────────
-  const existingBoosts = await db.morningBoost.count({ where: { publishedAt: { not: null } } });
-  if (existingBoosts === 0) {
-    await db.morningBoost.createMany({
+  {
+    const r = await db.morningBoost.createMany({
+      skipDuplicates: true,
       data: [
         {
           slug: "start-with-the-one-thing",
@@ -219,13 +219,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       ],
     });
-    results.morningBoosts = 5;
+    results.morningBoosts = r.count;
   }
 
   // ── Resources ──────────────────────────────────────────────────────────────
-  const existingResources = await db.resource.count({ where: { publishedAt: { not: null } } });
-  if (existingResources === 0) {
-    await db.resource.createMany({
+  {
+    const r = await db.resource.createMany({
+      skipDuplicates: true,
       data: [
         {
           slug: "contractor-hiring-checklist",
@@ -359,7 +359,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       ],
     });
-    results.resources = 3;
+    results.resources = r.count;
   }
 
     return res.json({ ok: true, created: results });
