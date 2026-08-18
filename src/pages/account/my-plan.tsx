@@ -78,6 +78,7 @@ const MyPlanPage: NextPageWithLayout<Props> = ({ activePlan: initialPlan, pastPl
   const [showNewPlanModal, setShowNewPlanModal] = useState(false)
   const [showAddItemModal, setShowAddItemModal] = useState(false)
   const [showPastPlans, setShowPastPlans] = useState(false)
+  const [archiving, setArchiving] = useState(false)
 
   // New plan form
   const [newPlanTitle, setNewPlanTitle] = useState("")
@@ -169,6 +170,28 @@ const MyPlanPage: NextPageWithLayout<Props> = ({ activePlan: initialPlan, pastPl
     )
   }
 
+  async function handleDeleteItem(itemId: string) {
+    if (!window.confirm("Remove this item from your plan?")) return
+    const res = await fetch(`/api/account/my-plan/items/${itemId}`, { method: "DELETE" })
+    if (!res.ok) return
+    setActivePlan((prev) =>
+      prev ? { ...prev, items: (prev.items ?? []).filter((i) => i.id !== itemId) } : prev
+    )
+  }
+
+  async function handleArchivePlan() {
+    if (!activePlan) return
+    if (!window.confirm("Archive this plan? It will move to your past plans.")) return
+    setArchiving(true)
+    const res = await fetch(`/api/account/my-plan/${activePlan.id}`, { method: "DELETE" })
+    if (res.ok) {
+      const data = await res.json()
+      setPastPlans((prev) => [data.plan, ...prev].slice(0, 5))
+      setActivePlan(null)
+    }
+    setArchiving(false)
+  }
+
   const items = activePlan?.items ?? []
   const pendingItems = items.filter((i) => i.status === "PENDING")
   const doneItems = items.filter((i) => i.status !== "PENDING")
@@ -254,6 +277,13 @@ const MyPlanPage: NextPageWithLayout<Props> = ({ activePlan: initialPlan, pastPl
                         >
                           Skip
                         </button>
+                        <button
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="rounded-lg bg-navy/5 px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-red-50 hover:text-red-600 transition-colors"
+                          title="Remove from plan"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -303,6 +333,19 @@ const MyPlanPage: NextPageWithLayout<Props> = ({ activePlan: initialPlan, pastPl
                 className="mt-6 rounded-[10px] bg-navy px-6 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_-10px_rgba(20,40,56,0.4)] hover:bg-navy-dark transition-colors"
               >
                 Start my first plan
+              </button>
+            </div>
+          )}
+
+          {/* Archive plan */}
+          {activePlan && (
+            <div className="mt-8 flex justify-end">
+              <button
+                onClick={handleArchivePlan}
+                disabled={archiving}
+                className="text-xs text-ink-soft hover:text-red-600 transition-colors disabled:opacity-50"
+              >
+                {archiving ? "Archiving…" : "Archive this plan"}
               </button>
             </div>
           )}

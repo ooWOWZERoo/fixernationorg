@@ -2,6 +2,7 @@ import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Head from "next/head"
 import Link from "next/link"
+import { useState } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -38,7 +39,13 @@ interface Props {
   enrollments: EnrollmentRow[]
 }
 
-const MyPathwaysPage: NextPageWithLayout<Props> = ({ enrollments }) => {
+const MyPathwaysPage: NextPageWithLayout<Props> = ({ enrollments: initialEnrollments }) => {
+  const [enrollments, setEnrollments] = useState<EnrollmentRow[]>(initialEnrollments)
+
+  function handleUnenroll(id: string) {
+    setEnrollments((prev) => prev.filter((e) => e.id !== id))
+  }
+
   const active = enrollments.filter((e) => e.status === "ACTIVE" || e.status === "PAUSED")
   const completed = enrollments.filter((e) => e.status === "COMPLETED")
 
@@ -75,7 +82,7 @@ const MyPathwaysPage: NextPageWithLayout<Props> = ({ enrollments }) => {
                   <h2 className="mb-3 text-base font-bold text-navy">In progress</h2>
                   <div className="space-y-3">
                     {active.map((e) => (
-                      <EnrollmentCard key={e.id} enrollment={e} />
+                      <EnrollmentCard key={e.id} enrollment={e} onUnenroll={handleUnenroll} />
                     ))}
                   </div>
                 </div>
@@ -86,7 +93,7 @@ const MyPathwaysPage: NextPageWithLayout<Props> = ({ enrollments }) => {
                   <h2 className="mb-3 text-base font-bold text-navy">Completed</h2>
                   <div className="space-y-3">
                     {completed.map((e) => (
-                      <EnrollmentCard key={e.id} enrollment={e} />
+                      <EnrollmentCard key={e.id} enrollment={e} onUnenroll={handleUnenroll} />
                     ))}
                   </div>
                 </div>
@@ -99,10 +106,27 @@ const MyPathwaysPage: NextPageWithLayout<Props> = ({ enrollments }) => {
   )
 }
 
-function EnrollmentCard({ enrollment }: { enrollment: EnrollmentRow }) {
+function EnrollmentCard({ enrollment, onUnenroll }: { enrollment: EnrollmentRow; onUnenroll: (id: string) => void }) {
+  const [unenrolling, setUnenrolling] = useState(false)
+
   const pct = enrollment.pathway.stageCount > 0
     ? Math.round((enrollment.completedStages / enrollment.pathway.stageCount) * 100)
     : 0
+
+  async function handleUnenroll() {
+    if (!window.confirm(`Unenroll from "${enrollment.pathway.title}"? Your progress will be lost.`)) return
+    setUnenrolling(true)
+    const res = await fetch(`/api/account/pathways/${enrollment.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "WITHDRAWN" }),
+    })
+    if (res.ok) {
+      onUnenroll(enrollment.id)
+    } else {
+      setUnenrolling(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-5">
@@ -149,14 +173,25 @@ function EnrollmentCard({ enrollment }: { enrollment: EnrollmentRow }) {
         {enrollment.completedAt && enrollment.status === "COMPLETED" && (
           <span>Finished {new Date(enrollment.completedAt).toLocaleDateString()}</span>
         )}
-        {enrollment.status === "ACTIVE" && (
-          <Link
-            href={`/pathways/${enrollment.pathway.slug}`}
-            className="font-semibold text-navy hover:underline no-underline"
-          >
-            Continue →
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {enrollment.status === "ACTIVE" && (
+            <Link
+              href={`/pathways/${enrollment.pathway.slug}`}
+              className="font-semibold text-navy hover:underline no-underline"
+            >
+              Continue →
+            </Link>
+          )}
+          {(enrollment.status === "ACTIVE" || enrollment.status === "PAUSED") && (
+            <button
+              onClick={handleUnenroll}
+              disabled={unenrolling}
+              className="text-ink-soft hover:text-red-600 transition-colors disabled:opacity-50"
+            >
+              {unenrolling ? "Unenrolling…" : "Unenroll"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

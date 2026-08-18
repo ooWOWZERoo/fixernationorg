@@ -44,6 +44,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ plan: JSON.parse(JSON.stringify(updated)) })
   }
 
-  res.setHeader("Allow", "PUT")
+  if (req.method === "DELETE") {
+    const plan = await db_.fixerPlan.findFirst({ where: { id, userId } })
+    if (!plan) return res.status(404).json({ error: "Plan not found" })
+
+    const archived = await db_.fixerPlan.update({
+      where: { id },
+      data: { status: "ARCHIVED" },
+    })
+    return res.json({ plan: JSON.parse(JSON.stringify(archived)) })
+  }
+
+  res.setHeader("Allow", "PUT, DELETE")
   return res.status(405).json({ error: "Method not allowed" })
 }

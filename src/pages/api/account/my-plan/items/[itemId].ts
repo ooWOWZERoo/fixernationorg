@@ -8,6 +8,7 @@ type PlanItemDb = {
   fixerPlanItem: {
     findFirst: (args: { where: object; include?: object }) => Promise<ItemWithPlan | null>
     update: (args: { where: object; data: object }) => Promise<object>
+    delete: (args: { where: object }) => Promise<object>
   }
 }
 
@@ -60,6 +61,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ item: JSON.parse(JSON.stringify(updated)) })
   }
 
-  res.setHeader("Allow", "PUT")
+  if (req.method === "DELETE") {
+    const item = await db_.fixerPlanItem.findFirst({
+      where: { id: itemId },
+      include: { plan: true },
+    })
+    if (!item || item.plan.userId !== userId) {
+      return res.status(404).json({ error: "Item not found" })
+    }
+
+    await db_.fixerPlanItem.delete({ where: { id: itemId } })
+    return res.status(204).end()
+  }
+
+  res.setHeader("Allow", "PUT, DELETE")
   return res.status(405).json({ error: "Method not allowed" })
 }

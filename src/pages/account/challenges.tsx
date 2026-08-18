@@ -2,6 +2,7 @@ import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Head from "next/head"
 import Link from "next/link"
+import { useState } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -40,7 +41,13 @@ interface Props {
   enrollments: EnrollmentRow[]
 }
 
-const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments }) => {
+const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments: initialEnrollments }) => {
+  const [enrollments, setEnrollments] = useState<EnrollmentRow[]>(initialEnrollments)
+
+  function handleAbandon(id: string) {
+    setEnrollments((prev) => prev.filter((e) => e.id !== id))
+  }
+
   const active = enrollments.filter((e) => e.status === "ACTIVE" || e.status === "PAUSED")
   const completed = enrollments.filter((e) => e.status === "COMPLETED")
 
@@ -77,7 +84,7 @@ const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments }) => {
                   <h2 className="mb-3 text-base font-bold text-navy">In progress</h2>
                   <div className="space-y-3">
                     {active.map((e) => (
-                      <ChallengeCard key={e.id} enrollment={e} />
+                      <ChallengeCard key={e.id} enrollment={e} onAbandon={handleAbandon} />
                     ))}
                   </div>
                 </div>
@@ -88,7 +95,7 @@ const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments }) => {
                   <h2 className="mb-3 text-base font-bold text-navy">Completed</h2>
                   <div className="space-y-3">
                     {completed.map((e) => (
-                      <ChallengeCard key={e.id} enrollment={e} />
+                      <ChallengeCard key={e.id} enrollment={e} onAbandon={handleAbandon} />
                     ))}
                   </div>
                 </div>
@@ -101,10 +108,27 @@ const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments }) => {
   )
 }
 
-function ChallengeCard({ enrollment }: { enrollment: EnrollmentRow }) {
+function ChallengeCard({ enrollment, onAbandon }: { enrollment: EnrollmentRow; onAbandon: (id: string) => void }) {
+  const [abandoning, setAbandoning] = useState(false)
+
   const pct = enrollment.challenge.stepCount > 0
     ? Math.round((enrollment.completedSteps / enrollment.challenge.stepCount) * 100)
     : 0
+
+  async function handleAbandon() {
+    if (!window.confirm(`Abandon "${enrollment.challenge.title}"? Your progress will be lost.`)) return
+    setAbandoning(true)
+    const res = await fetch(`/api/account/challenges/${enrollment.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "WITHDRAWN" }),
+    })
+    if (res.ok) {
+      onAbandon(enrollment.id)
+    } else {
+      setAbandoning(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-5">
@@ -150,14 +174,25 @@ function ChallengeCard({ enrollment }: { enrollment: EnrollmentRow }) {
         {enrollment.completedAt && enrollment.status === "COMPLETED" && (
           <span>Finished {new Date(enrollment.completedAt).toLocaleDateString()}</span>
         )}
-        {enrollment.status === "ACTIVE" && (
-          <Link
-            href={`/challenges/${enrollment.challenge.slug}`}
-            className="font-semibold text-navy hover:underline no-underline"
-          >
-            Continue →
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {enrollment.status === "ACTIVE" && (
+            <Link
+              href={`/challenges/${enrollment.challenge.slug}`}
+              className="font-semibold text-navy hover:underline no-underline"
+            >
+              Continue →
+            </Link>
+          )}
+          {(enrollment.status === "ACTIVE" || enrollment.status === "PAUSED") && (
+            <button
+              onClick={handleAbandon}
+              disabled={abandoning}
+              className="text-ink-soft hover:text-red-600 transition-colors disabled:opacity-50"
+            >
+              {abandoning ? "Abandoning…" : "Abandon"}
+            </button>
+          )}
+        </div>
       </div>
 
       {enrollment.challenge.loyaltyPoints > 0 && enrollment.status !== "COMPLETED" && (
