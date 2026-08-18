@@ -309,12 +309,21 @@ const MyPlanPage: NextPageWithLayout<Props> = ({ activePlan: initialPlan, pastPl
                             </div>
                             <p className="text-sm font-semibold text-navy line-through">{item.title}</p>
                           </div>
-                          <button
-                            onClick={() => handleItemStatus(item.id, "PENDING")}
-                            className="shrink-0 rounded-lg bg-navy/5 px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-navy/10 transition-colors"
-                          >
-                            Undo
-                          </button>
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              onClick={() => handleItemStatus(item.id, "PENDING")}
+                              className="rounded-lg bg-navy/5 px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-navy/10 transition-colors"
+                            >
+                              Undo
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="rounded-lg bg-navy/5 px-3 py-1.5 text-xs font-bold text-ink-soft hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title="Remove from plan"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </>
