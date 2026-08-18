@@ -2110,7 +2110,10 @@ model PathwayEnrollment {
   pathway  GrowthPathway @relation(fields: [pathwayId], references: [id])
   progress PathwayProgress[]
 
-  @@unique([userId, pathwayId, status])
+  // Only one ACTIVE enrollment per user+pathway is enforced via a partial
+  // unique index in migration 20260818_sp65_fix_enrollment_unique — a plain
+  // @@unique([userId, pathwayId, status]) would block a second WITHDRAWN
+  // enrollment for the same pathway, breaking repeat unenroll/re-enroll.
   @@index([userId, status])
 }
 
@@ -2185,7 +2188,10 @@ model ChallengeEnrollment {
   challenge   Challenge            @relation(fields: [challengeId], references: [id])
   completions ChallengeCompletion[]
 
-  @@unique([userId, challengeId, status])
+  // Only one ACTIVE enrollment per user+challenge is enforced via a partial
+  // unique index in migration 20260818_sp65_fix_enrollment_unique — see the
+  // matching note on PathwayEnrollment for why a plain @@unique breaks repeat
+  // abandon/re-join cycles.
   @@index([userId, status])
 }
 
