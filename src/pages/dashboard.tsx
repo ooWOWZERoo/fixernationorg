@@ -48,6 +48,7 @@ interface Props {
   pendingApplication: { type: "PROVIDER" | "AMBASSADOR"; submittedAt: string } | null;
   totalPoints: number;
   ambassadorData: AmbassadorData | null;
+  hasFocusAreas: boolean;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -307,9 +308,10 @@ function AmbassadorDashboard({ data, email }: { data: AmbassadorData; email: str
   );
 }
 
-const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole, pendingApplication, totalPoints, ambassadorData }) => {
+const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole, pendingApplication, totalPoints, ambassadorData, hasFocusAreas }) => {
   const isAdmin = adminRole === "ADMIN" || adminRole === "SUPER_ADMIN";
   const roleLabel = ROLE_LABEL[role] ?? role;
+  const [focusBannerDismissed, setFocusBannerDismissed] = useState(false);
 
   return (
     <>
@@ -341,6 +343,33 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole
             </span>
           </div>
         </div>
+
+        {/* Focus area onboarding prompt */}
+        {!hasFocusAreas && !focusBannerDismissed && (
+          <div className="mb-6 flex items-start justify-between gap-4 rounded-2xl border border-navy/10 bg-white p-5">
+            <div>
+              <p className="font-bold text-navy">Tell us what you're working on</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                It takes 30 seconds — and we'll use it to personalise your experience.
+              </p>
+              <Link
+                href="/account/focus"
+                className="mt-3 inline-block rounded-xl bg-amber px-4 py-2 text-sm font-bold text-navy-dark no-underline hover:bg-amber-dark transition-colors"
+              >
+                Set your focus →
+              </Link>
+            </div>
+            <button
+              onClick={() => setFocusBannerDismissed(true)}
+              className="shrink-0 rounded-lg p-1.5 text-ink-soft hover:bg-navy/5 hover:text-navy transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Admin shortcut */}
         {isAdmin && (
@@ -483,7 +512,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
-  const [pendingApp, totalPoints] = await Promise.all([
+  type MfaCountDb = { memberFocusArea: { count: (args?: { where?: object }) => Promise<number> } }
+  const mfaDb = db as never as MfaCountDb
+
+  const [pendingApp, totalPoints, focusAreaCount] = await Promise.all([
     db.userApplication.findFirst({
       where: {
         OR: [
@@ -495,6 +527,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       select: { type: true, createdAt: true },
     }),
     getTotalPoints(session.user.id),
+    mfaDb.memberFocusArea.count({ where: { userId: session.user.id } }),
   ]);
 
   let ambassadorData: AmbassadorData | null = null;
@@ -579,6 +612,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         : null,
       totalPoints,
       ambassadorData,
+      hasFocusAreas: focusAreaCount > 0,
     },
   };
 };

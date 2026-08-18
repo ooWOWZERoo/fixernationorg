@@ -71,6 +71,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Member Experience",
+    items: [
+      { href: "/admin/focus-areas", label: "Focus areas" },
+    ],
+  },
+  {
     label: "System",
     items: [
       { href: "/admin/team", label: "Team" },

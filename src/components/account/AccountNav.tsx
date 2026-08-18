@@ -59,6 +59,9 @@ export function AccountNav() {
           </Link>
         </>
       )}
+      <Link href="/account/focus" className={cls("/account/focus")}>
+        Focus &amp; Goals
+      </Link>
       <Link href="/account/billing" className={cls("/account/billing")}>
         Billing
       </Link>

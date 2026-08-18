@@ -61,6 +61,8 @@ model User {
   membership               UserMembership?
   providerContacts         ProviderContact[]  @relation("ProviderContacts")
   providerCampaigns        ProviderCampaign[] @relation("ProviderCampaigns")
+  memberFocusAreas         MemberFocusArea[]
+  memberPreference         MemberPreference?
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -1901,4 +1903,50 @@ model ProviderCampaignSend {
 
   @@unique([campaignId, providerContactId])
   @@index([campaignId])
+}
+
+// ─── SP-54: Understand Me — Focus Areas + Preferences ────────────────────────
+
+enum ContentDepth {
+  QUICK
+  SHORT
+  DEEPER
+}
+
+model FocusArea {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberFocusAreas MemberFocusArea[]
+}
+
+model MemberFocusArea {
+  id          String    @id @default(cuid())
+  userId      String
+  focusAreaId String
+  isPrimary   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusArea FocusArea @relation(fields: [focusAreaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, focusAreaId])
+  @@index([userId])
+}
+
+model MemberPreference {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  contentDepth    ContentDepth @default(SHORT)
+  contentFormats  String[]
+  reminderEnabled Boolean      @default(true)
+  reminderTime    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
