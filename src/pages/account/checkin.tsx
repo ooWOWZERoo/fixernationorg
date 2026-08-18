@@ -155,7 +155,8 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
   return (
     <>
       <Head><title>Daily Check-In — Fixer Nation</title></Head>
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <section className="px-6 py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl">
         <AccountNav />
 
         {toast && (
@@ -284,6 +285,7 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
           )}
         </div>
       </div>
+      </section>
     </>
   )
 }

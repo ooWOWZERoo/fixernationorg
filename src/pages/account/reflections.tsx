@@ -261,7 +261,8 @@ const ReflectionsPage: NextPageWithLayout<Props> = ({ initialEntries }) => {
   return (
     <>
       <Head><title>My Reflections — Fixer Nation</title></Head>
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <section className="px-6 py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl">
         <AccountNav />
 
         <div className="mt-6">
@@ -388,6 +389,7 @@ const ReflectionsPage: NextPageWithLayout<Props> = ({ initialEntries }) => {
           </div>
         </div>
       </div>
+      </section>
     </>
   )
 }

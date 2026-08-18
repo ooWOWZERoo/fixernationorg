@@ -54,7 +54,8 @@ const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments: initialEnrol
   return (
     <>
       <Head><title>My Challenges — Fixer Nation</title></Head>
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <section className="px-6 py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl">
         <AccountNav />
         <div className="mt-6">
           <div className="mb-6 flex items-center justify-between">
@@ -104,6 +105,7 @@ const MyChallengesPage: NextPageWithLayout<Props> = ({ enrollments: initialEnrol
           )}
         </div>
       </div>
+      </section>
     </>
   )
 }
