@@ -12,6 +12,7 @@ type RecognitionRow = {
   message: string
   isPublic: boolean
   createdAt: Date
+  fromUser?: { id: string; name: string | null; image: string | null } | null
 }
 
 type RecognitionDb = {
@@ -41,6 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { toUserId: fromUserId },
         orderBy: { createdAt: "desc" },
         take: 20,
+        include: { fromUser: { select: { id: true, name: true, image: true } } },
       }),
       db_.memberRecognition.findMany({
         where: { fromUserId },
