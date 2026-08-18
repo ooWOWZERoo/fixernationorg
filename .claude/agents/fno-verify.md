@@ -42,14 +42,33 @@ To https://github.com/ooWOWZERoo/fixernationorg.git
 
 ## Step 2 — Poll until Ready or Error
 
-Run this loop. It exits as soon as the most recent `fixernationorg` deployment row shows ● Ready or ● Error (typically 2–4 minutes):
+**Anchor to the specific deployment you just triggered — never poll "the most recent row."** If another push lands while this loop is running (common when several sprints deploy back to back), the top row becomes a *different*, newer deployment that's still mid-build. A loop watching "top row" then never sees your deployment settle and can spin indefinitely. Capture the URL immediately after pushing and poll that exact row instead:
 
 ```bash
-until vercel ls --prod 2>&1 | grep "fixernationorg" | head -1 | grep -qE "● Ready|● Error"; do
+DEPLOY_URL=$(vercel ls --prod 2>&1 | grep "fixernationorg" | head -1 | awk '{print $2}')
+echo "Watching: $DEPLOY_URL"
+
+for i in $(seq 1 40); do
+  ROW=$(vercel ls --prod 2>&1 | grep "$DEPLOY_URL")
+  echo "$ROW"
+  if echo "$ROW" | grep -qE "● Ready|● Error"; then
+    break
+  fi
   sleep 5
 done
-vercel ls --prod 2>&1 | grep "fixernationorg" | head -3
 ```
+
+This loop is **hard-bounded at 40 iterations (~3–4 minutes)** — it always terminates on its own, it never needs to be backgrounded, and it can never become an orphaned process. Do not replace the `seq`-bounded `for` with an unbounded `until`/`while` loop; that shape is exactly what caused past runs to leave `sleep 5` processes running in the background indefinitely after the agent had already moved on and reported a result.
+
+**If this command gets auto-backgrounded anyway** (e.g. because the shell is briefly slow), you must wait for and consume its actual result before doing anything else — never start a second, separate `vercel ls` check "just to see the current status" and report that as final while the original command is still running unattended. Abandoning it that way is exactly what leaves it as a stale background process. If you're ever unsure whether a background poll from earlier in this run is still alive, `pkill -f "vercel ls --prod"` is safe to run before starting a fresh one — there is never a legitimate reason for more than one of these polls to be running at once.
+
+After the loop exits (Ready, Error, or the 40-iteration bound reached), fetch the final row once for reporting:
+
+```bash
+vercel ls --prod 2>&1 | grep "$DEPLOY_URL"
+```
+
+If the loop hit the 40-iteration bound without seeing Ready or Error, treat that as its own outcome — report "deployment still pending after ~3–4 minutes" with the last known row, rather than silently falling back to a fresh unrelated status check.
 
 ---
 
@@ -73,7 +92,7 @@ This runs against the live production URL (`https://fixernation.org` by default,
 
 ## Step 4a — On ● Ready
 
-Extract the deployment URL from the `vercel ls` output (it appears in the row, e.g. `fixernationorg-abc123.vercel.app`) and report:
+Use the `$DEPLOY_URL` captured in Step 2 and report:
 
 ```
 ● Ready — fixernation.org is live
