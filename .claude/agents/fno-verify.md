@@ -1,6 +1,6 @@
 ---
 name: fno-verify
-description: Push fixernation.org changes to Vercel and confirm the deployment reaches ● Ready. Use this after every git commit on the FixerNationOrg project. Handles push, polls for deploy status, reports the live URL on success, and surfaces build logs on failure. Never use preview_start or run a local dev server for this project — Vercel is the only runtime.
+description: Push fixernation.org changes to Vercel and confirm the deployment reaches ● Ready. Use this after every git commit on the FixerNationOrg project. Handles push, polls for deploy status, runs the Playwright e2e smoke suite against the live site, reports the live URL on success, and surfaces build logs or test failures on failure. Never use preview_start or run a local dev server for this project — Vercel is the only runtime.
 model: haiku
 ---
 
@@ -53,18 +53,37 @@ vercel ls --prod 2>&1 | grep "fixernationorg" | head -3
 
 ---
 
-## Step 3a — On ● Ready
+## Step 3 — Run the Playwright e2e smoke suite
+
+Only run this once the deployment shows ● Ready. Skip it entirely on ● Error — go straight to Step 4b.
+
+```bash
+npm run test:e2e
+```
+
+This runs against the live production URL (`https://fixernation.org` by default, from `playwright.config.ts` / `.env.test`) — no local dev server involved, consistent with the no-local-preview constraint for this project. It signs in as the dedicated QA test member (`qa-member@fixernation.org`) and checks core pages load and render correctly, including regression coverage for the AccountNav grouping.
+
+**If `.env.test` is missing** (fresh clone, new machine), the run will fail immediately with a clear "TEST_MEMBER_EMAIL / TEST_MEMBER_PASSWORD not set" error. Report this distinctly from a real test failure — it's a local setup gap, not a deploy regression — and tell the user to recreate `.env.test` (credentials are not committed, by design).
+
+**If tests fail for a real reason:** capture the failing test names and the assertion diff from the output, then treat it like Step 4b (surface it as a failure, not a silent ● Ready) — a broken UI regression that reached production is still worth flagging even though the code did deploy.
+
+**If tests pass:** proceed to Step 4a and include the pass count in the report.
+
+---
+
+## Step 4a — On ● Ready
 
 Extract the deployment URL from the `vercel ls` output (it appears in the row, e.g. `fixernationorg-abc123.vercel.app`) and report:
 
 ```
 ● Ready — fixernation.org is live
 URL: https://fixernationorg-<hash>.vercel.app
+e2e: N/N passed
 ```
 
 ---
 
-## Step 3b — On ● Error
+## Step 4b — On ● Error
 
 Capture the first 40 lines of build output:
 
@@ -86,6 +105,7 @@ Report the full log excerpt so the user can diagnose the failure. Common causes:
 ```
 ● Ready — fixernation.org is live
 URL: https://fixernationorg-<hash>.vercel.app
+e2e: N/N passed
 ```
 
 **Push blocked (TypeScript errors):**
@@ -105,9 +125,21 @@ Build log (first 40 lines):
 <paste log here>
 ```
 
+**Deployed but e2e failed:**
+```
+● Ready — fixernation.org is live (deploy succeeded)
+URL: https://fixernationorg-<hash>.vercel.app
+e2e: FAILED — <N> of <M> tests failed
+
+Failing tests:
+<test name> — <one-line assertion diff>
+
+The code is live but a UI regression shipped. Investigate before treating this sprint as done.
+```
+
 ---
 
-## Step 4 — Post-deploy tasks (run after ● Ready)
+## Step 5 — Post-deploy tasks (run after ● Ready)
 
 After confirming ● Ready, surface the following checklist to the orchestrator. The orchestrator presents it to the user — these are manual admin steps needed to make new features usable in production.
 
@@ -137,10 +169,12 @@ Features that work with zero admin seeding (auto-generate or member-driven):
 - Milestones + Recognitions — member-driven
 - Personalized Home — recommendation engine falls back gracefully if no challenges/pathways exist
 
-### Smoke check (optional but recommended for final sprint of a phase)
+### Smoke check — superseded by Step 3
+
+The Playwright e2e suite in Step 3 covers this and more (it actually renders and asserts on page content, not just HTTP status). Only fall back to manual curl checks if `npm run test:e2e` itself can't run for some environment reason:
 
 ```bash
-# Verify key public endpoints respond. Replace with the live URL from Step 3a.
+# Verify key public endpoints respond. Replace with the live URL from Step 4a.
 LIVE=https://fixernationorg-<hash>.vercel.app
 curl -s -o /dev/null -w "%{http_code}" "$LIVE/"            # 200
 curl -s -o /dev/null -w "%{http_code}" "$LIVE/challenges"  # 200 or 307 (auth redirect)
