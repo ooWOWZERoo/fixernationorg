@@ -72,6 +72,7 @@ model User {
   recognitionsGiven        MemberRecognition[] @relation("RecognitionsGiven")
   recognitionsReceived     MemberRecognition[] @relation("RecognitionsReceived")
   reflections              ReflectionEntry[]
+  memberIssues             MemberIssue[]
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -2261,6 +2262,58 @@ model ReflectionEntry {
   tags        String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+// ─── Issue-to-Answer (SP-61) ──────────────────────────────────────────────────
+
+enum RecommendationType {
+  PATHWAY
+  CHALLENGE
+  RESOURCE
+  BLOG_POST
+}
+
+model IssueTopic {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  focusAreaId String?
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberIssues       MemberIssue[]
+  recommendationMaps IssueRecommendationMap[]
+}
+
+model IssueRecommendationMap {
+  id                 String             @id @default(cuid())
+  issueTopicId       String
+  issueTopic         IssueTopic         @relation(fields: [issueTopicId], references: [id], onDelete: Cascade)
+  recommendationType RecommendationType
+  resourceId         String
+  resourceTitle      String
+  priority           Int                @default(0)
+  createdAt          DateTime           @default(now())
+
+  @@unique([issueTopicId, recommendationType, resourceId])
+  @@index([issueTopicId, priority])
+}
+
+model MemberIssue {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueTopicId String
+  issueTopic   IssueTopic @relation(fields: [issueTopicId], references: [id])
+  description  String?    @db.Text
+  resolved     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([userId, createdAt])
 }

@@ -76,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/focus-areas", label: "Focus areas" },
       { href: "/admin/pathways", label: "Pathways" },
       { href: "/admin/challenges", label: "Challenges" },
+      { href: "/admin/issue-topics", label: "Issue topics" },
     ],
   },
   {
