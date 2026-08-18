@@ -66,6 +66,7 @@ model User {
   fixerPlans               FixerPlan[]
   memberActions            MemberAction[]
   pathwayEnrollments       PathwayEnrollment[]
+  challengeEnrollments     ChallengeEnrollment[]
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -2116,4 +2117,80 @@ model PathwayProgress {
   stage      PathwayStage      @relation(fields: [stageId], references: [id])
 
   @@unique([enrollmentId, stageId])
+}
+
+// ─── Fixer Challenges (SP-57) ─────────────────────────────────────────────────
+
+enum ChallengeStartMode {
+  EVERGREEN
+  SCHEDULED
+}
+
+model Challenge {
+  id              String             @id @default(cuid())
+  title           String
+  slug            String             @unique
+  description     String             @db.Text
+  summary         String
+  focusAreaIds    String[]
+  durationDays    Int                @default(30)
+  active          Boolean            @default(true)
+  startMode       ChallengeStartMode @default(EVERGREEN)
+  startDate       DateTime?
+  enrollmentLimit Int?
+  loyaltyPoints   Int                @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  steps       ChallengeStep[]
+  enrollments ChallengeEnrollment[]
+}
+
+model ChallengeStep {
+  id               String    @id @default(cuid())
+  challengeId      String
+  day              Int
+  title            String
+  description      String?   @db.Text
+  actionPrompt     String?   @db.Text
+  reflectionPrompt String?   @db.Text
+  order            Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  challenge   Challenge            @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  completions ChallengeCompletion[]
+
+  @@index([challengeId, day])
+}
+
+model ChallengeEnrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  challengeId String
+  status      EnrollmentStatus @default(ACTIVE)
+  currentDay  Int              @default(1)
+  startedAt   DateTime         @default(now())
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge   Challenge            @relation(fields: [challengeId], references: [id])
+  completions ChallengeCompletion[]
+
+  @@unique([userId, challengeId, status])
+  @@index([userId, status])
+}
+
+model ChallengeCompletion {
+  id           String   @id @default(cuid())
+  enrollmentId String
+  stepId       String
+  reflection   String?  @db.Text
+  completedAt  DateTime @default(now())
+
+  enrollment ChallengeEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step       ChallengeStep       @relation(fields: [stepId], references: [id])
+
+  @@unique([enrollmentId, stepId])
 }
