@@ -225,7 +225,7 @@ const FocusPage: NextPageWithLayout<Props> = ({ allAreas, myAreas, preferences }
 
             {/* Section 2: Preferences */}
             <div>
-              <h2 className="text-base font-extrabold text-navy">How you like to learn</h2>
+              <h2 className="text-base font-extrabold text-navy">Your Preferences</h2>
               <p className="mt-1 text-sm text-ink-soft">
                 We'll use these to personalise the content we show you.
               </p>
