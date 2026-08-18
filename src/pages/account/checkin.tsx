@@ -8,6 +8,7 @@ import { SiteLayout } from "@/components/layout/SiteLayout"
 import { AccountNav } from "@/components/account/AccountNav"
 
 interface CheckInRow {
+  id: string
   date: string
   mood: number
   energy: number
@@ -71,6 +72,7 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
   const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
@@ -122,6 +124,32 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
     }
   }
 
+  async function handleRemove() {
+    if (!todayCheckIn) return
+    setRemoving(true)
+    try {
+      const res = await fetch(`/api/account/checkin/${todayCheckIn.id}`, { method: "DELETE" })
+      if (res.ok || res.status === 204) {
+        setTodayCheckIn(null)
+        setMood(3)
+        setEnergy(3)
+        setNote("")
+        // Refresh history
+        const histRes = await fetch("/api/account/checkin/history")
+        const histData = await histRes.json()
+        setHistory(histData.checkIns ?? [])
+        setStreak(histData.streak ?? 0)
+        setToast("Entry removed.")
+        setTimeout(() => setToast(null), 3000)
+      }
+    } catch {
+      setToast("Couldn't remove. Try again.")
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   const last7 = history.slice(0, 7)
 
   return (
@@ -146,7 +174,7 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
             )}
           </div>
           <p className="text-sm text-ink-soft mb-6">
-            A quick pulse on how you're doing — takes 30 seconds and earns you 5 points.
+            A quick pulse on how you&apos;re doing — takes 30 seconds and earns you 5 points.
           </p>
 
           {last7.length > 0 && (
@@ -227,11 +255,23 @@ const DailyCheckInPage: NextPageWithLayout<Props> = () => {
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                {todayCheckIn ? (
-                  <p className="text-xs text-ink-soft">Already checked in today — you can update below.</p>
-                ) : (
-                  <p className="text-xs text-ink-soft">+5 pts awarded on your first check-in each day.</p>
-                )}
+                <div className="flex items-center gap-4">
+                  {todayCheckIn ? (
+                    <p className="text-xs text-ink-soft">Already checked in today — you can update below.</p>
+                  ) : (
+                    <p className="text-xs text-ink-soft">+5 pts awarded on your first check-in each day.</p>
+                  )}
+                  {todayCheckIn && (
+                    <button
+                      type="button"
+                      onClick={handleRemove}
+                      disabled={removing}
+                      className="text-xs text-red-500 underline underline-offset-2 hover:text-red-700 disabled:opacity-50"
+                    >
+                      {removing ? "Removing…" : "Remove today's entry"}
+                    </button>
+                  )}
+                </div>
                 <button
                   type="submit"
                   disabled={saving}

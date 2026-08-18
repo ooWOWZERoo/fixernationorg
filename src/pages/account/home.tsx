@@ -72,6 +72,7 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
   const [rec, setRec] = useState<RecommendationRow | null | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   const displayName = firstName ?? session?.user?.name?.split(" ")[0] ?? null
@@ -104,6 +105,20 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
       }
     } finally {
       setActing(false)
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      const res = await fetch("/api/account/recommendation/refresh", { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        setRec(data.recommendation ?? null)
+        showToast("Here's a fresh suggestion.")
+      }
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -236,6 +251,16 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
                       </button>
                     </div>
                   )}
+                </div>
+
+                <div className="mt-4">
+                  <button
+                    onClick={handleRefresh}
+                    disabled={refreshing || acting}
+                    className="text-xs text-ink-soft underline underline-offset-2 hover:text-navy disabled:opacity-50"
+                  >
+                    {refreshing ? "Finding something new…" : "Get a different suggestion"}
+                  </button>
                 </div>
               </>
             )}

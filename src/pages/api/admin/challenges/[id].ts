@@ -59,6 +59,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json(JSON.parse(JSON.stringify(challenge)))
   }
 
-  res.setHeader("Allow", "GET, PUT")
+  if (req.method === "DELETE") {
+    await db_.challenge.update({ where: { id }, data: { active: false } })
+    return res.json({ ok: true })
+  }
+
+  res.setHeader("Allow", "GET, PUT, DELETE")
   return res.status(405).json({ error: "Method not allowed" })
 }

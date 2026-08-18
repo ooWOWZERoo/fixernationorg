@@ -18,6 +18,7 @@ type MemberIssueDb = {
   memberIssue: {
     findUnique: (args: Record<string, unknown>) => Promise<MemberIssueRow | null>
     update: (args: Record<string, unknown>) => Promise<MemberIssueRow>
+    delete: (args: Record<string, unknown>) => Promise<MemberIssueRow>
   }
 }
 
@@ -50,6 +51,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ issue: JSON.parse(JSON.stringify(updated)) })
   }
 
-  res.setHeader("Allow", "PUT")
+  if (req.method === "DELETE") {
+    const existing = await db_.memberIssue.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ error: "Not found" })
+    if (existing.userId !== userId) return res.status(403).json({ error: "Forbidden" })
+
+    await db_.memberIssue.delete({ where: { id } })
+    return res.status(204).end()
+  }
+
+  res.setHeader("Allow", "PUT, DELETE")
   return res.status(405).json({ error: "Method not allowed" })
 }

@@ -1,6 +1,7 @@
 import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Link from "next/link"
+import { useState } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -25,7 +26,22 @@ type PathwaysDb = {
   }
 }
 
-const AdminPathwaysPage: NextPageWithLayout<Props> = ({ pathways }) => {
+const AdminPathwaysPage: NextPageWithLayout<Props> = ({ pathways: initial }) => {
+  const [pathways, setPathways] = useState(initial)
+  const [deactivating, setDeactivating] = useState<string | null>(null)
+
+  async function handleDeactivate(id: string) {
+    setDeactivating(id)
+    try {
+      const res = await fetch(`/api/admin/pathways/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        setPathways((prev) => prev.map((p) => p.id === id ? { ...p, active: false } : p))
+      }
+    } finally {
+      setDeactivating(null)
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -74,19 +90,30 @@ const AdminPathwaysPage: NextPageWithLayout<Props> = ({ pathways }) => {
                       p.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                     }`}
                   >
-                    {p.active ? "Active" : "Archived"}
+                    {p.active ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-400">
                   {new Date(p.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/admin/pathways/${p.id}`}
-                    className="text-sm font-semibold text-navy no-underline hover:text-amber"
-                  >
-                    Edit
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    {p.active && (
+                      <button
+                        onClick={() => handleDeactivate(p.id)}
+                        disabled={deactivating === p.id}
+                        className="text-sm font-semibold text-red-500 hover:text-red-700 disabled:opacity-50"
+                      >
+                        {deactivating === p.id ? "Deactivating…" : "Deactivate"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/admin/pathways/${p.id}`}
+                      className="text-sm font-semibold text-navy no-underline hover:text-amber"
+                    >
+                      Edit
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -1,6 +1,7 @@
 import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Link from "next/link"
+import { useState } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -27,7 +28,22 @@ type ChallengesDb = {
   }
 }
 
-const AdminChallengesPage: NextPageWithLayout<Props> = ({ challenges }) => {
+const AdminChallengesPage: NextPageWithLayout<Props> = ({ challenges: initial }) => {
+  const [challenges, setChallenges] = useState(initial)
+  const [deactivating, setDeactivating] = useState<string | null>(null)
+
+  async function handleDeactivate(id: string) {
+    setDeactivating(id)
+    try {
+      const res = await fetch(`/api/admin/challenges/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        setChallenges((prev) => prev.map((c) => c.id === id ? { ...c, active: false } : c))
+      }
+    } finally {
+      setDeactivating(null)
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -80,19 +96,30 @@ const AdminChallengesPage: NextPageWithLayout<Props> = ({ challenges }) => {
                       c.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                     }`}
                   >
-                    {c.active ? "Active" : "Archived"}
+                    {c.active ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-400">
                   {new Date(c.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/admin/challenges/${c.id}`}
-                    className="text-sm font-semibold text-navy no-underline hover:text-amber"
-                  >
-                    Edit
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    {c.active && (
+                      <button
+                        onClick={() => handleDeactivate(c.id)}
+                        disabled={deactivating === c.id}
+                        className="text-sm font-semibold text-red-500 hover:text-red-700 disabled:opacity-50"
+                      >
+                        {deactivating === c.id ? "Deactivating…" : "Deactivate"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/admin/challenges/${c.id}`}
+                      className="text-sm font-semibold text-navy no-underline hover:text-amber"
+                    >
+                      Edit
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

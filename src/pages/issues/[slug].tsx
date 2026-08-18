@@ -74,6 +74,7 @@ const IssueDetailPage: NextPageWithLayout<Props> = ({ topic, existingIssue: init
   const [existingIssue, setExistingIssue] = useState(initial)
   const [logging, setLogging] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [untracking, setUntracking] = useState(false)
 
   const grouped = groupBy(topic.recommendationMaps, (r) => r.recommendationType)
   const typeOrder = ["PATHWAY", "CHALLENGE", "RESOURCE", "BLOG_POST"]
@@ -92,6 +93,19 @@ const IssueDetailPage: NextPageWithLayout<Props> = ({ topic, existingIssue: init
       }
     } finally {
       setLogging(false)
+    }
+  }
+
+  async function handleUntrack() {
+    if (!existingIssue) return
+    setUntracking(true)
+    try {
+      const res = await fetch(`/api/account/issues/${existingIssue.id}`, { method: "DELETE" })
+      if (res.ok || res.status === 204) {
+        setExistingIssue(null)
+      }
+    } finally {
+      setUntracking(false)
     }
   }
 
@@ -162,6 +176,13 @@ const IssueDetailPage: NextPageWithLayout<Props> = ({ topic, existingIssue: init
                       : existingIssue.resolved
                       ? "Mark as unresolved"
                       : "Mark as resolved"}
+                  </button>
+                  <button
+                    onClick={handleUntrack}
+                    disabled={untracking}
+                    className="text-sm font-semibold text-red-500 underline hover:text-red-700 disabled:opacity-50"
+                  >
+                    {untracking ? "Removing…" : "Stop tracking"}
                   </button>
                 </div>
               )}

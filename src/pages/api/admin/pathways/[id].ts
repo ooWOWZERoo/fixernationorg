@@ -53,6 +53,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json(pathway)
   }
 
-  res.setHeader("Allow", "GET, PUT")
+  if (req.method === "DELETE") {
+    await db_.growthPathway.update({ where: { id }, data: { active: false } })
+    return res.json({ ok: true })
+  }
+
+  res.setHeader("Allow", "GET, PUT, DELETE")
   return res.status(405).json({ error: "Method not allowed" })
 }
