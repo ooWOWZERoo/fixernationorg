@@ -12,7 +12,9 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
@@ -42,6 +44,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/forms": "^0.5.9",
     "@tailwindcss/typography": "^0.5.15",
     "@types/bcryptjs": "^2.4.6",
@@ -52,6 +55,7 @@
     "@types/react-dom": "^19.0.0",
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.4.2",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.3.0",
     "postcss": "^8.4.47",
