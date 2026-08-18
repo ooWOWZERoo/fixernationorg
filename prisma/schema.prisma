@@ -67,6 +67,7 @@ model User {
   memberActions            MemberAction[]
   pathwayEnrollments       PathwayEnrollment[]
   challengeEnrollments     ChallengeEnrollment[]
+  dailyCheckIns            DailyCheckIn[]
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -2193,4 +2194,21 @@ model ChallengeCompletion {
   step       ChallengeStep       @relation(fields: [stepId], references: [id])
 
   @@unique([enrollmentId, stepId])
+}
+
+// ─── Daily Check-In (SP-58) ───────────────────────────────────────────────────
+
+model DailyCheckIn {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  mood        Int
+  energy      Int
+  note        String?  @db.Text
+  focusAreaId String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
