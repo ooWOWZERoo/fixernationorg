@@ -73,6 +73,7 @@ model User {
   recognitionsReceived     MemberRecognition[] @relation("RecognitionsReceived")
   reflections              ReflectionEntry[]
   memberIssues             MemberIssue[]
+  recommendations          Recommendation[]
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -2316,4 +2317,44 @@ model MemberIssue {
   updatedAt    DateTime   @updatedAt
 
   @@index([userId, createdAt])
+}
+
+// ─── Recommendations (SP-62) ──────────────────────────────────────────────────
+
+enum RecommendationCategory {
+  CHALLENGE
+  PATHWAY
+  ISSUE
+  CONTENT
+}
+
+enum RecommendationAction {
+  ACTED
+  SKIPPED
+  SAVED
+}
+
+model Recommendation {
+  id            String                 @id @default(cuid())
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      RecommendationCategory
+  resourceId    String
+  resourceTitle String
+  resourceSlug  String?
+  reason        String?
+  date          DateTime               @db.Date
+  createdAt     DateTime               @default(now())
+  feedback      RecommendationFeedback?
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model RecommendationFeedback {
+  id               String               @id @default(cuid())
+  recommendationId String               @unique
+  recommendation   Recommendation       @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  action           RecommendationAction
+  createdAt        DateTime             @default(now())
 }

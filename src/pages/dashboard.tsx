@@ -467,6 +467,7 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole
         {/* Feature tiles */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
+            { label: "My Home", desc: "Your daily recommendation and personalised starting point.", href: "/account/home", soon: false },
             { label: "Morning Boost", desc: "One short read every morning to reset, refocus, and move forward.", href: "/morning-boost", soon: false },
             { label: "Ask The Fixer", desc: "Submit a question to our expert network.", href: "/ask-the-fixer", soon: false },
             { label: "Blog", desc: "Full access to all articles.", href: "/blog", soon: false },

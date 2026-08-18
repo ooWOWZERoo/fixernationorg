@@ -21,6 +21,9 @@ export function AccountNav() {
 
   return (
     <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <Link href="/account/home" className={cls("/account/home")}>
+        Home
+      </Link>
       <Link href="/account/profile" className={cls("/account/profile")}>
         My Profile
       </Link>
