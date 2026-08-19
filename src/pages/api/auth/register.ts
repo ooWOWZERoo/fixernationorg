@@ -71,7 +71,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     data: { identifier: `verify:${user.id}`, token, expires },
   });
 
-  await sendVerificationEmail(email, token);
+  try {
+    await sendVerificationEmail(email, token);
+  } catch (err) {
+    // Same defensive pattern as the referral tracking and journey
+    // enrollment above — a mail-provider hiccup shouldn't crash signup
+    // and strand the user with an account they can never verify or re-
+    // register (the email is already taken).
+    console.error("[register] Failed to send verification email:", err);
+  }
 
   // Fire-and-forget — never block registration on automation errors
   enrollInJourneys({ trigger: "SIGNUP", userId: user.id }).catch(() => {});

@@ -38,7 +38,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { identifier: `reset:${email}`, token, expires },
     });
 
-    await sendPasswordResetEmail(email, token);
+    try {
+      await sendPasswordResetEmail(email, token);
+    } catch (err) {
+      // Don't let a mail-provider hiccup turn into a 500 that reveals this
+      // email has an account (or breaks the flow for everyone if SMTP is
+      // briefly down) — same defensive pattern as applications/provider.ts.
+      console.error("[forgot-password] Failed to send reset email:", err);
+    }
   }
 
   return res.json({ ok: true });
