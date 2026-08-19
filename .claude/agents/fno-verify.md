@@ -45,11 +45,11 @@ To https://github.com/ooWOWZERoo/fixernationorg.git
 **Anchor to the specific deployment you just triggered — never poll "the most recent row."** If another push lands while this loop is running (common when several sprints deploy back to back), the top row becomes a *different*, newer deployment that's still mid-build. A loop watching "top row" then never sees your deployment settle and can spin indefinitely. Capture the URL immediately after pushing and poll that exact row instead:
 
 ```bash
-DEPLOY_URL=$(vercel ls --prod 2>&1 | grep "fixernationorg" | head -1 | awk '{print $2}')
+DEPLOY_URL=$(vercel ls --prod 2>&1 | grep "https://fixernationorg" | head -1 | awk '{print $3}')
 echo "Watching: $DEPLOY_URL"
 
 for i in $(seq 1 40); do
-  ROW=$(vercel ls --prod 2>&1 | grep "$DEPLOY_URL")
+  ROW=$(vercel ls --prod 2>&1 | grep -F "$DEPLOY_URL")
   echo "$ROW"
   if echo "$ROW" | grep -qE "● Ready|● Error"; then
     break
@@ -57,6 +57,8 @@ for i in $(seq 1 40); do
   sleep 5
 done
 ```
+
+Two details matter here: grep for `"https://fixernationorg"` (not bare `"fixernationorg"`) when capturing the URL, since `vercel ls --prod` prints a `> Production deployments for .../fixernationorg [...]` header line before the data rows that would otherwise match first. And extract column **3** (`awk '{print $3}'`), not column 2 — column 2 is the project slug (`johnfshaw-8504s-projects/fixernationorg`), which is identical on every row and does not uniquely identify a deployment. Grepping for the slug instead of the URL silently defeats the whole point of this anchor: the loop exits on the first `● Ready`/`● Error` row it finds among *all* deployments, not the one just pushed — confirmed live, it returned "Ready" after one poll while the actual new deployment was still `● Building`.
 
 This loop is **hard-bounded at 40 iterations (~3–4 minutes)** — it always terminates on its own, it never needs to be backgrounded, and it can never become an orphaned process. Do not replace the `seq`-bounded `for` with an unbounded `until`/`while` loop; that shape is exactly what caused past runs to leave `sleep 5` processes running in the background indefinitely after the agent had already moved on and reported a result.
 
@@ -107,7 +109,7 @@ e2e: N/N passed
 Capture the first 40 lines of build output:
 
 ```bash
-DEPLOY_URL=$(vercel ls --prod 2>&1 | grep "fixernationorg" | head -1 | awk '{print $2}')
+DEPLOY_URL=$(vercel ls --prod 2>&1 | grep "https://fixernationorg" | head -1 | awk '{print $3}')
 vercel logs "$DEPLOY_URL" 2>&1 | head -40
 ```
 
