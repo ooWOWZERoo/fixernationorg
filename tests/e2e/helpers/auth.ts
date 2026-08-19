@@ -47,3 +47,14 @@ export async function signInAsTestAmbassador(page: Page) {
   }
   await signIn(page, email, password);
 }
+
+// A dedicated ADMIN-role QA account, used for admin-only flows (e.g.
+// affiliate commission management).
+export async function signInAsTestAdmin(page: Page) {
+  const email = process.env.TEST_ADMIN_EMAIL;
+  const password = process.env.TEST_ADMIN_PASSWORD;
+  if (!email || !password) {
+    throw new Error("TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD not set — see .env.test");
+  }
+  await signIn(page, email, password);
+}
