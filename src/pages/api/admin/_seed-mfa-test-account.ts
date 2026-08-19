@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 // running in parallel against the shared member account. Deleted after use.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  if (!session || session.user.adminRole !== "SUPER_ADMIN") {
+  if (!session || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (req.method !== "POST") {
