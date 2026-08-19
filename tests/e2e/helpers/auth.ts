@@ -37,3 +37,13 @@ export async function signInAsTestProvider(page: Page) {
   }
   await signIn(page, email, password);
 }
+
+// A dedicated AMBASSADOR-role QA account, used for the ambassador materials flow.
+export async function signInAsTestAmbassador(page: Page) {
+  const email = process.env.TEST_AMBASSADOR_EMAIL;
+  const password = process.env.TEST_AMBASSADOR_PASSWORD;
+  if (!email || !password) {
+    throw new Error("TEST_AMBASSADOR_EMAIL / TEST_AMBASSADOR_PASSWORD not set — see .env.test");
+  }
+  await signIn(page, email, password);
+}
