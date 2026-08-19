@@ -58,3 +58,16 @@ export async function signInAsTestAdmin(page: Page) {
   }
   await signIn(page, email, password);
 }
+
+// A dedicated MEMBER-role QA account used ONLY by the MFA flow. It briefly
+// enables real two-factor auth, which would break signInAsTestMember for
+// every other test running concurrently against the shared qa-member
+// account — this account exists solely to keep that blast radius to zero.
+export async function signInAsTestMfa(page: Page) {
+  const email = process.env.TEST_MFA_EMAIL;
+  const password = process.env.TEST_MFA_PASSWORD;
+  if (!email || !password) {
+    throw new Error("TEST_MFA_EMAIL / TEST_MFA_PASSWORD not set — see .env.test");
+  }
+  await signIn(page, email, password);
+}
