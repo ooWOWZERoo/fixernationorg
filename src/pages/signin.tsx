@@ -50,7 +50,7 @@ export default function SignInPage() {
       const result = await signIn("credentials", {
         email,
         password,
-        totpCode: mfaMode ? totpCode : undefined,
+        ...(mfaMode ? { totpCode } : {}),
         redirect: false,
       });
 
