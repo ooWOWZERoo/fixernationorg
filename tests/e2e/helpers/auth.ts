@@ -27,3 +27,13 @@ export async function signInAsTestRecipient(page: Page) {
   }
   await signIn(page, email, password);
 }
+
+// A dedicated PROVIDER-role QA account, used for the provider campaign flow.
+export async function signInAsTestProvider(page: Page) {
+  const email = process.env.TEST_PROVIDER_EMAIL;
+  const password = process.env.TEST_PROVIDER_PASSWORD;
+  if (!email || !password) {
+    throw new Error("TEST_PROVIDER_EMAIL / TEST_PROVIDER_PASSWORD not set — see .env.test");
+  }
+  await signIn(page, email, password);
+}
