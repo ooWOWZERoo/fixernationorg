@@ -14,12 +14,9 @@ test("admin creates a resource -> appears in list -> edit persists -> delete rem
   await signInAsTestAdmin(page);
   await page.goto("/admin/resources/new");
 
-  // The resource form's <label> elements aren't associated to their inputs
-  // (no htmlFor/id, not nested), so getByLabel() can't find them — fall
-  // back to positional locators, same as group-join.spec.ts does.
-  await page.locator('form input[type="text"]').nth(0).fill(TITLE);
-  await page.locator("form select").selectOption("Guide");
-  await page.locator("form textarea").nth(1).fill(BODY_TEXT);
+  await page.getByLabel("Title").fill(TITLE);
+  await page.getByLabel("Type").selectOption("Guide");
+  await page.getByLabel("Body").fill(BODY_TEXT);
 
   await page.getByRole("button", { name: "Create Resource" }).click();
   // Exclude "new" explicitly — under concurrent load this assertion can
@@ -37,12 +34,12 @@ test("admin creates a resource -> appears in list -> edit persists -> delete rem
     await row.getByRole("link", { name: "Edit" }).click();
     await expect(page).toHaveURL(`/admin/resources/${resourceId}`);
 
-    await page.locator('form input[type="text"]').nth(0).fill(UPDATED_TITLE);
+    await page.getByLabel("Title").fill(UPDATED_TITLE);
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
     await page.reload();
-    await expect(page.locator('form input[type="text"]').nth(0)).toHaveValue(UPDATED_TITLE);
+    await expect(page.getByLabel("Title")).toHaveValue(UPDATED_TITLE);
     await expect(page.getByRole("heading", { name: UPDATED_TITLE, exact: true })).toBeVisible();
 
     await page.goto("/admin/resources");

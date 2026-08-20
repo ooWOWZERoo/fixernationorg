@@ -172,8 +172,9 @@ const AdminBlogNew: NextPageWithLayout = () => {
         )}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Title</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="title">Title</label>
           <input
+            id="title"
             type="text"
             value={form.title}
             onChange={(e) => handleTitleChange(e.target.value)}
@@ -183,8 +184,9 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Slug</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="slug">Slug</label>
           <input
+            id="slug"
             type="text"
             value={form.slug}
             onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
@@ -196,10 +198,11 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="category">
             Category <span className="font-normal text-slate-400">(optional)</span>
           </label>
           <input
+            id="category"
             type="text"
             value={form.category}
             onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
@@ -209,10 +212,11 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="excerpt">
             Excerpt <span className="font-normal text-slate-400">(optional)</span>
           </label>
           <textarea
+            id="excerpt"
             value={form.excerpt}
             onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))}
             rows={2}
@@ -222,8 +226,9 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Body</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="body">Body</label>
           <textarea
+            id="body"
             value={form.body}
             onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
             rows={12}
@@ -240,8 +245,9 @@ const AdminBlogNew: NextPageWithLayout = () => {
         />
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Author Name</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="authorName">Author Name</label>
           <input
+            id="authorName"
             type="text"
             value={form.authorName}
             onChange={(e) => setForm((f) => ({ ...f, authorName: e.target.value }))}

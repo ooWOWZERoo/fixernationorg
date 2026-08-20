@@ -15,13 +15,9 @@ test("admin creates a blog post -> appears in list -> edits title -> persists ->
   await signInAsTestAdmin(page);
   await page.goto("/admin/blog/new");
 
-  // Title, Slug, Category and Author Name are all plain text inputs with no
-  // htmlFor/id association to their <label>, so getByLabel can't find them —
-  // select by position within the form instead, matching this suite's
-  // established fallback for unlabeled admin form fields.
-  await page.locator('form input[type="text"]').nth(0).fill(POST_TITLE);
-  await page.locator('form input[type="text"]').nth(2).fill(CATEGORY);
-  await page.locator("form textarea").nth(1).fill(BODY_TEXT);
+  await page.getByLabel("Title").fill(POST_TITLE);
+  await page.getByLabel("Category").fill(CATEGORY);
+  await page.getByLabel("Body").fill(BODY_TEXT);
   await page.getByRole("button", { name: "Create Post" }).click();
 
   // Exclude "new" explicitly — under concurrent load this assertion can
@@ -41,14 +37,14 @@ test("admin creates a blog post -> appears in list -> edits title -> persists ->
     await row.getByRole("link", { name: "Edit" }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/blog/${postId}$`));
 
-    await page.locator('form input[type="text"]').nth(0).fill(EDITED_TITLE);
+    await page.getByLabel("Title").fill(EDITED_TITLE);
     await page.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
     // The edit page's heading renders from the server-fetched post, not the
     // in-memory form state, so it only reflects the save after a reload.
     await page.reload();
-    await expect(page.locator('form input[type="text"]').nth(0)).toHaveValue(EDITED_TITLE);
+    await expect(page.getByLabel("Title")).toHaveValue(EDITED_TITLE);
     await expect(page.getByRole("heading", { name: EDITED_TITLE })).toBeVisible();
 
     await page.goto("/admin/blog");

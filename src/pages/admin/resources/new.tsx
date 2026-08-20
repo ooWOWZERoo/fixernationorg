@@ -165,8 +165,9 @@ const AdminResourceNew: NextPageWithLayout = () => {
         {error && <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Title</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="title">Title</label>
           <input
+            id="title"
             type="text"
             value={form.title}
             onChange={(e) => handleTitleChange(e.target.value)}
@@ -176,8 +177,9 @@ const AdminResourceNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Slug</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="slug">Slug</label>
           <input
+            id="slug"
             type="text"
             value={form.slug}
             onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
@@ -189,10 +191,11 @@ const AdminResourceNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="type">
             Type <span className="font-normal text-slate-400">(optional)</span>
           </label>
           <select
+            id="type"
             value={form.type}
             onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
@@ -205,10 +208,11 @@ const AdminResourceNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="excerpt">
             Excerpt <span className="font-normal text-slate-400">(optional)</span>
           </label>
           <textarea
+            id="excerpt"
             value={form.excerpt}
             onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))}
             rows={2}
@@ -218,8 +222,9 @@ const AdminResourceNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Body</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="body">Body</label>
           <textarea
+            id="body"
             value={form.body}
             onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
             rows={12}
@@ -232,10 +237,11 @@ const AdminResourceNew: NextPageWithLayout = () => {
         <ImageField value={form.imageUrl} onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))} />
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="fileUrl">
             Download File URL <span className="font-normal text-slate-400">(optional)</span>
           </label>
           <input
+            id="fileUrl"
             type="url"
             value={form.fileUrl}
             onChange={(e) => setForm((f) => ({ ...f, fileUrl: e.target.value }))}
@@ -246,8 +252,9 @@ const AdminResourceNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Author Name</label>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="authorName">Author Name</label>
           <input
+            id="authorName"
             type="text"
             value={form.authorName}
             onChange={(e) => setForm((f) => ({ ...f, authorName: e.target.value }))}
