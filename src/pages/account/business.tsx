@@ -68,11 +68,12 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
             <div className="rounded-2xl border border-navy/8 bg-white p-6 space-y-5">
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="businessName">
                   Business name
                 </label>
                 <p className="text-xs text-ink-soft mb-1.5">The name customers would search for.</p>
                 <input
+                  id="businessName"
                   type="text"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -83,13 +84,14 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="specialty">
                   Specialty
                 </label>
                 <p className="text-xs text-ink-soft mb-1.5">
                   One line. What you do. (e.g. Licensed Electrician, HVAC Contractor)
                 </p>
                 <input
+                  id="specialty"
                   type="text"
                   value={specialty}
                   onChange={(e) => setSpecialty(e.target.value)}
@@ -100,13 +102,14 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="services">
                   Services
                 </label>
                 <p className="text-xs text-ink-soft mb-1.5">
                   Describe what you offer. This shows up on your listing.
                 </p>
                 <textarea
+                  id="services"
                   value={services}
                   onChange={(e) => setServices(e.target.value)}
                   placeholder="Panel upgrades, EV charger installation, residential rewiring..."
@@ -121,8 +124,9 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
             <div className="rounded-2xl border border-navy/8 bg-white p-6 space-y-5">
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Website</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="website">Website</label>
                 <input
+                  id="website"
                   type="url"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
@@ -133,9 +137,10 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Phone</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="phone">Phone</label>
                 <p className="text-xs text-ink-soft mb-1.5">Shown on your public profile.</p>
                 <input
+                  id="phone"
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -146,9 +151,10 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Service area</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="serviceArea">Service area</label>
                 <p className="text-xs text-ink-soft mb-1.5">Cities, counties, or region you serve.</p>
                 <input
+                  id="serviceArea"
                   type="text"
                   value={serviceArea}
                   onChange={(e) => setServiceArea(e.target.value)}

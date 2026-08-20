@@ -40,13 +40,10 @@ test("ambassador profile -> saves, persists, and appears on the public listing w
   const referralCode = referralUrlText.match(/ref=([\w-]+)$/)?.[1];
   expect(referralCode, `expected a /register?ref=<code> URL, got "${referralUrlText}"`).toBeTruthy();
 
-  // These fields' <label> elements aren't associated with their <input> via
-  // htmlFor/id (a real accessibility gap, flagged separately), so getByLabel
-  // won't find them — fall back to each field's unique placeholder text.
-  const territoryInput = page.getByPlaceholder("e.g. Southeast Atlanta, North Georgia");
-  const bioInput = page.getByPlaceholder("Tell people a bit about yourself and why you joined Fixer Nation.");
-  const websiteInput = page.getByPlaceholder("https://example.com");
-  const phoneInput = page.getByPlaceholder("(555) 555-5555");
+  const territoryInput = page.getByLabel("Territory");
+  const bioInput = page.getByLabel("About you");
+  const websiteInput = page.getByLabel("Website");
+  const phoneInput = page.getByLabel("Phone");
 
   const original = {
     territory: await territoryInput.inputValue(),
@@ -78,10 +75,10 @@ test("ambassador profile -> saves, persists, and appears on the public listing w
     await expect(page.getByRole("link", { name: "Edit your listing" })).toBeVisible();
   } finally {
     await page.goto("/account/ambassador");
-    await page.getByPlaceholder("e.g. Southeast Atlanta, North Georgia").fill(original.territory);
-    await page.getByPlaceholder("Tell people a bit about yourself and why you joined Fixer Nation.").fill(original.bio);
-    await page.getByPlaceholder("https://example.com").fill(original.website);
-    await page.getByPlaceholder("(555) 555-5555").fill(original.phone);
+    await page.getByLabel("Territory").fill(original.territory);
+    await page.getByLabel("About you").fill(original.bio);
+    await page.getByLabel("Website").fill(original.website);
+    await page.getByLabel("Phone").fill(original.phone);
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Profile saved.")).toBeVisible();
 

@@ -38,15 +38,12 @@ test("provider business profile -> saves, persists, and appears on the public li
   const username = originalUsername || TEMP_USERNAME;
 
   await page.goto("/account/business");
-  // These fields' <label> elements aren't associated with their <input> via
-  // htmlFor/id (a real accessibility gap, flagged separately), so getByLabel
-  // won't find them — fall back to each field's unique placeholder text.
-  const businessNameInput = page.getByPlaceholder("e.g. Shaw Electrical Services");
-  const specialtyInput = page.getByPlaceholder("e.g. Licensed Electrician");
-  const servicesInput = page.getByPlaceholder("Panel upgrades, EV charger installation, residential rewiring...");
-  const websiteInput = page.getByPlaceholder("https://example.com");
-  const phoneInput = page.getByPlaceholder("(555) 555-5555");
-  const serviceAreaInput = page.getByPlaceholder("e.g. Dallas-Fort Worth metro");
+  const businessNameInput = page.getByLabel("Business name");
+  const specialtyInput = page.getByLabel("Specialty");
+  const servicesInput = page.getByLabel("Services");
+  const websiteInput = page.getByLabel("Website");
+  const phoneInput = page.getByLabel("Phone");
+  const serviceAreaInput = page.getByLabel("Service area");
 
   const original = {
     businessName: await businessNameInput.inputValue(),
@@ -85,12 +82,12 @@ test("provider business profile -> saves, persists, and appears on the public li
     await expect(page.getByRole("link", { name: "Edit your listing" })).toBeVisible();
   } finally {
     await page.goto("/account/business");
-    await page.getByPlaceholder("e.g. Shaw Electrical Services").fill(original.businessName);
-    await page.getByPlaceholder("e.g. Licensed Electrician").fill(original.specialty);
-    await page.getByPlaceholder("Panel upgrades, EV charger installation, residential rewiring...").fill(original.services);
-    await page.getByPlaceholder("https://example.com").fill(original.website);
-    await page.getByPlaceholder("(555) 555-5555").fill(original.phone);
-    await page.getByPlaceholder("e.g. Dallas-Fort Worth metro").fill(original.serviceArea);
+    await page.getByLabel("Business name").fill(original.businessName);
+    await page.getByLabel("Specialty").fill(original.specialty);
+    await page.getByLabel("Services").fill(original.services);
+    await page.getByLabel("Website").fill(original.website);
+    await page.getByLabel("Phone").fill(original.phone);
+    await page.getByLabel("Service area").fill(original.serviceArea);
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Profile saved.")).toBeVisible();
 

@@ -98,11 +98,12 @@ const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) 
             <div className="rounded-2xl border border-navy/8 bg-white p-6 space-y-5">
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Territory</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="territory">Territory</label>
                 <p className="text-xs text-ink-soft mb-1.5">
                   The area you cover. City, state, or whatever makes sense for you.
                 </p>
                 <input
+                  id="territory"
                   type="text"
                   value={territory}
                   onChange={(e) => setTerritory(e.target.value)}
@@ -113,8 +114,9 @@ const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">About you</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="bio">About you</label>
                 <textarea
+                  id="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Tell people a bit about yourself and why you joined Fixer Nation."
@@ -130,8 +132,9 @@ const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) 
             <div className="rounded-2xl border border-navy/8 bg-white p-6 space-y-5">
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Website</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="website">Website</label>
                 <input
+                  id="website"
                   type="url"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
@@ -142,9 +145,10 @@ const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) 
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-ink mb-1">Phone</label>
+                <label className="block text-sm font-semibold text-ink mb-1" htmlFor="phone">Phone</label>
                 <p className="text-xs text-ink-soft mb-1.5">Shown on your public profile.</p>
                 <input
+                  id="phone"
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
