@@ -25,6 +25,11 @@ export async function getVerificationToken(email: string): Promise<string | null
   return record?.token ?? null;
 }
 
+export async function getUserId(email: string): Promise<string | null> {
+  const user = await client().user.findUnique({ where: { email }, select: { id: true } });
+  return user?.id ?? null;
+}
+
 export async function deleteTestUser(email: string): Promise<void> {
   await client().user.delete({ where: { email } }).catch(() => {});
 }
