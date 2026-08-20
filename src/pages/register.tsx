@@ -31,10 +31,10 @@ export default function RegisterPage() {
 
     if (!res.ok) {
       setError(data.error ?? "Something went wrong. Try again.");
-      setLoading(false);
     } else {
       setDone(true);
     }
+    setLoading(false);
   }
 
   const callbackUrl = typeof router.query.callbackUrl === "string" ? router.query.callbackUrl : "/";
