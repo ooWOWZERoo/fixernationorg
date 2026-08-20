@@ -24,7 +24,9 @@ test("admin creates, edits, and deletes a Morning Boost entry", async ({ page })
   await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
   await page.getByRole("button", { name: "Create Entry" }).click();
 
-  await expect(page).toHaveURL(/\/admin\/morning-boost\/[a-z0-9-]+$/);
+  // Exclude "new" explicitly — under concurrent load this assertion can
+  // resolve while the redirect off /admin/morning-boost/new is still in flight.
+  await expect(page).toHaveURL(/\/admin\/morning-boost\/(?!new$)[a-z0-9-]+$/);
 
   try {
     await page.goto("/admin/morning-boost");

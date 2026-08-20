@@ -22,7 +22,10 @@ test("admin creates a resource -> appears in list -> edit persists -> delete rem
   await page.locator("form textarea").nth(1).fill(BODY_TEXT);
 
   await page.getByRole("button", { name: "Create Resource" }).click();
-  await expect(page).toHaveURL(/\/admin\/resources\/[^/]+$/);
+  // Exclude "new" explicitly — under concurrent load this assertion can
+  // resolve while the redirect off /admin/resources/new is still in flight,
+  // otherwise matching the literal "new" segment and corrupting resourceId.
+  await expect(page).toHaveURL(/\/admin\/resources\/(?!new$)[^/]+$/);
   const resourceId = page.url().split("/").pop()!;
 
   try {

@@ -24,7 +24,10 @@ test("admin creates a blog post -> appears in list -> edits title -> persists ->
   await page.locator("form textarea").nth(1).fill(BODY_TEXT);
   await page.getByRole("button", { name: "Create Post" }).click();
 
-  await expect(page).toHaveURL(/\/admin\/blog\/[a-z0-9]+$/);
+  // Exclude "new" explicitly — under concurrent load this assertion can
+  // resolve while the redirect off /admin/blog/new is still in flight,
+  // otherwise matching the literal "new" segment and corrupting postId.
+  await expect(page).toHaveURL(/\/admin\/blog\/(?!new$)[a-z0-9]+$/);
   const postId = page.url().split("/").pop();
   await expect(page.getByRole("heading", { name: POST_TITLE })).toBeVisible();
 

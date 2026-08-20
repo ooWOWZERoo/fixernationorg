@@ -33,7 +33,9 @@ test("admin creates challenge -> adds step -> edits -> deactivates", async ({ pa
 
   await newForm.getByRole("button", { name: "Create challenge" }).click();
 
-  await expect(page).toHaveURL(/\/admin\/challenges\/[^/]+$/);
+  // Exclude "new" explicitly — under concurrent load this assertion can
+  // resolve while the redirect off /admin/challenges/new is still in flight.
+  await expect(page).toHaveURL(/\/admin\/challenges\/(?!new$)[^/]+$/);
   await expect(page.getByRole("heading", { name: TITLE, level: 1 })).toBeVisible();
 
   const slug = await page.locator("input[readonly]").inputValue();
