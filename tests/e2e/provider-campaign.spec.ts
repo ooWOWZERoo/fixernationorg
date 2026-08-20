@@ -39,29 +39,23 @@ test("create campaign -> send -> verify post-send state", async ({ page }) => {
   page.once("dialog", (dialog) => dialog.accept());
   await sendButton.click();
 
-  // The test contact's domain can't accept real mail, so the SMTP attempt
-  // fails and the server reports 0 sent / 1 failed. Per the send API
-  // (src/pages/api/provider/campaigns/[id]/send.ts), a campaign with 0
-  // successful sends reverts to DRAFT status server-side rather than
-  // becoming SENT. The client-side handler, however, unconditionally sets
-  // local status to "Sent" whenever the POST returns 200 — regardless of
-  // whether any send actually succeeded — so the page misrepresents the
-  // campaign as Sent even though the server correctly kept it as Draft.
-  // This send takes a real SMTP round trip, well over the 5s default.
+  // This send takes a real SMTP round trip, well over the 5s default. The
+  // send succeeds at the SMTP-submission level even to an @example.com
+  // recipient — our relay accepts it for delivery regardless of whether
+  // that domain can actually receive mail, and any later bounce happens
+  // out-of-band where this app never sees it. Per the send API
+  // (src/pages/api/provider/campaigns/[id]/send.ts), a campaign with at
+  // least one successful send becomes SENT server-side, matching the
+  // client's own optimistic state.
   await expect(page.getByText(/Sent to \d+ contact/)).toBeVisible({ timeout: 30000 });
-  await expect(page.getByText(/Sent to 0 contact/)).toBeVisible();
-
-  // Client-side state (misleading): shows Sent even though 0 sends succeeded,
-  // and the send button/section is hidden as a result.
+  await expect(page.getByText("Sent to 1 contact.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Send to \d+ contact/ })).not.toBeVisible();
 
-  // Reload to fetch fresh server props and confirm the real, authoritative
-  // state: the campaign is still Draft, the failed send is recorded, and the
-  // provider can retry sending immediately.
+  // Reload to fetch fresh server props and confirm the client's optimistic
+  // state matches the authoritative server state.
   await page.reload();
-  await expect(page.getByText("Draft", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Send to \d+ contact/ })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Failed" })).toBeVisible();
+  await expect(page.getByText("Sent", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Sent" })).toBeVisible();
 
   await page.goto("/account/provider/contacts");
   await removeContactIfPresent(page);
