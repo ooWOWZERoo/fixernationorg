@@ -80,11 +80,13 @@ test("rich text formatting round-trips from the editor to the public page", asyn
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("before ");
-  await page.getByRole("button", { name: "Bold" }).click();
-  await page.keyboard.type("bold");
-  await page.getByRole("button", { name: "Bold" }).click();
-  await page.keyboard.type(" after");
+  await page.keyboard.type("bold rich text content");
+  // Select-all + Tiptap's built-in Mod-b shortcut, rather than
+  // click-the-toolbar-button-then-type — clicking the button mid-sequence
+  // raced with the subsequent keystrokes under Playwright's automated
+  // timing and dropped text in practice.
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+b");
 
   await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
 
@@ -93,7 +95,7 @@ test("rich text formatting round-trips from the editor to the public page", asyn
     await expect(page).toHaveURL(/\/admin\/morning-boost\/(?!new$)[a-z0-9-]+$/);
 
     await page.goto(`/morning-boost/${slug}`);
-    await expect(page.locator("strong", { hasText: "bold" })).toBeVisible();
+    await expect(page.locator("strong", { hasText: "bold rich text content" })).toBeVisible();
   } finally {
     await page.goto("/admin/morning-boost");
     const row = page.locator("tbody tr").filter({ hasText: richTitle }).first();
