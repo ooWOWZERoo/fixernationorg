@@ -23,7 +23,11 @@ test("admin creates, edits, and deletes a Morning Boost entry", async ({ page })
   await page.goto("/admin/morning-boost/new");
 
   await page.getByLabel("Title").fill(TITLE);
-  await page.locator(".ProseMirror").fill(BODY);
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type(BODY);
+
   await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
   await page.getByRole("button", { name: "Create Entry" }).click();
 
@@ -116,7 +120,11 @@ test("a video URL saved on an entry renders with download deterrence on the publ
   await page.goto("/admin/morning-boost/new");
 
   await page.getByLabel("Title").fill(videoTitle);
-  await page.locator(".ProseMirror").fill(BODY);
+
+  const videoEditor = page.locator(".ProseMirror");
+  await videoEditor.click();
+  await page.keyboard.type(BODY);
+
   await page.getByPlaceholder("or paste a video URL…").fill(VIDEO_URL);
   await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
 
