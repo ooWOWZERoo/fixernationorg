@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sanitizeMorningBoostBody } from "@/lib/sanitize-html";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -15,6 +16,7 @@ const createSchema = z.object({
   excerpt: z.string().optional(),
   body: z.string().min(1),
   imageUrl: z.string().url().optional().or(z.literal("")),
+  videoUrl: z.string().url().optional().or(z.literal("")),
   authorName: z.string().default("Anthony J. Placito"),
   publishedAt: z.string().nullable().optional(),
 });
@@ -39,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
     }
 
-    const { title, slug, imageUrl, publishedAt, ...rest } = parsed.data;
+    const { title, slug, imageUrl, videoUrl, body, publishedAt, ...rest } = parsed.data;
     const resolvedSlug = slug ?? toSlug(title);
 
     try {
@@ -48,6 +50,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           title,
           slug: resolvedSlug,
           imageUrl: imageUrl || null,
+          videoUrl: videoUrl || null,
+          body: sanitizeMorningBoostBody(body),
           publishedAt: publishedAt ? new Date(publishedAt) : null,
           ...rest,
         },

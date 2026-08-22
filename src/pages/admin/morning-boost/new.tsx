@@ -1,93 +1,14 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { ImageField } from "@/components/admin/ImageField";
+import { VideoField } from "@/components/admin/VideoField";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import type { NextPageWithLayout } from "@/types/next";
-
-function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setUploadError(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/admin/morning-boost/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        setUploadError(data.error ?? "Upload failed.");
-      } else {
-        onChange(data.url);
-      }
-    } catch {
-      setUploadError("Network error during upload.");
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  };
-
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">
-        Cover Image <span className="font-normal text-slate-400">(optional)</span>
-      </label>
-
-      {/* File picker */}
-      <div className="mb-2 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-        >
-          {uploading ? "Uploading…" : "Choose file"}
-        </button>
-        <span className="text-xs text-slate-400">JPEG, PNG, GIF or WebP · max 5 MB</span>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          className="hidden"
-          onChange={handleFile}
-        />
-      </div>
-      {uploadError && <p className="mb-2 text-xs text-red-600">{uploadError}</p>}
-
-      {/* URL fallback */}
-      <input
-        type="url"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="or paste an image URL…"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-      />
-
-      {/* Preview */}
-      {value && (
-        <div className="mt-2 flex items-start gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="Preview" className="h-20 w-28 rounded-lg object-cover border border-slate-200" />
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-xs text-slate-400 hover:text-red-600"
-          >
-            Remove
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 const toSlug = (title: string) =>
   title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -98,6 +19,7 @@ interface FormState {
   excerpt: string;
   body: string;
   imageUrl: string;
+  videoUrl: string;
   authorName: string;
   publishedAt: string;
 }
@@ -110,6 +32,7 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
     excerpt: "",
     body: "",
     imageUrl: "",
+    videoUrl: "",
     authorName: "Anthony J. Placito",
     publishedAt: "",
   });
@@ -131,6 +54,7 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
       excerpt: form.excerpt.trim() || undefined,
       body: form.body.trim(),
       imageUrl: form.imageUrl.trim() || undefined,
+      videoUrl: form.videoUrl.trim() || undefined,
       authorName: form.authorName.trim() || "Anthony J. Placito",
       publishedAt: form.publishedAt || null,
     };
@@ -209,22 +133,21 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="body">Body</label>
-          <textarea
-            id="body"
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Body</label>
+          <RichTextEditor
             value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-            rows={12}
-            required
-            placeholder="Write your entry. Line breaks are kept as-is."
-            className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+            onChange={(html) => setForm((f) => ({ ...f, body: html }))}
           />
-          <p className="mt-1 text-xs text-slate-400">Line breaks carry through to the live page.</p>
         </div>
 
         <ImageField
           value={form.imageUrl}
           onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
+        />
+
+        <VideoField
+          value={form.videoUrl}
+          onChange={(url) => setForm((f) => ({ ...f, videoUrl: url }))}
         />
 
         <div>

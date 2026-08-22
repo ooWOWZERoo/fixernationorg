@@ -459,6 +459,7 @@ model MorningBoost {
   excerpt     String?   @db.Text
   body        String    @db.Text
   imageUrl    String?
+  videoUrl    String?
   authorName  String    @default("Anthony J. Placito")
   publishedAt DateTime?
   createdAt   DateTime  @default(now())

@@ -6,6 +6,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+export { cloudinary };
+
 export async function uploadToR2(
   buffer: Buffer,
   originalName: string,

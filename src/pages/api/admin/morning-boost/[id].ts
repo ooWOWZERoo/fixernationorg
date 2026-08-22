@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sanitizeMorningBoostBody } from "@/lib/sanitize-html";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -12,6 +13,7 @@ const updateSchema = z.object({
   excerpt: z.string().optional().nullable(),
   body: z.string().min(1).optional(),
   imageUrl: z.string().url().optional().or(z.literal("")).nullable(),
+  videoUrl: z.string().url().optional().or(z.literal("")).nullable(),
   authorName: z.string().optional(),
   publishedAt: z.string().nullable().optional(),
 });

@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
+import { sanitizeMorningBoostBody } from "@/lib/sanitize-html";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -16,6 +17,7 @@ interface BoostFull {
   excerpt: string | null;
   body: string;
   imageUrl: string | null;
+  videoUrl: string | null;
   authorName: string;
   publishedAt: string;
 }
@@ -70,29 +72,46 @@ const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated }) => {
         </div>
       </section>
 
-      {/* Cover image */}
-      {entry.imageUrl && (
+      {/* Hero media: video takes the slot when present, else the cover image */}
+      {entry.videoUrl ? (
         <div className="px-6 py-6 lg:px-8">
           <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl">
-            <Image
-              src={entry.imageUrl}
-              alt={entry.title}
-              width={800}
-              height={400}
-              className="h-auto w-full object-cover"
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              src={entry.videoUrl}
+              poster={entry.imageUrl ?? undefined}
+              controls
+              controlsList="nodownload"
+              disablePictureInPicture
+              onContextMenu={(e) => e.preventDefault()}
+              className="h-auto w-full"
             />
           </div>
         </div>
+      ) : (
+        entry.imageUrl && (
+          <div className="px-6 py-6 lg:px-8">
+            <div className="mx-auto max-w-2xl overflow-hidden rounded-2xl">
+              <Image
+                src={entry.imageUrl}
+                alt={entry.title}
+                width={800}
+                height={400}
+                className="h-auto w-full object-cover"
+              />
+            </div>
+          </div>
+        )
       )}
 
       {/* Body or gate */}
       {gated ? (
         <section className="px-6 pb-20 pt-4 lg:px-8">
           <div className="mx-auto max-w-2xl">
-            {entry.body && (
+            {entry.excerpt && (
               <div className="relative mb-6 overflow-hidden rounded-xl">
                 <p className="select-none blur-sm text-base leading-relaxed text-ink line-clamp-4">
-                  {entry.body.split("\n\n")[0]}
+                  {entry.excerpt}
                 </p>
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/60 to-white" />
               </div>
@@ -127,11 +146,10 @@ const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated }) => {
         <>
           <section className="px-6 pb-16 pt-4 lg:px-8">
             <div className="mx-auto max-w-2xl">
-              {entry.body.split("\n\n").map((paragraph, i) => (
-                <p key={i} className="mb-5 text-base leading-relaxed text-ink">
-                  {paragraph}
-                </p>
-              ))}
+              <div
+                className="prose prose-lg max-w-none text-ink"
+                dangerouslySetInnerHTML={{ __html: entry.body }}
+              />
             </div>
           </section>
 
@@ -171,6 +189,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       excerpt: true,
       body: true,
       imageUrl: true,
+      videoUrl: true,
       authorName: true,
       publishedAt: true,
     },
@@ -183,8 +202,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const session = await getServerSession(context.req, context.res, authOptions);
   const gated = !session || !isMember(session.user.role, session.user.adminRole);
 
+  const sanitized = { ...entry, body: sanitizeMorningBoostBody(entry.body) };
+
   return {
-    props: { entry: JSON.parse(JSON.stringify(entry)), gated },
+    props: { entry: JSON.parse(JSON.stringify(sanitized)), gated },
   };
 };
 
