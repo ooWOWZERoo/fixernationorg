@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
+import { useSiteLogoUrl } from "@/hooks/useSiteLogoUrl";
 
 type NavItem = { href: string; label: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -103,14 +104,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       ? router.pathname === href
       : router.pathname === href || router.pathname.startsWith(href + "/");
 
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoUrl = useSiteLogoUrl();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/public/site-settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
-  }, []);
 
   useEffect(() => {
     setSidebarOpen(false);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useSiteLogoUrl } from "@/hooks/useSiteLogoUrl";
 
 const FOOTER_LINKS = {
   Books: [
@@ -31,13 +31,7 @@ const FOOTER_LINKS = {
 };
 
 export function SiteFooter() {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/public/site-settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
-  }, []);
+  const logoUrl = useSiteLogoUrl();
 
   return (
     <footer className="bg-navy-dark text-white/75">

@@ -2,13 +2,16 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
+import { useSiteLogoUrl } from "@/hooks/useSiteLogoUrl";
 
 const NAV_LINKS = [
   { href: "/", label: "Home", dropdown: [
     { href: "/about", label: "About" },
   ]},
   { href: "/books", label: "Books" },
-  { href: "/blog", label: "Blogs" },
+  { href: "/blog", label: "Blogs", dropdown: [
+    { href: "/morning-boost", label: "Morning Boost" },
+  ]},
   { href: "/network", label: "Community" },
   { href: "/events", label: "Events" },
   { href: "/providers", label: "Providers", dropdown: [
@@ -28,14 +31,8 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const logoUrl = useSiteLogoUrl();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/public/site-settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d?.logoUrl && setLogoUrl(d.logoUrl));
-  }, []);
 
   useEffect(() => {
     if (!session) return;
