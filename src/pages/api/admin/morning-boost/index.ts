@@ -72,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: "Database error - please try again." });
       }
       console.error("Error creating morning boost:", err);
-      throw err;
+      return res.status(500).json({ error: "An error occurred while creating the entry. Please try again." });
     }
   }
 

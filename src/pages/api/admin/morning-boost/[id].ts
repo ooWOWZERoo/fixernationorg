@@ -64,7 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: "Database error - please try again." });
       }
       console.error("Error updating morning boost:", err);
-      throw err;
+      return res.status(500).json({ error: "An error occurred while updating the entry. Please try again." });
     }
   }
 
@@ -72,8 +72,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       await db.morningBoost.delete({ where: { id } });
       return res.status(204).end();
-    } catch {
-      return res.status(404).json({ error: "Not found" });
+    } catch (err: unknown) {
+      if (err != null && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2025") {
+        return res.status(404).json({ error: "Not found" });
+      }
+      console.error("Error deleting morning boost:", err);
+      return res.status(500).json({ error: "An error occurred while deleting the entry. Please try again." });
     }
   }
 
