@@ -250,7 +250,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     },
   })
 
-  if (!topic) return { notFound: true }
+  if (!topic || !(topic as { active: boolean }).active) return { notFound: true }
 
   const session = await getServerSession(ctx.req, ctx.res, authOptions)
   let existingIssue: ExistingIssue = null
