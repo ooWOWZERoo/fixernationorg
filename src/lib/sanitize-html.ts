@@ -9,6 +9,11 @@ import sanitizeHtml from "sanitize-html";
 // html-encoding-sniffer, which does a CommonJS require() of an ES module
 // (@exodus/bytes) — that throws ERR_REQUIRE_ESM in Vercel's serverless
 // runtime, crashing the route before the handler even runs.
+//
+// Pinned to sanitize-html@2.17.1 (package.json: exact, no ^) because 2.17.2+
+// depends on htmlparser2 v10+, which is itself ESM-only ("type": "module")
+// and hits the same ERR_REQUIRE_ESM crash one level down. 2.17.1 is the
+// newest release still on htmlparser2 v8/v9 (plain CommonJS).
 const ALLOWED_TAGS = ["p", "br", "strong", "em", "h2", "h3", "ul", "ol", "li", "blockquote", "a"];
 const ALLOWED_ATTR = ["href", "target", "rel"];
 
