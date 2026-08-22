@@ -8,6 +8,7 @@ const FOOTER_LINKS = {
   ],
   Resources: [
     { href: "/blog", label: "Blog" },
+    { href: "/morning-boost", label: "Morning Boost" },
     { href: "/resources", label: "Member Library" },
     { href: "/ask-the-fixer", label: "Ask The Fixer" },
   ],
