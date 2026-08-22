@@ -50,19 +50,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (
         err != null &&
         typeof err === "object" &&
-        "code" in err &&
-        (err as { code: string }).code === "P2025"
+        "code" in err
       ) {
-        return res.status(404).json({ error: "Not found" });
+        const code = (err as { code: string }).code;
+        if (code === "P2025") {
+          return res.status(404).json({ error: "Not found" });
+        }
+        if (code === "P2002") {
+          return res.status(409).json({ error: "An entry with that slug already exists." });
+        }
+        // Return a user-friendly error for other Prisma errors instead of crashing
+        console.error(`Prisma error updating morning boost (${code}):`, err);
+        return res.status(500).json({ error: "Database error - please try again." });
       }
-      if (
-        err != null &&
-        typeof err === "object" &&
-        "code" in err &&
-        (err as { code: string }).code === "P2002"
-      ) {
-        return res.status(409).json({ error: "An entry with that slug already exists." });
-      }
+      console.error("Error updating morning boost:", err);
       throw err;
     }
   }

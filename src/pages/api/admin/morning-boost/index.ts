@@ -61,11 +61,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (
         err != null &&
         typeof err === "object" &&
-        "code" in err &&
-        (err as { code: string }).code === "P2002"
+        "code" in err
       ) {
-        return res.status(409).json({ error: "An entry with that slug already exists." });
+        const code = (err as { code: string }).code;
+        if (code === "P2002") {
+          return res.status(409).json({ error: "An entry with that slug already exists." });
+        }
+        // Return a user-friendly error for other Prisma errors instead of crashing
+        console.error(`Prisma error creating morning boost (${code}):`, err);
+        return res.status(500).json({ error: "Database error - please try again." });
       }
+      console.error("Error creating morning boost:", err);
       throw err;
     }
   }
