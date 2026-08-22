@@ -59,6 +59,18 @@ export async function signInAsTestAdmin(page: Page) {
   await signIn(page, email, password);
 }
 
+// A dedicated SUPER_ADMIN QA account, distinct from the plain-ADMIN
+// qa-admin account, for flows that require the higher privilege level
+// (e.g. staff-access changes, "last super admin" protections).
+export async function signInAsTestSuperAdmin(page: Page) {
+  const email = process.env.TEST_SUPER_ADMIN_EMAIL;
+  const password = process.env.TEST_SUPER_ADMIN_PASSWORD;
+  if (!email || !password) {
+    throw new Error("TEST_SUPER_ADMIN_EMAIL / TEST_SUPER_ADMIN_PASSWORD not set — see .env.test");
+  }
+  await signIn(page, email, password);
+}
+
 // A dedicated MEMBER-role QA account used ONLY by the MFA flow. It briefly
 // enables real two-factor auth, which would break signInAsTestMember for
 // every other test running concurrently against the shared qa-member

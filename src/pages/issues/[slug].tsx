@@ -252,6 +252,35 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
   if (!topic || !(topic as { active: boolean }).active) return { notFound: true }
 
+  // recommendationMaps.resourceId stores the pathway/challenge/blog post's
+  // DB id (that's what the admin form asks for), but their public pages are
+  // looked up by slug — resolve id -> slug here so the links actually work,
+  // rather than changing what gets stored.
+  const recs = (topic as { recommendationMaps: RecommendationRow[] }).recommendationMaps
+  const idsByType = {
+    PATHWAY: recs.filter((r) => r.recommendationType === "PATHWAY").map((r) => r.resourceId),
+    CHALLENGE: recs.filter((r) => r.recommendationType === "CHALLENGE").map((r) => r.resourceId),
+    BLOG_POST: recs.filter((r) => r.recommendationType === "BLOG_POST").map((r) => r.resourceId),
+  }
+  const [pathwaySlugs, challengeSlugs, blogSlugs] = await Promise.all([
+    idsByType.PATHWAY.length
+      ? db.growthPathway.findMany({ where: { id: { in: idsByType.PATHWAY } }, select: { id: true, slug: true } })
+      : Promise.resolve([]),
+    idsByType.CHALLENGE.length
+      ? db.challenge.findMany({ where: { id: { in: idsByType.CHALLENGE } }, select: { id: true, slug: true } })
+      : Promise.resolve([]),
+    idsByType.BLOG_POST.length
+      ? db.blogPost.findMany({ where: { id: { in: idsByType.BLOG_POST } }, select: { id: true, slug: true } })
+      : Promise.resolve([]),
+  ])
+  const slugById = new Map(
+    [...pathwaySlugs, ...challengeSlugs, ...blogSlugs].map((r) => [r.id, r.slug])
+  )
+  for (const rec of recs) {
+    const slug = slugById.get(rec.resourceId)
+    if (slug) rec.resourceId = slug
+  }
+
   const session = await getServerSession(ctx.req, ctx.res, authOptions)
   let existingIssue: ExistingIssue = null
 
