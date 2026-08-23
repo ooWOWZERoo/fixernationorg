@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
-import { getContactTagNames, getAutomationEnrollment } from "./helpers/db";
+import { getContactTagNames, getAutomationEnrollment, forceEnrollmentStatus } from "./helpers/db";
 
 const STAMP = Date.now();
 
@@ -172,4 +172,43 @@ test("CONDITION step branches correctly: true path continues, false path jumps v
   const falseTags = await getContactTagNames(falseContactId);
   expect(falseTags).toContain(FALSE_TAG);
   expect(falseTags).not.toContain(TRUE_TAG);
+});
+
+test("journey detail overview: status counts and the Failed filter reliably surface a failed enrollment", async ({ page }) => {
+  test.setTimeout(45000);
+
+  const journeyName = `QA e2e overview journey ${STAMP}`;
+  const journeyId = await createJourney(page, journeyName, "MANUAL");
+  await addStep(page, journeyId, "EXIT", {});
+
+  const activeContactId = await createContact(page, `qa-overview-active-${STAMP}@example.com`, `OverviewActive${STAMP}`);
+  const failedContactId = await createContact(page, `qa-overview-failed-${STAMP}@example.com`, `OverviewFailed${STAMP}`);
+
+  await page.request.post("/api/admin/automations/enroll", { data: { journeyId, contactId: activeContactId } });
+  await page.request.post("/api/admin/automations/enroll", { data: { journeyId, contactId: failedContactId } });
+
+  // Force one enrollment straight to FAILED rather than engineering a real
+  // failure (e.g. a broken webhook) — this test verifies the overview's
+  // counting/filtering, not the automation engine's own failure detection.
+  await forceEnrollmentStatus(journeyId, failedContactId, "FAILED");
+
+  await page.goto(`/admin/automations/${journeyId}`);
+  await expect(page.getByText("1 active", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 failed", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Enrollments" }).click();
+  const failedFilter = page.getByRole("button", { name: /^Failed \(1\)$/ });
+  await expect(failedFilter).toBeVisible();
+  await failedFilter.click();
+  await expect(page.getByText("Showing 1 failed enrollment")).toBeVisible();
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody tr").first().getByText("failed", { exact: true })).toBeVisible();
+
+  // The journeys list classifies this under "Needs attention" regardless
+  // of the journey's own active/inactive toggle — a failed enrollment
+  // doesn't resolve itself, so it stays actionable either way.
+  await page.goto("/admin/automations");
+  const listRow = page.locator("tbody tr").filter({ hasText: journeyName });
+  await expect(listRow).toBeVisible();
+  await expect(listRow.getByText(/Needs attention/)).toBeVisible();
 });

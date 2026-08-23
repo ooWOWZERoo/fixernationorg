@@ -81,6 +81,21 @@ export async function getAutomationEnrollment(
   return row ?? null;
 }
 
+// Test-fixture helper: force an enrollment straight to a given status
+// without needing to actually engineer a real automation failure (e.g. a
+// broken webhook). Used to verify the admin overview's status counting and
+// filtering, not the automation engine's own failure-detection logic.
+export async function forceEnrollmentStatus(
+  journeyId: string,
+  contactId: string,
+  status: string
+): Promise<void> {
+  await client().automationEnrollment.updateMany({
+    where: { journeyId, contactId },
+    data: { status: status as "ACTIVE" | "COMPLETED" | "PAUSED" | "CANCELLED" | "FAILED" },
+  });
+}
+
 export async function getLatestContactMergeHistory(
   survivorId: string
 ): Promise<{ absorbedId: string; absorbedEmail: string } | null> {
