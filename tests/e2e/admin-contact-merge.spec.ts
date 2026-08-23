@@ -22,7 +22,10 @@ async function createContact(page: Page, email: string, lastName: string) {
   await page.locator('input[type="text"]').nth(0).fill("QA");
   await page.locator('input[type="text"]').nth(1).fill(lastName);
   await page.getByRole("button", { name: "Create contact" }).click();
-  await expect(page).toHaveURL(/\/admin\/contacts\/[a-z0-9]+$/);
+  // Exclude "new" explicitly — this assertion can otherwise resolve while
+  // the redirect off /admin/contacts/new is still in flight (established
+  // gotcha in this suite, e.g. admin-morning-boost.spec.ts).
+  await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
   return page.url().split("/").pop() as string;
 }
 
@@ -69,8 +72,11 @@ test("merging a contact moves its tags (deduped) and notes, deletes the source, 
   await expect(page.getByText(SURVIVOR_NOTE)).toBeVisible();
   await expect(page.getByText(SOURCE_NOTE)).toBeVisible();
 
+  await expect.poll(async () => {
+    const row = await getLatestContactMergeHistory(survivorId);
+    return row?.absorbedEmail ?? null;
+  }, { timeout: 10000 }).toBe(SOURCE_EMAIL);
   const history = await getLatestContactMergeHistory(survivorId);
-  expect(history?.absorbedEmail).toBe(SOURCE_EMAIL);
 
   const searchRes = await page.request.get(`/api/admin/contacts?q=${encodeURIComponent(SOURCE_EMAIL)}`);
   const { contacts } = await searchRes.json();
