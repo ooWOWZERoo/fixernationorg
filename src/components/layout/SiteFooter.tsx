@@ -41,7 +41,7 @@ export function SiteFooter() {
 
           {/* Brand column — wider, visually separated from nav links */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 lg:border-r lg:border-amber/25 lg:pr-8">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col items-center gap-4 text-center">
               <Link href="/" className="shrink-0 no-underline hover:no-underline">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
