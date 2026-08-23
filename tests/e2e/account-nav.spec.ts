@@ -29,3 +29,25 @@ test("account nav is grouped into labeled sections", async ({ page }) => {
   await expect(main.getByText("Business", { exact: true })).not.toBeVisible();
   await expect(main.getByText("Ambassador", { exact: true })).not.toBeVisible();
 });
+
+test("header profile dropdown includes My Journey under My Profile, linking to /account/home", async ({ page }) => {
+  await signInAsTestMember(page);
+  await page.goto("/dashboard");
+
+  const banner = page.getByRole("banner");
+  await banner.getByRole("button").first().click();
+
+  const profileLink = banner.getByRole("link", { name: "My Profile" });
+  const journeyLink = banner.getByRole("link", { name: "My Journey" });
+
+  await expect(profileLink).toBeVisible();
+  await expect(journeyLink).toBeVisible();
+  await expect(journeyLink).toHaveAttribute("href", "/account/home");
+
+  // "under My Profile" — confirm ordering, not just presence
+  const linkTexts = await banner.getByRole("link").allTextContents();
+  expect(linkTexts.indexOf("My Journey")).toBe(linkTexts.indexOf("My Profile") + 1);
+
+  await journeyLink.click();
+  await expect(page).toHaveURL(/\/account\/home$/);
+});
