@@ -48,8 +48,14 @@ test.describe("Contact form (/contact)", () => {
     await expect(page.getByRole("heading", { name: "Message sent" })).toBeVisible();
     await expect(page.getByText(email)).toBeVisible();
 
+    // Same eventually-consistent-read lag documented elsewhere in this suite
+    // (e.g. automation enrollments) between the app's write and a read over
+    // TEST_DATABASE_URL — generous poll rather than an immediate assert.
+    await expect.poll(
+      () => getContactMessageByEmail(email),
+      { timeout: 40000, intervals: [2000, 3000, 5000, 5000, 5000] }
+    ).not.toBeNull();
     const row = await getContactMessageByEmail(email);
-    expect(row).not.toBeNull();
     expect(row?.subject).toBe("Membership");
     expect(row?.message).toBe("This is a QA e2e test message body.");
   });
@@ -107,16 +113,25 @@ test.describe("Ask The Fixer (/ask-the-fixer)", () => {
     const email = `qa-atf-${STAMP}@example.com`;
 
     await page.goto("/ask-the-fixer");
-    await page.getByPlaceholder("Jane").fill("QA");
-    await page.getByPlaceholder("Doe").fill(`Fixer${STAMP}`);
-    await page.getByPlaceholder("jane@email.com").fill(email);
-    await page.getByPlaceholder("Tell The Fixer what's on your mind...").fill("This is a QA e2e test question.");
+    // getByPlaceholder does case-insensitive substring matching by default,
+    // so "Jane" also matches the email field's "jane@email.com" placeholder
+    // — use the name attribute instead for an unambiguous match.
+    await page.locator('input[name="firstName"]').fill("QA");
+    await page.locator('input[name="lastName"]').fill(`Fixer${STAMP}`);
+    await page.locator('input[name="email"]').fill(email);
+    await page.locator('textarea[name="body"]').fill("This is a QA e2e test question.");
     await page.getByRole("button", { name: "Send" }).click();
 
-    await expect(page.getByText("Message received.")).toBeVisible();
+    // Unlike /api/contact, /api/ask-the-fixer awaits an admin-notification
+    // email (SMTP) before responding — give it more room than the default
+    // 5s so a slow SMTP handshake doesn't look like a broken submit button.
+    await expect(page.getByText("Message received.")).toBeVisible({ timeout: 20000 });
 
+    await expect.poll(
+      () => getFixerQuestionByEmail(email),
+      { timeout: 40000, intervals: [2000, 3000, 5000, 5000, 5000] }
+    ).not.toBeNull();
     const row = await getFixerQuestionByEmail(email);
-    expect(row).not.toBeNull();
     expect(row?.body).toBe("This is a QA e2e test question.");
   });
 
