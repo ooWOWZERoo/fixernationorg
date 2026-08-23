@@ -119,7 +119,12 @@ const EditEmailTemplatePage: NextPageWithLayout<Props> = ({ template: initial })
       });
       if (r.ok) {
         const cloned = await r.json();
-        router.push(`/admin/email-templates/${cloned.id}`);
+        // A full navigation, not router.push: this page's local state
+        // (name/subject/status/etc.) is seeded once from `initial` via
+        // useState — a client-side transition to the same route pattern
+        // reuses the mounted component and never re-seeds it, so the
+        // clone's URL would silently keep showing the original's fields.
+        window.location.href = `/admin/email-templates/${cloned.id}`;
       }
     } finally {
       setCloning(false);
