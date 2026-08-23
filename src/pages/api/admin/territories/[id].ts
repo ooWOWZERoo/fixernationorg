@@ -80,6 +80,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (parsed.data.action === "assign") {
         const { applicationId, userId, notes, endDate, autoRenew } = parsed.data;
 
+        if (territory.status === "LOCKED") {
+          return res.status(409).json({ error: "This territory is locked and cannot be assigned." });
+        }
+
         // Verify application exists and is AMBASSADOR type
         const application = await db.userApplication.findUnique({
           where: { id: applicationId },
@@ -88,6 +92,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!application) return res.status(404).json({ error: "Application not found" });
         if (application.type !== "AMBASSADOR") {
           return res.status(400).json({ error: "Territory assignment is only for ambassador applications" });
+        }
+
+        if (territory.isExclusive) {
+          const activeCount = await db.territoryAssignment.count({
+            where: { territoryId: id, status: "ACTIVE" },
+          });
+          if (activeCount > 0) {
+            return res.status(409).json({ error: "This territory is exclusive and already has an active assignment." });
+          }
         }
 
         const resolvedUserId = userId ?? application.userId ?? undefined;
