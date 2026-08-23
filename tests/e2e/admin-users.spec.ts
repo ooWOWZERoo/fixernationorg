@@ -97,14 +97,17 @@ test("admin sidebar shows staff access role, not membership role", async ({ page
   // session.user.role (the membership tier: Consumer/Member/Provider/
   // Ambassador) under the signed-in user's name — the wrong field for a
   // staff-only surface. It should show adminRole instead.
+  // Scope to <p> tags only — the sidebar logo also contains the word
+  // "Admin" (as "Fixer Nation Admin", in a <span>), which a broader
+  // getByText query would also match.
   await signInAsTestAdmin(page);
   await page.goto("/admin");
-  const identityBlock = page.locator("aside, nav").filter({ hasText: "Sign Out" }).first();
-  await expect(identityBlock.getByText("Admin", { exact: true })).toBeVisible();
-  await expect(identityBlock.getByText(/consumer|member|provider|ambassador/i)).not.toBeVisible();
+  const roleLabel = page.locator("aside").filter({ hasText: "Sign Out" }).first().locator("p");
+  await expect(roleLabel.filter({ hasText: /^Admin$/ })).toBeVisible();
+  await expect(roleLabel.filter({ hasText: /^(Consumer|Member|Provider|Ambassador)$/i })).toHaveCount(0);
 
   await signInAsTestSuperAdmin(page);
   await page.goto("/admin");
-  const superIdentityBlock = page.locator("aside, nav").filter({ hasText: "Sign Out" }).first();
-  await expect(superIdentityBlock.getByText("Super Admin", { exact: true })).toBeVisible();
+  const superRoleLabel = page.locator("aside").filter({ hasText: "Sign Out" }).first().locator("p");
+  await expect(superRoleLabel.filter({ hasText: /^Super Admin$/ })).toBeVisible();
 });
