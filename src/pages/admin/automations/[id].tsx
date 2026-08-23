@@ -63,6 +63,17 @@ type EnrollmentRow = {
   contact: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
 };
 
+type StatusCounts = { ACTIVE: number; COMPLETED: number; PAUSED: number; CANCELLED: number; FAILED: number };
+
+const STATUS_FILTERS: { key: keyof StatusCounts | "ALL"; label: string }[] = [
+  { key: "ALL", label: "All" },
+  { key: "ACTIVE", label: "Active" },
+  { key: "FAILED", label: "Failed" },
+  { key: "COMPLETED", label: "Completed" },
+  { key: "PAUSED", label: "Paused" },
+  { key: "CANCELLED", label: "Cancelled" },
+];
+
 interface Props {
   journey: {
     id: string;
@@ -75,9 +86,10 @@ interface Props {
     _count: { enrollments: number };
   };
   templates: Template[];
+  statusCounts: StatusCounts;
 }
 
-const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, templates }) => {
+const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, templates, statusCounts: initialStatusCounts }) => {
   const [journey, setJourney] = useState(initial);
   const [steps, setSteps] = useState<Step[]>(initial.steps);
   const [editingMeta, setEditingMeta] = useState(false);
@@ -89,6 +101,8 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
   const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [statusCounts, setStatusCounts] = useState<StatusCounts>(initialStatusCounts);
+  const [statusFilter, setStatusFilter] = useState<keyof StatusCounts | "ALL">("ALL");
   const [editingTriggerConfig, setEditingTriggerConfig] = useState(false);
   const [triggerConfigValue, setTriggerConfigValue] = useState<string>(
     initial.triggerConfig?.role ?? initial.triggerConfig?.tag ??
@@ -128,18 +142,25 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
 
   const loadEnrollments = async () => {
     setLoadingEnrollments(true);
-    const res = await fetch(`/api/admin/automations/enrollments?journeyId=${journey.id}`);
+    const qs = statusFilter === "ALL" ? "" : `&status=${statusFilter}`;
+    const res = await fetch(`/api/admin/automations/enrollments?journeyId=${journey.id}${qs}`);
     if (res.ok) {
-      setEnrollments(await res.json());
+      const data = await res.json();
+      setEnrollments(data.enrollments);
+      setStatusCounts(data.counts);
     }
     setLoadingEnrollments(false);
   };
 
+  // Refetches whenever the tab is opened or the status filter changes —
+  // filtering by status (e.g. Failed) queries that status directly rather
+  // than re-slicing the "50 most recent overall" list, so a failed
+  // enrollment can't silently fall off the page as newer ones pile up.
   useEffect(() => {
-    if (activeTab === "enrollments" && enrollments.length === 0) {
+    if (activeTab === "enrollments") {
       loadEnrollments();
     }
-  }, [activeTab]);
+  }, [activeTab, statusFilter]);
 
   useEffect(() => {
     if (journey.trigger === "GROUP_JOIN" && groupOptions.length === 0) {
@@ -249,13 +270,34 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
                 </div>
                 <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
                   <span>Trigger: <strong className="text-slate-700">{TRIGGER_LABELS[journey.trigger] ?? journey.trigger}</strong></span>
-                  <span>&bull;</span>
-                  <span>{journey._count.enrollments} total enrollment{journey._count.enrollments !== 1 ? "s" : ""}</span>
                   {journey.description && (
                     <>
                       <span>&bull;</span>
                       <span className="truncate max-w-[300px]">{journey.description}</span>
                     </>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    {statusCounts.ACTIVE} active
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {statusCounts.COMPLETED} completed
+                  </span>
+                  {statusCounts.FAILED > 0 && (
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">
+                      {statusCounts.FAILED} failed
+                    </span>
+                  )}
+                  {statusCounts.PAUSED > 0 && (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      {statusCounts.PAUSED} paused
+                    </span>
+                  )}
+                  {statusCounts.CANCELLED > 0 && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                      {statusCounts.CANCELLED} cancelled
+                    </span>
                   )}
                 </div>
               </div>
@@ -432,10 +474,28 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
       {/* Enrollments tab */}
       {activeTab === "enrollments" && (
         <div>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              {loadingEnrollments ? "Loading…" : `${enrollments.length} recent enrollment${enrollments.length !== 1 ? "s" : ""}`}
-            </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_FILTERS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(key)}
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                    statusFilter === key
+                      ? key === "FAILED"
+                        ? "bg-red-600 text-white"
+                        : "bg-navy text-white"
+                      : key === "FAILED" && statusCounts.FAILED > 0
+                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                  ].join(" ")}
+                >
+                  {label}
+                  {key !== "ALL" && ` (${statusCounts[key]})`}
+                </button>
+              ))}
+            </div>
             <button
               onClick={loadEnrollments}
               className="text-xs font-semibold text-navy hover:underline"
@@ -443,6 +503,11 @@ const AutomationDetailPage: NextPageWithLayout<Props> = ({ journey: initial, tem
               Refresh
             </button>
           </div>
+          <p className="mb-3 text-xs text-slate-400">
+            {loadingEnrollments
+              ? "Loading…"
+              : `Showing ${enrollments.length} ${statusFilter === "ALL" ? "most recent" : statusFilter.toLowerCase()} enrollment${enrollments.length !== 1 ? "s" : ""}${enrollments.length === 50 ? " (limit reached — narrow the filter to see more)" : ""}`}
+          </p>
 
           {enrollments.length === 0 && !loadingEnrollments ? (
             <div className="rounded-xl border border-slate-200 bg-white py-12 text-center">
@@ -530,10 +595,20 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   if (!journey) return { notFound: true };
 
-  const templates = await db.emailTemplate.findMany({
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, subject: true },
-  });
+  const [templates, statusGroups] = await Promise.all([
+    db.emailTemplate.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, subject: true },
+    }),
+    db.automationEnrollment.groupBy({
+      by: ["status"],
+      where: { journeyId: id },
+      _count: { id: true },
+    }),
+  ]);
+
+  const statusCounts = { ACTIVE: 0, COMPLETED: 0, PAUSED: 0, CANCELLED: 0, FAILED: 0 };
+  for (const row of statusGroups) statusCounts[row.status] = row._count.id;
 
   return {
     props: {
@@ -555,6 +630,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
         _count: journey._count,
       },
       templates,
+      statusCounts,
     },
   };
 };

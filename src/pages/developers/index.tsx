@@ -852,7 +852,7 @@ curl -X POST ${B}/api/admin/campaigns/cmp1 \\
         queryParams: [
           { name: "journeyId", type: "string", description: "Filter by journey" },
           { name: "contactId", type: "string", description: "Filter by contact" },
-          { name: "status", type: "string", description: "ACTIVE | COMPLETED | PAUSED | CANCELLED" },
+          { name: "status", type: "string", description: "ACTIVE | COMPLETED | PAUSED | CANCELLED | FAILED" },
         ],
         curl: `curl "${B}/api/admin/automations/enrollments?status=ACTIVE" \\
   -H "${CK}"`,

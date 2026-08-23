@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
+import type { AutomationEnrollmentStatus } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
+const STATUS_VALUES: AutomationEnrollmentStatus[] = ["ACTIVE", "COMPLETED", "PAUSED", "CANCELLED", "FAILED"];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -11,9 +13,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const { journeyId, id: enrollmentId } = req.query as {
+  const { journeyId, id: enrollmentId, status: statusQuery } = req.query as {
     journeyId?: string;
     id?: string;
+    status?: string;
   };
 
   if (req.method === "GET") {
@@ -25,11 +28,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     if (!journey) return res.status(404).json({ error: "Journey not found" });
 
-    const enrollments = await db.automationEnrollment.findMany({
-      where: { journeyId },
-      orderBy: { enrolledAt: "desc" },
-      take: 50,
-    });
+    const statusFilter = STATUS_VALUES.find((s) => s === statusQuery);
+
+    // Counts are always over the full journey, independent of the status
+    // filter above — they drive the tab labels/badges, and (critically)
+    // let a status like FAILED be filtered into view reliably even if it's
+    // been pushed out of the plain "50 most recent" list by newer activity.
+    const [enrollments, statusGroups] = await Promise.all([
+      db.automationEnrollment.findMany({
+        where: { journeyId, ...(statusFilter ? { status: statusFilter } : {}) },
+        orderBy: { enrolledAt: "desc" },
+        take: 50,
+      }),
+      db.automationEnrollment.groupBy({
+        by: ["status"],
+        where: { journeyId },
+        _count: { id: true },
+      }),
+    ]);
+
+    const counts: Record<string, number> = { ACTIVE: 0, COMPLETED: 0, PAUSED: 0, CANCELLED: 0, FAILED: 0 };
+    for (const row of statusGroups) counts[row.status] = row._count.id;
 
     const userIds = enrollments.map((e) => e.userId).filter(Boolean) as string[];
     const contactIds = enrollments.map((e) => e.contactId).filter(Boolean) as string[];
@@ -52,8 +71,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
     const contactMap = Object.fromEntries(contacts.map((c) => [c.id, c]));
 
-    return res.status(200).json(
-      enrollments.map((e) => ({
+    return res.status(200).json({
+      counts,
+      enrollments: enrollments.map((e) => ({
         ...e,
         totalSteps: journey._count.steps,
         enrolledAt: e.enrolledAt.toISOString(),
@@ -61,8 +81,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         nextRunAt: e.nextRunAt?.toISOString() ?? null,
         user: e.userId ? (userMap[e.userId] ?? null) : null,
         contact: e.contactId ? (contactMap[e.contactId] ?? null) : null,
-      }))
-    );
+      })),
+    });
   }
 
   if (req.method === "PATCH") {
