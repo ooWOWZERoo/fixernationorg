@@ -9,7 +9,10 @@ const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
-  trigger: z.enum(["MANUAL", "SIGNUP", "ROLE_CHANGE", "TAG_ADDED", "APPLICATION_ACCEPTED"]),
+  trigger: z.enum([
+    "MANUAL", "SIGNUP", "ROLE_CHANGE", "TAG_ADDED", "APPLICATION_ACCEPTED",
+    "GROUP_JOIN", "EVENT_RSVP", "LOYALTY_MILESTONE",
+  ]),
   triggerConfig: z.record(z.string()).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   active: z.boolean().optional(),

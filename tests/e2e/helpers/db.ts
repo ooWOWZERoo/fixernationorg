@@ -64,6 +64,23 @@ export async function deleteReferralByReferredUserId(userId: string): Promise<vo
   await client().referral.deleteMany({ where: { referredUserId: userId } });
 }
 
+export async function getContactTagNames(contactId: string): Promise<string[]> {
+  const rows = await client().contactTag.findMany({ where: { contactId }, select: { tag: true } });
+  return rows.map((r) => r.tag);
+}
+
+export async function getAutomationEnrollment(
+  journeyId: string,
+  contactId: string
+): Promise<{ status: string; currentStep: number } | null> {
+  const row = await client().automationEnrollment.findFirst({
+    where: { journeyId, contactId },
+    orderBy: { enrolledAt: "desc" },
+    select: { status: true, currentStep: true },
+  });
+  return row ?? null;
+}
+
 export async function getLatestContactMergeHistory(
   survivorId: string
 ): Promise<{ absorbedId: string; absorbedEmail: string } | null> {

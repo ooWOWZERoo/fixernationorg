@@ -73,21 +73,31 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
   const [creating, setCreating] = useState(false);
   const [fromTemplate, setFromTemplate] = useState<string | null>(null);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
-    const res = await fetch("/api/admin/automations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim(), trigger: newTrigger, active: false }),
-    });
-    if (res.ok) {
-      const journey = await res.json();
-      window.location.href = `/admin/automations/${journey.id}`;
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/admin/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim(), trigger: newTrigger, active: false }),
+      });
+      if (res.ok) {
+        const journey = await res.json();
+        window.location.href = `/admin/automations/${journey.id}`;
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      setCreateError(data?.error ?? "Could not create the journey.");
+    } catch {
+      setCreateError("Network error. Please try again.");
+    } finally {
+      setCreating(false);
     }
-    setCreating(false);
   };
 
   const handleFromTemplate = async (templateId: string) => {
@@ -183,6 +193,9 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
       {showNew && (
         <div className="mb-6 rounded-xl border border-navy/20 bg-white p-5">
           <h2 className="mb-4 text-sm font-bold text-slate-800">Create journey</h2>
+          {createError && (
+            <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</div>
+          )}
           <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">Name *</label>

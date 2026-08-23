@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { webpush } from "@/lib/web-push";
 import type { AutomationEnrollment, AutomationStep, AutomationTrigger } from "@prisma/client";
 
 function substituteVars(template: string, vars: Record<string, string>): string {
@@ -141,7 +142,105 @@ async function executeStepAction(step: StepWithConfig, enrollment: AutomationEnr
       }
       break;
     }
+
+    case "REMOVE_TAG": {
+      if (!enrollment.contactId) return;
+      const tag = config.tag as string;
+      if (tag) {
+        await db.contactTag.deleteMany({ where: { contactId: enrollment.contactId, tag } });
+      }
+      break;
+    }
+
+    case "SEND_PUSH": {
+      if (!enrollment.userId) return;
+      const subs = await db.pushSubscription.findMany({ where: { userId: enrollment.userId } });
+      if (subs.length === 0) return;
+      const payload = JSON.stringify({
+        title: (config.title as string) ?? "",
+        body: (config.body as string) ?? "",
+        url: (config.url as string) || "/",
+      });
+      await Promise.allSettled(
+        subs.map((sub) =>
+          webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dhKey, auth: sub.authKey } },
+            payload
+          )
+        )
+      );
+      break;
+    }
   }
+}
+
+// ── CONDITION step evaluation ─────────────────────────────────────────────────
+// Fields/operators match the fixed set the journey builder UI actually offers
+// (src/components/automation/JourneyCanvas.tsx) — not a generic evaluator.
+
+async function resolveEvalContext(
+  enrollment: AutomationEnrollment
+): Promise<{ role: string | null; createdAt: Date | null }> {
+  let userId = enrollment.userId;
+  if (!userId && enrollment.contactId) {
+    const contact = await db.contact.findUnique({
+      where: { id: enrollment.contactId },
+      select: { userId: true },
+    });
+    userId = contact?.userId ?? null;
+  }
+
+  if (userId) {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { role: true, createdAt: true } });
+    return { role: user?.role ?? null, createdAt: user?.createdAt ?? null };
+  }
+
+  if (enrollment.contactId) {
+    const contact = await db.contact.findUnique({
+      where: { id: enrollment.contactId },
+      select: { createdAt: true },
+    });
+    return { role: null, createdAt: contact?.createdAt ?? null };
+  }
+
+  return { role: null, createdAt: null };
+}
+
+async function evaluateCondition(
+  enrollment: AutomationEnrollment,
+  config: Record<string, unknown>
+): Promise<boolean> {
+  const field = config.field as string;
+  const operator = (config.operator as string) ?? "equals";
+  const value = String(config.value ?? "");
+
+  if (field === "tag") {
+    if (!enrollment.contactId || !value) return false;
+    const match = await db.contactTag.findFirst({ where: { contactId: enrollment.contactId, tag: value } });
+    return operator === "not_equals" ? !match : !!match;
+  }
+
+  if (field === "userRole") {
+    const { role } = await resolveEvalContext(enrollment);
+    if (role === null) return false;
+    return operator === "not_equals" ? role !== value : role === value;
+  }
+
+  if (field === "daysSinceSignup") {
+    const { createdAt } = await resolveEvalContext(enrollment);
+    if (!createdAt) return false;
+    const days = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    const target = parseFloat(value);
+    if (Number.isNaN(target)) return false;
+    switch (operator) {
+      case "not_equals":    return Math.floor(days) !== Math.floor(target);
+      case "greater_than":  return days > target;
+      case "less_than":     return days < target;
+      default:              return Math.floor(days) === Math.floor(target); // equals
+    }
+  }
+
+  return false;
 }
 
 export async function tickAutomations(): Promise<{
@@ -189,6 +288,38 @@ export async function tickAutomations(): Promise<{
             },
           });
           break;
+        }
+
+        if (step.type === "EXIT") {
+          await db.automationEvent.create({
+            data: { enrollmentId: enrollment.id, stepOrder: step.order, type: "step_executed", metadata: { exit: true } },
+          });
+          currentStep = steps.length;
+          break;
+        }
+
+        if (step.type === "CONDITION") {
+          const result = await evaluateCondition(enrollment, step.config);
+          await db.automationEvent.create({
+            data: {
+              enrollmentId: enrollment.id,
+              stepOrder: step.order,
+              type: "step_executed",
+              metadata: { conditionResult: result },
+            },
+          });
+          if (result) {
+            currentStep++;
+            continue;
+          }
+          const falseNextOrder = (step.config as { falseNextOrder?: number | null }).falseNextOrder ?? null;
+          if (falseNextOrder === null) {
+            currentStep = steps.length;
+            break;
+          }
+          const targetIdx = steps.findIndex((s) => s.order === falseNextOrder);
+          currentStep = targetIdx === -1 ? steps.length : targetIdx;
+          continue;
         }
 
         await executeStepAction(step, enrollment);
