@@ -223,7 +223,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <div className="shrink-0 border-t border-white/10 p-3">
         <div className="mb-2 rounded-lg px-3 py-2">
           <p className="text-xs font-semibold text-white">{session?.user?.name ?? session?.user?.email}</p>
-          <p className="text-xs text-white/50">{session?.user?.role}</p>
+          <p className="text-xs text-white/50">
+            {session?.user?.adminRole === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
+          </p>
         </div>
         <Link
           href="/"

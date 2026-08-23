@@ -91,3 +91,20 @@ test("super admin CAN change another user's staff access -> persists", async ({ 
   const targetRowAfterReload = page.locator("tbody tr").filter({ hasText: SUPER_TARGET_EMAIL });
   await expect(targetRowAfterReload.locator("select").nth(1)).toHaveValue("ADMIN");
 });
+
+test("admin sidebar shows staff access role, not membership role", async ({ page }) => {
+  // AdminLayout's sidebar identity block previously rendered
+  // session.user.role (the membership tier: Consumer/Member/Provider/
+  // Ambassador) under the signed-in user's name — the wrong field for a
+  // staff-only surface. It should show adminRole instead.
+  await signInAsTestAdmin(page);
+  await page.goto("/admin");
+  const identityBlock = page.locator("aside, nav").filter({ hasText: "Sign Out" }).first();
+  await expect(identityBlock.getByText("Admin", { exact: true })).toBeVisible();
+  await expect(identityBlock.getByText(/consumer|member|provider|ambassador/i)).not.toBeVisible();
+
+  await signInAsTestSuperAdmin(page);
+  await page.goto("/admin");
+  const superIdentityBlock = page.locator("aside, nav").filter({ hasText: "Sign Out" }).first();
+  await expect(superIdentityBlock.getByText("Super Admin", { exact: true })).toBeVisible();
+});
