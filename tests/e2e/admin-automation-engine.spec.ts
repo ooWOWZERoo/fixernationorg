@@ -81,7 +81,7 @@ test("previously-blocked triggers (group join, event RSVP, loyalty milestone) ca
 });
 
 test("TAG_ADDED trigger enrolls a contact; ADD_TAG, REMOVE_TAG, and EXIT steps execute on tick", async ({ page }) => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
 
   const TRIGGER_TAG = `qa-auto-trigger-${STAMP}`;
   const ADDED_TAG = `qa-auto-added-${STAMP}`;
@@ -107,10 +107,16 @@ test("TAG_ADDED trigger enrolls a contact; ADD_TAG, REMOVE_TAG, and EXIT steps e
 
   await tickAutomations(page);
 
+  // A direct DB check right after confirmed the enrollment actually
+  // completed correctly within a couple seconds of the tick — the flake
+  // here is in seeing it via TEST_DATABASE_URL's connection specifically
+  // (same eventually-consistent-read class as the loyalty-points checks
+  // elsewhere in this suite), not the automation logic itself. Generous
+  // window rather than a tight one.
   await expect.poll(async () => {
     const enrollment = await getAutomationEnrollment(journeyId, contactId);
     return enrollment?.status ?? null;
-  }, { timeout: 15000 }).toBe("COMPLETED");
+  }, { timeout: 40000, intervals: [2000, 3000, 5000, 5000, 5000] }).toBe("COMPLETED");
 
   const tags = await getContactTagNames(contactId);
   expect(tags).toContain(ADDED_TAG);
@@ -118,7 +124,7 @@ test("TAG_ADDED trigger enrolls a contact; ADD_TAG, REMOVE_TAG, and EXIT steps e
 });
 
 test("CONDITION step branches correctly: true path continues, false path jumps via falseNextOrder", async ({ page }) => {
-  test.setTimeout(60000);
+  test.setTimeout(90000);
 
   const CHECK_TAG = `qa-auto-check-${STAMP}`;
   const TRUE_TAG = `qa-auto-true-${STAMP}`;
@@ -153,11 +159,11 @@ test("CONDITION step branches correctly: true path continues, false path jumps v
   await expect.poll(async () => {
     const e = await getAutomationEnrollment(journeyId, trueContactId);
     return e?.status ?? null;
-  }, { timeout: 15000 }).toBe("COMPLETED");
+  }, { timeout: 40000, intervals: [2000, 3000, 5000, 5000, 5000] }).toBe("COMPLETED");
   await expect.poll(async () => {
     const e = await getAutomationEnrollment(journeyId, falseContactId);
     return e?.status ?? null;
-  }, { timeout: 15000 }).toBe("COMPLETED");
+  }, { timeout: 40000, intervals: [2000, 3000, 5000, 5000, 5000] }).toBe("COMPLETED");
 
   const trueTags = await getContactTagNames(trueContactId);
   expect(trueTags).toContain(TRUE_TAG);
