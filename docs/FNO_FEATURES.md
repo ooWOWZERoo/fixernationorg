@@ -139,7 +139,7 @@ Available once a user's role is `AMBASSADOR`.
 - **Email Block Composer** — drag-and-drop email building (heading, text, button, image, columns, dynamic content cards pulled live from events/blog/morning boost/resources/products, etc.).
 - **Email Templates (`/admin/email-templates`)** — reusable marketing templates (draft/approved/retired).
 - **Message Templates (`/admin/message-templates`)** — transactional lifecycle emails (application submitted, under review, accepted, declined, expired, etc.) with `{{variable}}` placeholders.
-- **Automation Journeys (`/admin/automations`, `/[id]`)** — visual step-builder (trigger: manual/signup/role change/tag added/application accepted/group join/event RSVP/loyalty milestone; steps: wait, send email, add/remove tag, webhook, send push, condition-branch, exit); built-in starter templates.
+- **Automation Journeys (`/admin/automations`, `/[id]`)** — visual step-builder (trigger: manual/signup/role change/tag added/application accepted/group join/event RSVP/loyalty milestone; steps: wait, send email, add/remove tag, webhook, send push, condition-branch, exit); built-in starter templates. The list page (`/admin/automations`) leads with a stat strip (active journeys, running enrollments, completions this week, journeys needing attention) and groups journeys by activity — Needs attention (any outstanding failed enrollment) / Active-running / Active-idle / Inactive (collapsed by default) — with a colored status dot per row, instead of one flat table sorted by creation date.
 
 ### 7.5 Content management
 - **Blog (`/admin/blog`)**, **Morning Boost (`/admin/morning-boost`)**, **Resources (`/admin/resources`)** — standard content CRUD with images/video, draft/published state.
