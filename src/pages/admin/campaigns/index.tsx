@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
@@ -15,9 +16,12 @@ interface CampaignRow {
   listName: string | null;
   sendCount: number;
   openRate: number | null;
+  bounceRate: number | null;
   scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
+  needsAttention: boolean;
+  attentionReason: string | null;
 }
 
 interface Stats {
@@ -25,6 +29,7 @@ interface Stats {
   sentCampaigns: number;
   totalSent: number;
   avgOpenRate: number | null;
+  avgBounceRate: number | null;
 }
 
 interface Props { campaigns: CampaignRow[]; stats: Stats }
@@ -38,7 +43,107 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
+type HealthGroup = "attention" | "sending" | "scheduled" | "sent" | "draft" | "paused_cancelled";
+
+function classify(c: CampaignRow): HealthGroup {
+  if (c.needsAttention) return "attention";
+  if (c.status === "SENDING") return "sending";
+  if (c.status === "SCHEDULED") return "scheduled";
+  if (c.status === "SENT") return "sent";
+  if (c.status === "DRAFT") return "draft";
+  return "paused_cancelled";
+}
+
+function StatusCell({ c }: { c: CampaignRow }) {
+  if (c.needsAttention) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
+        <span className="text-xs font-bold text-red-600">{c.attentionReason}</span>
+      </div>
+    );
+  }
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[c.status] ?? "bg-navy/8 text-navy"}`}>
+      {c.status.toLowerCase()}
+    </span>
+  );
+}
+
+function CampaignTable({ campaigns }: { campaigns: CampaignRow[] }) {
+  return (
+    <div className="rounded-2xl border border-navy/8 bg-white">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
+              <th className="px-5 py-3">Campaign</th>
+              <th className="px-5 py-3">Status</th>
+              <th className="px-5 py-3">List</th>
+              <th className="px-5 py-3">Sends</th>
+              <th className="px-5 py-3">Open · Bounce</th>
+              <th className="px-5 py-3">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {campaigns.map((c) => (
+              <tr key={c.id} className="border-b border-navy/5 hover:bg-cream-panel/40">
+                <td className="px-5 py-3">
+                  <Link href={`/admin/campaigns/${c.id}`} className="font-semibold text-navy hover:underline">
+                    {c.name}
+                  </Link>
+                  <div className="text-xs text-ink-soft">{c.subject}</div>
+                </td>
+                <td className="px-5 py-3">
+                  <StatusCell c={c} />
+                </td>
+                <td className="px-5 py-3 text-ink-soft">{c.listName ?? "—"}</td>
+                <td className="px-5 py-3 text-center text-ink-soft">{c.sendCount}</td>
+                <td className="px-5 py-3 text-center">
+                  {c.openRate != null ? (
+                    <span>
+                      <span className="font-semibold text-green-700">{Math.round(c.openRate * 100)}%</span>
+                      <span className="mx-1 text-ink-soft/40">·</span>
+                      <span className={c.bounceRate && c.bounceRate > 0.05 ? "font-semibold text-red-600" : "text-ink-soft"}>
+                        {Math.round((c.bounceRate ?? 0) * 100)}%
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-ink-soft/50">—</span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-ink-soft">
+                  {c.sentAt
+                    ? new Date(c.sentAt).toLocaleDateString()
+                    : c.scheduledAt
+                    ? `Scheduled ${new Date(c.scheduledAt).toLocaleDateString()}`
+                    : new Date(c.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const GROUP_ORDER: { key: HealthGroup; label: string }[] = [
+  { key: "attention", label: "Needs attention" },
+  { key: "sending", label: "Sending now" },
+  { key: "scheduled", label: "Scheduled" },
+  { key: "sent", label: "Sent" },
+  { key: "draft", label: "Draft" },
+];
+
 const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => {
+  const [showPausedCancelled, setShowPausedCancelled] = useState(false);
+
+  const grouped: Record<HealthGroup, CampaignRow[]> = {
+    attention: [], sending: [], scheduled: [], sent: [], draft: [], paused_cancelled: [],
+  };
+  for (const c of campaigns) grouped[classify(c)].push(c);
+
   return (
     <>
       <Head><title>Campaigns — Admin</title></Head>
@@ -51,18 +156,27 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
       </div>
 
       {stats.totalCampaigns > 0 && (
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {[
             { label: "Total campaigns", value: stats.totalCampaigns },
             { label: "Sent", value: stats.sentCampaigns },
             { label: "Emails sent", value: stats.totalSent.toLocaleString() },
             { label: "Avg open rate", value: stats.avgOpenRate != null ? `${Math.round(stats.avgOpenRate * 100)}%` : "—" },
+            { label: "Avg bounce rate", value: stats.avgBounceRate != null ? `${Math.round(stats.avgBounceRate * 100)}%` : "—" },
           ].map(({ label, value }) => (
             <div key={label} className="rounded-2xl border border-navy/8 bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">{label}</p>
               <p className="mt-1 text-2xl font-extrabold text-navy">{value}</p>
             </div>
           ))}
+          <div className={`rounded-2xl border p-4 ${grouped.attention.length > 0 ? "border-red-200 bg-red-50" : "border-navy/8 bg-white"}`}>
+            <p className={`text-xs font-bold uppercase tracking-widest ${grouped.attention.length > 0 ? "text-red-500" : "text-ink-soft"}`}>
+              Needs attention
+            </p>
+            <p className={`mt-1 text-2xl font-extrabold ${grouped.attention.length > 0 ? "text-red-700" : "text-navy"}`}>
+              {grouped.attention.length}
+            </p>
+          </div>
         </div>
       )}
 
@@ -71,52 +185,30 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
           <p className="text-sm text-ink-soft">No campaigns yet.</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-navy/8 bg-white">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
-                <th className="px-5 py-3">Campaign</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">List</th>
-                <th className="px-5 py-3">Sends</th>
-                <th className="px-5 py-3">Open rate</th>
-                <th className="px-5 py-3">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.map((c) => (
-                <tr key={c.id} className="border-b border-navy/5 hover:bg-cream-panel/40">
-                  <td className="px-5 py-3">
-                    <Link href={`/admin/campaigns/${c.id}`} className="font-semibold text-navy hover:underline">
-                      {c.name}
-                    </Link>
-                    <div className="text-xs text-ink-soft">{c.subject}</div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[c.status] ?? "bg-navy/8 text-navy"}`}>
-                      {c.status.toLowerCase()}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-ink-soft">{c.listName ?? "—"}</td>
-                  <td className="px-5 py-3 text-center text-ink-soft">{c.sendCount}</td>
-                  <td className="px-5 py-3 text-center">
-                    {c.openRate != null
-                      ? <span className="font-semibold text-green-700">{Math.round(c.openRate * 100)}%</span>
-                      : <span className="text-ink-soft/50">—</span>}
-                  </td>
-                  <td className="px-5 py-3 text-ink-soft">
-                    {c.sentAt
-                      ? new Date(c.sentAt).toLocaleDateString()
-                      : c.scheduledAt
-                      ? `Scheduled ${new Date(c.scheduledAt).toLocaleDateString()}`
-                      : new Date(c.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+        <div className="space-y-6">
+          {GROUP_ORDER.map(({ key, label }) =>
+            grouped[key].length === 0 ? null : (
+              <div key={key}>
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-soft">
+                  {label} <span className="font-normal text-ink-soft/60">({grouped[key].length})</span>
+                </h2>
+                <CampaignTable campaigns={grouped[key]} />
+              </div>
+            )
+          )}
+
+          {grouped.paused_cancelled.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowPausedCancelled((v) => !v)}
+                className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft hover:text-navy"
+              >
+                <span className={`transition-transform ${showPausedCancelled ? "rotate-90" : ""}`}>&rsaquo;</span>
+                Paused &amp; cancelled <span className="font-normal text-ink-soft/60">({grouped.paused_cancelled.length})</span>
+              </button>
+              {showPausedCancelled && <CampaignTable campaigns={grouped.paused_cancelled} />}
+            </div>
+          )}
         </div>
       )}
     </>
@@ -138,11 +230,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       include: {
         list: { select: { name: true } },
         _count: { select: { sends: true } },
-        metric: { select: { openRate: true } },
+        metric: { select: { openRate: true, bounceRate: true } },
       },
     }),
     db.campaignMetric.aggregate({
-      _avg: { openRate: true },
+      _avg: { openRate: true, bounceRate: true },
       _sum: { totalSent: true },
     }),
   ]);
@@ -150,25 +242,49 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const totalCampaigns = campaigns.length;
   const sentCampaigns = campaigns.filter((c) => c.status === "SENT").length;
 
+  const now = new Date();
+  // Mirrors the exact "stuck" definition the campaign-scheduler/
+  // campaign-recovery cron jobs use to auto-reset a SENDING campaign back
+  // to DRAFT — that cron only runs once a day, so a campaign can sit
+  // visibly stuck for hours before it's caught; surface it immediately
+  // instead of waiting on the cron.
+  const stuckThreshold = new Date(now.getTime() - 30 * 60 * 1000);
+
   return {
     props: {
-      campaigns: campaigns.map((c) => ({
-        id: c.id,
-        name: c.name,
-        status: c.status,
-        subject: c.subject,
-        listName: c.list?.name ?? null,
-        sendCount: c._count.sends,
-        openRate: c.metric?.openRate ?? null,
-        scheduledAt: c.scheduledAt?.toISOString() ?? null,
-        sentAt: c.sentAt?.toISOString() ?? null,
-        createdAt: c.createdAt.toISOString(),
-      })),
+      campaigns: campaigns.map((c) => {
+        let needsAttention = false;
+        let attentionReason: string | null = null;
+        if (c.status === "SENDING" && c.updatedAt < stuckThreshold) {
+          needsAttention = true;
+          attentionReason = "Stuck sending — over 30 min";
+        } else if (c.status === "SCHEDULED" && c.scheduledAt && c.scheduledAt <= now) {
+          needsAttention = true;
+          attentionReason = "Overdue — scheduled send hasn't started";
+        }
+
+        return {
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          subject: c.subject,
+          listName: c.list?.name ?? null,
+          sendCount: c._count.sends,
+          openRate: c.metric?.openRate ?? null,
+          bounceRate: c.metric?.bounceRate ?? null,
+          scheduledAt: c.scheduledAt?.toISOString() ?? null,
+          sentAt: c.sentAt?.toISOString() ?? null,
+          createdAt: c.createdAt.toISOString(),
+          needsAttention,
+          attentionReason,
+        };
+      }),
       stats: {
         totalCampaigns,
         sentCampaigns,
         totalSent: metricsAgg._sum.totalSent ?? 0,
         avgOpenRate: metricsAgg._avg.openRate ?? null,
+        avgBounceRate: metricsAgg._avg.bounceRate ?? null,
       },
     },
   };
