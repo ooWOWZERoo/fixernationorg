@@ -34,6 +34,36 @@ export async function deleteTestUser(email: string): Promise<void> {
   await client().user.delete({ where: { email } }).catch(() => {});
 }
 
+export async function getChallengeBySlug(
+  slug: string
+): Promise<{ id: string; loyaltyPoints: number; stepIds: string[] } | null> {
+  const challenge = await client().challenge.findUnique({
+    where: { slug },
+    select: { id: true, loyaltyPoints: true, steps: { select: { id: true } } },
+  });
+  if (!challenge) return null;
+  return { id: challenge.id, loyaltyPoints: challenge.loyaltyPoints, stepIds: challenge.steps.map((s) => s.id) };
+}
+
+export async function getLoyaltyPointByResourceId(
+  resourceId: string
+): Promise<{ points: number; reason: string } | null> {
+  const row = await client().loyaltyPoint.findFirst({ where: { resourceId }, select: { points: true, reason: true } });
+  return row ?? null;
+}
+
+export async function getAmbassadorReferralCode(email: string): Promise<string | null> {
+  const profile = await client().ambassadorProfile.findFirst({
+    where: { user: { email } },
+    select: { referralCode: true },
+  });
+  return profile?.referralCode ?? null;
+}
+
+export async function deleteReferralByReferredUserId(userId: string): Promise<void> {
+  await client().referral.deleteMany({ where: { referredUserId: userId } });
+}
+
 export async function closeTestDb(): Promise<void> {
   if (prisma) {
     await prisma.$disconnect();
