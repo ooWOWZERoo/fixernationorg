@@ -96,6 +96,25 @@ export async function forceEnrollmentStatus(
   });
 }
 
+// Test-fixture helpers: simulate the two "needs attention" conditions the
+// admin campaigns list detects, without waiting for a real 30-minute
+// serverless timeout or a real cron cycle to pass. Prisma respects an
+// explicit value for an `@updatedAt` field when one is provided, so
+// backdating `updatedAt` here isn't overwritten to "now".
+export async function forceCampaignStuckSending(campaignId: string): Promise<void> {
+  await client().campaign.update({
+    where: { id: campaignId },
+    data: { status: "SENDING", updatedAt: new Date(Date.now() - 31 * 60 * 1000) },
+  });
+}
+
+export async function forceCampaignOverdueScheduled(campaignId: string): Promise<void> {
+  await client().campaign.update({
+    where: { id: campaignId },
+    data: { status: "SCHEDULED", scheduledAt: new Date(Date.now() - 60 * 60 * 1000) },
+  });
+}
+
 export async function getLatestContactMergeHistory(
   survivorId: string
 ): Promise<{ absorbedId: string; absorbedEmail: string } | null> {

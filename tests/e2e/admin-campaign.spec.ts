@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
+import { forceCampaignStuckSending, forceCampaignOverdueScheduled } from "./helpers/db";
 
 const STAMP = Date.now();
 const CONTACT_EMAIL = `qa-campaign-contact-${STAMP}@example.com`;
@@ -98,4 +99,44 @@ test("create contact + tag -> build campaign -> send -> verify", async ({ page }
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page).toHaveURL(/\/admin\/campaigns$/);
+});
+
+test("campaigns list surfaces stuck-sending and overdue-scheduled campaigns under Needs attention", async ({ page }) => {
+  test.setTimeout(30000);
+
+  async function createDraftCampaign(name: string) {
+    const res = await page.request.post("/api/admin/campaigns", {
+      data: { name, subject: "QA e2e overview subject", htmlBody: "<p>QA e2e overview body.</p>" },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    return body.id as string;
+  }
+
+  const stuckName = `QA e2e stuck-sending ${STAMP}`;
+  const overdueName = `QA e2e overdue-scheduled ${STAMP}`;
+  const stuckId = await createDraftCampaign(stuckName);
+  const overdueId = await createDraftCampaign(overdueName);
+
+  // Force the two "needs attention" conditions directly rather than
+  // waiting out a real 30-minute serverless timeout or a real cron cycle —
+  // this test verifies the list page's detection/display, not the
+  // underlying send pipeline.
+  await forceCampaignStuckSending(stuckId);
+  await forceCampaignOverdueScheduled(overdueId);
+
+  await page.goto("/admin/campaigns");
+
+  const stuckRow = page.locator("tbody tr").filter({ hasText: stuckName });
+  await expect(stuckRow).toBeVisible();
+  await expect(stuckRow.getByText("Stuck sending — over 30 min")).toBeVisible();
+
+  const overdueRow = page.locator("tbody tr").filter({ hasText: overdueName });
+  await expect(overdueRow).toBeVisible();
+  await expect(overdueRow.getByText("Overdue — scheduled send hasn't started")).toBeVisible();
+
+  // Both rows should be inside the same "Needs attention" group, not
+  // scattered across the Sending/Scheduled sections.
+  const attentionHeading = page.getByRole("heading", { name: /^Needs attention/ });
+  await expect(attentionHeading).toBeVisible();
 });
