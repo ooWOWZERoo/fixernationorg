@@ -92,6 +92,38 @@ export async function getLatestContactMergeHistory(
   return row ?? null;
 }
 
+export async function getContactMessageByEmail(
+  email: string
+): Promise<{ id: string; subject: string; message: string } | null> {
+  const row = await client().contactMessage.findFirst({
+    where: { email },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, subject: true, message: true },
+  });
+  return row ?? null;
+}
+
+export async function getFixerQuestionByEmail(
+  email: string
+): Promise<{ id: string; subject: string | null; body: string } | null> {
+  const row = await client().fixerQuestion.findFirst({
+    where: { email },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, subject: true, body: true },
+  });
+  return row ?? null;
+}
+
+// Both /api/contact and /api/ask-the-fixer are rate-limited 5/hour per IP via
+// a shared RateLimitEntry table (SP-42). Since these tests hit the real
+// production endpoints from a shared IP, and the isolated + full-suite run
+// pattern used across this project would otherwise burn through that quota
+// within a single deploy verification, reset the counters directly rather
+// than hoping 5 requests/hour is enough headroom.
+export async function resetRateLimit(prefix: string): Promise<void> {
+  await client().rateLimitEntry.deleteMany({ where: { key: { startsWith: `${prefix}:` } } });
+}
+
 export async function closeTestDb(): Promise<void> {
   if (prisma) {
     await prisma.$disconnect();

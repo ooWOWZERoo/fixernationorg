@@ -14,7 +14,7 @@ const SUBJECTS = [
 ];
 
 const ContactPage: NextPageWithLayout = () => {
-  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "", _hp: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +77,18 @@ const ContactPage: NextPageWithLayout = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Honeypot: hidden from real users, only a naive bot filling every field will trip it */}
+            <input
+              type="text"
+              name="website"
+              value={form._hp}
+              onChange={set("_hp")}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              className="absolute left-[-9999px] h-0 w-0 opacity-0"
+            />
+
             {error && (
               <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
             )}

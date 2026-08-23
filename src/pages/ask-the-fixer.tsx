@@ -28,6 +28,7 @@ const AskTheFixerPage: NextPageWithLayout = () => {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [body, setBody] = useState("");
+  const [hp, setHp] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +44,7 @@ const AskTheFixerPage: NextPageWithLayout = () => {
           name: `${firstName} ${lastName}`.trim(),
           email,
           body,
+          _hp: hp,
         }),
       });
       if (!res.ok) {
@@ -128,6 +130,18 @@ const AskTheFixerPage: NextPageWithLayout = () => {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Honeypot: hidden from real users, only a naive bot filling every field will trip it */}
+                <input
+                  type="text"
+                  name="website"
+                  value={hp}
+                  onChange={(e) => setHp(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  className="absolute left-[-9999px] h-0 w-0 opacity-0"
+                />
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-ink-soft">
