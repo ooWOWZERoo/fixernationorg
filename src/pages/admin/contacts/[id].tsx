@@ -273,7 +273,12 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
       });
       if (r.ok) {
         setMergeOpen(false);
-        router.replace(router.asPath);
+        // A hard reload, not router.replace: this page's local state
+        // (contact/tags/notes/etc.) is seeded once from `initial` via
+        // useState — router.replace to the same URL doesn't remount the
+        // component, so newly-merged-in data (tags/notes only the absorbed
+        // contact had) would silently stay missing until a manual refresh.
+        window.location.reload();
       }
     } finally { setMerging(false); }
   }

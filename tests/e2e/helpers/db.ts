@@ -64,6 +64,17 @@ export async function deleteReferralByReferredUserId(userId: string): Promise<vo
   await client().referral.deleteMany({ where: { referredUserId: userId } });
 }
 
+export async function getLatestContactMergeHistory(
+  survivorId: string
+): Promise<{ absorbedId: string; absorbedEmail: string } | null> {
+  const row = await client().contactMergeHistory.findFirst({
+    where: { survivorId },
+    orderBy: { mergedAt: "desc" },
+    select: { absorbedId: true, absorbedEmail: true },
+  });
+  return row ?? null;
+}
+
 export async function closeTestDb(): Promise<void> {
   if (prisma) {
     await prisma.$disconnect();
