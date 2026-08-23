@@ -58,7 +58,48 @@ type JourneyRow = {
   createdAt: string;
   _count: { steps: number; enrollments: number };
   activeEnrollments: number;
+  completedLast7d: number;
+  failedTotal: number;
 };
+
+type ActivityGroup = "attention" | "running" | "idle" | "inactive";
+
+function classify(j: JourneyRow): ActivityGroup {
+  if (j.failedTotal > 0) return "attention";
+  if (!j.active) return "inactive";
+  if (j.activeEnrollments > 0 || j.completedLast7d > 0) return "running";
+  return "idle";
+}
+
+const STATUS_DOT: Record<ActivityGroup, string> = {
+  attention: "bg-red-500",
+  running: "bg-emerald-500",
+  idle: "bg-slate-300",
+  inactive: "bg-slate-200",
+};
+
+function ActivityCell({ journey }: { journey: JourneyRow }) {
+  const group = classify(journey);
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[group]}`} />
+      {group === "attention" ? (
+        <span className="text-red-600 font-semibold">
+          Needs attention &middot; {journey.failedTotal} failed
+        </span>
+      ) : group === "running" ? (
+        <span className="text-emerald-700">
+          {journey.activeEnrollments} running
+          {journey.completedLast7d > 0 && ` · ${journey.completedLast7d} completed (7d)`}
+        </span>
+      ) : group === "idle" ? (
+        <span className="text-slate-400">Idle &mdash; no activity</span>
+      ) : (
+        <span className="text-slate-400">Inactive</span>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   journeys: JourneyRow[];
@@ -73,6 +114,7 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
   const [creating, setCreating] = useState(false);
   const [fromTemplate, setFromTemplate] = useState<string | null>(null);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
+  const [showInactive, setShowInactive] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -135,6 +177,17 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
 
   const activeCount = journeys.filter((j) => j.active).length;
   const totalEnrollments = journeys.reduce((s, j) => s + j.activeEnrollments, 0);
+  const totalCompleted7d = journeys.reduce((s, j) => s + j.completedLast7d, 0);
+  const attentionJourneys = journeys.filter((j) => j.failedTotal > 0);
+  const totalFailed = journeys.reduce((s, j) => s + j.failedTotal, 0);
+
+  const grouped: Record<ActivityGroup, JourneyRow[]> = { attention: [], running: [], idle: [], inactive: [] };
+  for (const j of journeys) grouped[classify(j)].push(j);
+  const GROUP_ORDER: { key: ActivityGroup; label: string }[] = [
+    { key: "attention", label: "Needs attention" },
+    { key: "running", label: "Active — running" },
+    { key: "idle", label: "Active — idle" },
+  ];
 
   return (
     <div>
@@ -142,8 +195,7 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Automation journeys</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {journeys.length} journey{journeys.length !== 1 ? "s" : ""} &mdash;{" "}
-            {activeCount} active &mdash; {totalEnrollments} running enrollment{totalEnrollments !== 1 ? "s" : ""}
+            {journeys.length} journey{journeys.length !== 1 ? "s" : ""} configured
           </p>
         </div>
         <div className="flex gap-2">
@@ -159,6 +211,35 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
           >
             New journey
           </button>
+        </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Active journeys</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">
+            {activeCount}
+            <span className="text-sm font-normal text-slate-400"> / {journeys.length}</span>
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Running now</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{totalEnrollments}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Completed (7d)</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{totalCompleted7d}</p>
+        </div>
+        <div className={`rounded-xl border p-4 ${attentionJourneys.length > 0 ? "border-red-200 bg-red-50" : "border-slate-200 bg-white"}`}>
+          <p className={`text-xs font-semibold uppercase tracking-wide ${attentionJourneys.length > 0 ? "text-red-500" : "text-slate-400"}`}>
+            Needs attention
+          </p>
+          <p className={`mt-1 text-2xl font-bold ${attentionJourneys.length > 0 ? "text-red-700" : "text-slate-900"}`}>
+            {attentionJourneys.length}
+          </p>
+          {totalFailed > 0 && (
+            <p className="mt-0.5 text-xs text-red-500">{totalFailed} failed enrollment{totalFailed !== 1 ? "s" : ""}</p>
+          )}
         </div>
       </div>
 
@@ -246,64 +327,100 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
           <p className="mt-1 text-xs text-slate-400">Create a journey to start sending automated email sequences.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Journey</th>
-                <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Trigger</th>
-                <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">Steps</th>
-                <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Active</th>
-                <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {journeys.map((j) => (
-                <tr key={j.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/automations/${j.id}`} className="font-semibold text-navy hover:underline">
-                      {j.name}
-                    </Link>
-                    {j.description && (
-                      <p className="mt-0.5 text-xs text-slate-500 truncate max-w-[280px]">{j.description}</p>
-                    )}
-                  </td>
-                  <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
-                    {TRIGGER_LABELS[j.trigger] ?? j.trigger}
-                  </td>
-                  <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
-                    {j._count.steps} step{j._count.steps !== 1 ? "s" : ""}
-                  </td>
-                  <td className="hidden px-4 py-3 lg:table-cell">
-                    <span className={j.activeEnrollments > 0 ? "text-emerald-700 font-semibold" : "text-slate-400"}>
-                      {j.activeEnrollments} running
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleToggleActive(j)}
-                      disabled={toggling.has(j.id)}
-                      className={[
-                        "rounded-full px-3 py-1 text-xs font-bold transition-colors disabled:opacity-40",
-                        j.active
-                          ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200",
-                      ].join(" ")}
-                    >
-                      {toggling.has(j.id) ? "…" : j.active ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+        <div className="space-y-6">
+          {GROUP_ORDER.map(({ key, label }) =>
+            grouped[key].length === 0 ? null : (
+              <div key={key}>
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  {label} <span className="font-normal text-slate-400">({grouped[key].length})</span>
+                </h2>
+                <JourneyTable rows={grouped[key]} toggling={toggling} onToggle={handleToggleActive} />
+              </div>
+            )
+          )}
+
+          {grouped.inactive.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+              >
+                <span className={`transition-transform ${showInactive ? "rotate-90" : ""}`}>&rsaquo;</span>
+                Inactive <span className="font-normal text-slate-400">({grouped.inactive.length})</span>
+              </button>
+              {showInactive && <JourneyTable rows={grouped.inactive} toggling={toggling} onToggle={handleToggleActive} />}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 };
+
+function JourneyTable({
+  rows,
+  toggling,
+  onToggle,
+}: {
+  rows: JourneyRow[];
+  toggling: Set<string>;
+  onToggle: (journey: JourneyRow) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-slate-100 bg-slate-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Journey</th>
+              <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Trigger</th>
+              <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">Steps</th>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Activity</th>
+              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((j) => (
+              <tr key={j.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-4 py-3">
+                  <Link href={`/admin/automations/${j.id}`} className="font-semibold text-navy hover:underline">
+                    {j.name}
+                  </Link>
+                  {j.description && (
+                    <p className="mt-0.5 text-xs text-slate-500 truncate max-w-[280px]">{j.description}</p>
+                  )}
+                </td>
+                <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
+                  {TRIGGER_LABELS[j.trigger] ?? j.trigger}
+                </td>
+                <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
+                  {j._count.steps} step{j._count.steps !== 1 ? "s" : ""}
+                </td>
+                <td className="px-4 py-3">
+                  <ActivityCell journey={j} />
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() => onToggle(j)}
+                    disabled={toggling.has(j.id)}
+                    className={[
+                      "rounded-full px-3 py-1 text-xs font-bold transition-colors disabled:opacity-40",
+                      j.active
+                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                    ].join(" ")}
+                  >
+                    {toggling.has(j.id) ? "…" : j.active ? "Active" : "Inactive"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 AutomationsPage.getLayout = (page) => <AdminLayout>{page}</AdminLayout>;
 
@@ -318,21 +435,41 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     };
   }
 
-  const journeys = await db.automationJourney.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { steps: true, enrollments: true } } },
-  });
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const activeEnrollmentCounts = await db.automationEnrollment.groupBy({
-    by: ["journeyId"],
-    where: { status: "ACTIVE" },
-    _count: { id: true },
-  });
+  const [journeys, activeEnrollmentCounts, completedCounts, failedCounts] = await Promise.all([
+    db.automationJourney.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { steps: true, enrollments: true } } },
+    }),
+    db.automationEnrollment.groupBy({
+      by: ["journeyId"],
+      where: { status: "ACTIVE" },
+      _count: { id: true },
+    }),
+    db.automationEnrollment.groupBy({
+      by: ["journeyId"],
+      where: { status: "COMPLETED", completedAt: { gte: sevenDaysAgo } },
+      _count: { id: true },
+    }),
+    db.automationEnrollment.groupBy({
+      by: ["journeyId"],
+      // All outstanding failures, not just the last 7 days — a failed
+      // enrollment doesn't resolve itself, so it stays actionable
+      // regardless of when it happened.
+      where: { status: "FAILED" },
+      _count: { id: true },
+    }),
+  ]);
 
-  const activeMap: Record<string, number> = {};
-  for (const row of activeEnrollmentCounts) {
-    activeMap[row.journeyId] = row._count.id;
-  }
+  const toMap = (rows: { journeyId: string; _count: { id: number } }[]) => {
+    const map: Record<string, number> = {};
+    for (const row of rows) map[row.journeyId] = row._count.id;
+    return map;
+  };
+  const activeMap = toMap(activeEnrollmentCounts);
+  const completedMap = toMap(completedCounts);
+  const failedMap = toMap(failedCounts);
 
   return {
     props: {
@@ -345,6 +482,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
         createdAt: j.createdAt.toISOString(),
         _count: j._count,
         activeEnrollments: activeMap[j.id] ?? 0,
+        completedLast7d: completedMap[j.id] ?? 0,
+        failedTotal: failedMap[j.id] ?? 0,
       })),
     },
   };
