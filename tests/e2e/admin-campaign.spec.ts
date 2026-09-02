@@ -14,6 +14,26 @@ test.beforeEach(async ({ page }) => {
   await signInAsTestAdmin(page);
 });
 
+test("subject line has an option to insert a Morning Boost title", async ({ page }) => {
+  await page.goto("/admin/campaigns/new");
+  await page.getByPlaceholder("August newsletter").fill(`QA e2e MB subject test ${STAMP}`);
+  await page.getByRole("button", { name: /^Next:/ }).click();
+
+  const picker = page.locator("select").filter({ has: page.locator("option", { hasText: "Insert Morning Boost title" }) });
+  await expect(picker).toBeVisible();
+
+  const firstTitle = await picker.locator("option").nth(1).textContent();
+  await picker.selectOption({ index: 1 });
+
+  await expect(page.getByPlaceholder("Your monthly update from Fixer Nation")).toHaveValue(firstTitle ?? "");
+
+  // Picking a second time appends rather than replacing.
+  const secondTitle = await picker.locator("option").nth(2).textContent();
+  await picker.selectOption({ index: 2 });
+  await expect(page.getByPlaceholder("Your monthly update from Fixer Nation"))
+    .toHaveValue(`${firstTitle} ${secondTitle}`);
+});
+
 test("create contact + tag -> build campaign -> send -> verify", async ({ page }) => {
   test.setTimeout(60000);
 
