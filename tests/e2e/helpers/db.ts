@@ -129,16 +129,6 @@ export async function createMorningBoostEntryToday(title: string, slug: string):
   return row;
 }
 
-export async function forceCampaignRecurrenceTimeNow(campaignId: string): Promise<string> {
-  const now = new Date();
-  const bucket = Math.floor((now.getUTCHours() * 60 + now.getUTCMinutes()) / 15) * 15;
-  const hh = String(Math.floor(bucket / 60)).padStart(2, "0");
-  const mm = String(bucket % 60).padStart(2, "0");
-  const recurrenceTime = `${hh}:${mm}`;
-  await client().campaign.update({ where: { id: campaignId }, data: { recurrenceTime } });
-  return recurrenceTime;
-}
-
 export async function forceCampaignLastMorningBoostId(campaignId: string, entryId: string): Promise<void> {
   await client().campaign.update({ where: { id: campaignId }, data: { lastMorningBoostId: entryId } });
 }

@@ -85,7 +85,6 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   // Step 5 — Schedule
   const [scheduledAt, setScheduledAt] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceTime, setRecurrenceTime] = useState("07:00");
   const [recurrenceSource, setRecurrenceSource] = useState<"" | "MORNING_BOOST">("MORNING_BOOST");
 
   function applyTemplate(id: string) {
@@ -185,7 +184,6 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
             ...(isRecurring ? {
               isRecurring: true as const,
               recurrenceFrequency: "DAILY" as const,
-              recurrenceTime,
               recurrenceSource: recurrenceSource || undefined,
             } : {}),
             metadata: {
@@ -551,10 +549,9 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                   <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">Daily</div>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time (UTC)</label>
-                  <input type="time" value={recurrenceTime} onChange={e => setRecurrenceTime(e.target.value)}
-                    className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
-                  <p className="mt-1 text-xs text-ink-soft">A dispatcher checks every 15 minutes, so the actual send lands within 15 minutes of this time.</p>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time</label>
+                  <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">7:00 AM UTC</div>
+                  <p className="mt-1 text-xs text-ink-soft">All recurring campaigns fire at this same time each day.</p>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
@@ -615,7 +612,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                   <dt className="w-28 shrink-0 font-semibold text-ink">Schedule</dt>
                   <dd className="text-ink-soft">
                     {isRecurring
-                      ? `Daily at ${recurrenceTime} UTC${recurrenceSource === "MORNING_BOOST" ? " — Today's Morning Boost" : " — static content"}`
+                      ? `Daily at 7:00 AM UTC${recurrenceSource === "MORNING_BOOST" ? " — Today's Morning Boost" : " — static content"}`
                       : scheduledAt ? new Date(scheduledAt).toLocaleString() : "Manual send (save as draft)"}
                   </dd>
                 </div>

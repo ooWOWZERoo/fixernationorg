@@ -60,13 +60,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (channelType === "EMAIL" && !parsed.data.htmlBody) {
       return res.status(400).json({ error: "htmlBody is required for email campaigns" });
     }
-    if (parsed.data.isRecurring) {
-      if (channelType === "PUSH") {
-        return res.status(400).json({ error: "Recurring campaigns support the email channel only" });
-      }
-      if (!parsed.data.recurrenceTime) {
-        return res.status(400).json({ error: "recurrenceTime is required for a recurring campaign" });
-      }
+    if (parsed.data.isRecurring && channelType === "PUSH") {
+      return res.status(400).json({ error: "Recurring campaigns support the email channel only" });
     }
 
     // Validate that the list (if provided) is FN_ADMIN-owned — AC-067
@@ -78,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const { audienceRules: rawAudienceRules, channelType: _ch, ...restData } = parsed.data;
+    const { audienceRules: rawAudienceRules, channelType: _ch, recurrenceTime: _rt, ...restData } = parsed.data;
     const campaign = await (db.campaign as unknown as {
       create: (a: unknown) => Promise<{ id: string; subject: string; htmlBody: string | null; textBody: string | null; fromName: string; fromEmail: string }>;
     }).create({
@@ -89,6 +84,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
         status: parsed.data.scheduledAt ? "SCHEDULED" : "DRAFT",
         createdBy: session.user.id,
+        // Vercel Hobby caps cron jobs at once-per-day, so every recurring
+        // campaign fires on the same fixed daily schedule (7am UTC) rather
+        // than an admin-chosen time — see runCampaignRecurringDispatch in
+        // cron.ts. Stored for a possible future per-template-time upgrade,
+        // not actually used to gate firing today.
+        recurrenceTime: parsed.data.isRecurring ? "07:00" : undefined,
       },
     });
 

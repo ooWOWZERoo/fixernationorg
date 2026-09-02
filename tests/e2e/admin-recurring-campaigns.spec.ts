@@ -2,7 +2,6 @@ import { test, expect, type Page } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
 import {
   createMorningBoostEntryToday,
-  forceCampaignRecurrenceTimeNow,
   forceCampaignLastMorningBoostId,
   getRecurrenceRun,
   countChildCampaigns,
@@ -60,17 +59,16 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
 
   await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
   await page.getByRole("button", { name: "Recurring" }).click();
-  await page.locator('input[type="time"]').fill("06:30");
 
   await page.getByRole("button", { name: /^Next:/ }).click();
-  await expect(page.getByText(/Daily at 06:30 UTC/)).toBeVisible();
+  await expect(page.getByText(/Daily at 7:00 AM UTC/)).toBeVisible();
 
   await page.getByRole("button", { name: "Save recurring campaign" }).click();
   await expect(page).toHaveURL(/\/admin\/campaigns\/[a-z0-9]+$/);
   await expect(page.getByText("Recurrence")).toBeVisible();
 
   await page.reload();
-  await expect(page.locator('input[type="time"]')).toHaveValue("06:30");
+  await expect(page.getByText("7:00 AM UTC")).toBeVisible();
   await expect(page.getByText("Today's Morning Boost")).toBeVisible();
 });
 
@@ -80,7 +78,6 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
   await createMorningBoostEntryToday(`QA e2e boost ${STAMP}`, `qa-e2e-boost-${STAMP}`);
 
   const templateId = await (await createTemplateViaApi(`QA e2e dispatch template ${STAMP}`, "MORNING_BOOST"))(page);
-  await forceCampaignRecurrenceTimeNow(templateId);
 
   await dispatch(page);
 
@@ -114,7 +111,6 @@ test("duplicate-content guard skips a template whose lastMorningBoostId already 
   const entry = await createMorningBoostEntryToday(`QA e2e boost dup ${STAMP}`, `qa-e2e-boost-dup-${STAMP}`);
 
   const templateId = await (await createTemplateViaApi(`QA e2e duplicate-guard template ${STAMP}`, "MORNING_BOOST"))(page);
-  await forceCampaignRecurrenceTimeNow(templateId);
   await forceCampaignLastMorningBoostId(templateId, entry.id);
 
   await dispatch(page);

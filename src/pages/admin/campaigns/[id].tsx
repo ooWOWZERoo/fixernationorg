@@ -103,8 +103,6 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
 
   // ── Recurring template view state ──
   const [recurrenceActive, setRecurrenceActive] = useState(initial.recurrenceActive ?? true);
-  const [recurrenceTimeInput, setRecurrenceTimeInput] = useState(initial.recurrenceTime ?? "07:00");
-  const [savingRecurrence, setSavingRecurrence] = useState(false);
   const [pauseToggling, setPauseToggling] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState<{ willSend: boolean; reason?: string; subject?: string; html?: string } | null>(null);
@@ -119,16 +117,6 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
     });
     if (res.ok) setRecurrenceActive(next);
     setPauseToggling(false);
-  }
-
-  async function saveRecurrenceTime() {
-    setSavingRecurrence(true);
-    await fetch(`/api/admin/campaigns/${campaign.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recurrenceTime: recurrenceTimeInput }),
-    });
-    setSavingRecurrence(false);
   }
 
   async function previewNextSend() {
@@ -298,15 +286,9 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
               <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">Daily</div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time (UTC)</label>
-              <div className="flex gap-2">
-                <input type="time" value={recurrenceTimeInput} onChange={(e) => setRecurrenceTimeInput(e.target.value)}
-                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
-                <button onClick={saveRecurrenceTime} disabled={savingRecurrence || recurrenceTimeInput === (campaign.recurrenceTime ?? "")}
-                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-semibold text-navy hover:bg-cream-panel disabled:opacity-40">
-                  {savingRecurrence ? "Saving…" : "Save"}
-                </button>
-              </div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time</label>
+              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">7:00 AM UTC</div>
+              <p className="mt-1 text-xs text-ink-soft">All recurring campaigns fire at this same time each day.</p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
