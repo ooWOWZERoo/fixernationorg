@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -46,6 +46,20 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   const [textBody, setTextBody] = useState("");
   const [emailBlocks, setEmailBlocks] = useState<EmailBlock[]>([]);
   const [useComposer, setUseComposer] = useState(true);
+  const [morningBoosts, setMorningBoosts] = useState<{ id: string; title: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/block-data/morning-boost")
+      .then(r => r.json())
+      .then(data => setMorningBoosts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  function insertMorningBoostTitle(id: string) {
+    const boost = morningBoosts.find(b => b.id === id);
+    if (!boost) return;
+    setSubject(prev => (prev.trim() ? `${prev.trim()} ${boost.title}` : boost.title));
+  }
 
   // Step 1 — Content (push)
   const [pushUrl, setPushUrl] = useState("");
@@ -331,6 +345,16 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
               <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
                 placeholder="Your monthly update from Fixer Nation"
                 className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+              {morningBoosts.length > 0 && (
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) insertMorningBoostTitle(e.target.value); e.target.value = ""; }}
+                  className="mt-1.5 rounded-lg border border-navy/15 px-2 py-1 text-xs text-ink-soft focus:outline-none focus:ring-2 focus:ring-navy/30"
+                >
+                  <option value="">+ Insert Morning Boost title…</option>
+                  {morningBoosts.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                </select>
+              )}
             </div>
 
             <div>
