@@ -34,6 +34,95 @@ test("subject line has an option to insert a Morning Boost title", async ({ page
     .toHaveValue(`${firstTitle} ${secondTitle}`);
 });
 
+test("preview-audience API correctly unions two separate list rules", async ({ page }) => {
+  // Regression check for the wizard's "Preview audience size" button, which
+  // read a `count` field the API has never returned (real field is
+  // totalIncluded) — always silently showed 0. Tests the underlying
+  // resolution directly since driving the AudienceBuilder's own multi-select
+  // UI to add two rules of the same type is fragile; this exercises exactly
+  // what the fixed wizard code now calls.
+  test.setTimeout(30000);
+
+  async function createContact(email: string, lastName: string) {
+    await page.goto("/admin/contacts/new");
+    await page.locator('input[type="email"]').first().fill(email);
+    await page.locator('input[type="text"]').nth(0).fill("QA");
+    await page.locator('input[type="text"]').nth(1).fill(lastName);
+    await page.getByRole("button", { name: "Create contact" }).click();
+    await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
+    return page.url().split("/").pop() as string;
+  }
+  const contactA = await createContact(`qa-preview-a-${STAMP}@example.com`, `PreviewA${STAMP}`);
+  const contactB = await createContact(`qa-preview-b-${STAMP}@example.com`, `PreviewB${STAMP}`);
+
+  async function createListWithMember(name: string, contactId: string) {
+    const res = await page.request.post("/api/admin/lists", { data: { name } });
+    expect(res.ok()).toBeTruthy();
+    const list = await res.json();
+    const patchRes = await page.request.patch(`/api/admin/lists/${list.id}`, {
+      data: { action: "add-contacts", contactIds: [contactId] },
+    });
+    expect(patchRes.ok()).toBeTruthy();
+    return list.id as string;
+  }
+  const listAId = await createListWithMember(`QA Preview List A ${STAMP}`, contactA);
+  const listBId = await createListWithMember(`QA Preview List B ${STAMP}`, contactB);
+
+  const res = await page.request.post("/api/admin/campaigns/preview-audience", {
+    data: {
+      rules: {
+        logic: "OR",
+        include: [
+          { type: "list", listId: listAId },
+          { type: "list", listId: listBId },
+        ],
+        exclude: [],
+      },
+    },
+  });
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  expect(body.totalIncluded).toBe(2);
+});
+
+test("wizard's Preview audience size button shows the real count, not 0", async ({ page }) => {
+  test.setTimeout(30000);
+
+  async function createContact(email: string, lastName: string) {
+    await page.goto("/admin/contacts/new");
+    await page.locator('input[type="email"]').first().fill(email);
+    await page.locator('input[type="text"]').nth(0).fill("QA");
+    await page.locator('input[type="text"]').nth(1).fill(lastName);
+    await page.getByRole("button", { name: "Create contact" }).click();
+    await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
+    return page.url().split("/").pop() as string;
+  }
+  await createContact(`qa-preview-single-${STAMP}@example.com`, `PreviewSingle${STAMP}`);
+  const TAG = `qa-preview-single-${STAMP}`;
+  await page.getByPlaceholder("Add tag…").fill(TAG);
+  await page.getByRole("button", { name: "Add tag" }).click();
+  await expect(page.getByText(TAG).first()).toBeVisible();
+
+  await page.goto("/admin/campaigns/new");
+  await page.getByPlaceholder("August newsletter").fill(`QA wizard preview fix ${STAMP}`);
+  await page.getByRole("button", { name: /^Next:/ }).click();
+  await page.getByPlaceholder("Your monthly update from Fixer Nation").fill("QA subject");
+  await page.getByRole("button", { name: "HTML", exact: true }).first().click();
+  await page.getByPlaceholder("Paste your HTML email body here…").fill("<p>x</p>");
+  await page.getByRole("button", { name: /^Next:/ }).click();
+  await page.getByRole("button", { name: /^Next:/ }).click();
+  await page.getByRole("button", { name: /^Next:/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Audience" })).toBeVisible();
+  await page.getByRole("button", { name: "+ Add include rule" }).click();
+  await page.locator("select").first().selectOption("tag");
+  await page.getByPlaceholder("e.g. member-onboarded").fill(TAG);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+
+  await page.getByRole("button", { name: "Preview audience size" }).click();
+  await expect(page.getByText("Estimated audience: 1 contact")).toBeVisible({ timeout: 10000 });
+});
+
 test("create contact + tag -> build campaign -> send -> verify", async ({ page }) => {
   test.setTimeout(60000);
 
