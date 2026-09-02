@@ -8,7 +8,7 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
-import { buildCampaignEmail } from "@/lib/campaign-email";
+import { sendCampaignNow } from "@/lib/send-campaign";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
@@ -20,6 +20,15 @@ const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 type JobHandler = () => Promise<{ message: string }>;
 
 async function runMorningBoost(): Promise<{ message: string }> {
+  // Reversible kill switch — flip via the existing generic Setting editor at
+  // /admin/settings (no redeploy needed) once the recurring-campaign
+  // replacement (see runCampaignRecurringDispatch) has been verified for a
+  // real day or two. Default (key unset) is unchanged existing behavior.
+  const killSwitch = await db.setting.findUnique({ where: { key: "morning_boost_direct_send_enabled" } });
+  if (killSwitch?.value === "false") {
+    return { message: "Disabled via Setting morning_boost_direct_send_enabled — recurring campaign system active" };
+  }
+
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
@@ -125,77 +134,142 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
     });
   }
 
-
   const campaigns = await db.campaign.findMany({
     where: { status: "SCHEDULED", scheduledAt: { lte: now } },
-    select: { id: true, name: true },
+    select: { id: true },
   });
 
   if (campaigns.length === 0) return { message: "No campaigns due to send" };
 
+  // Delegates to the same full-featured send logic the manual "Send now"
+  // button uses (audienceRules + listId, suppression, A/B, PUSH) — this
+  // used to be a separate, listId-only reimplementation that silently
+  // skipped any scheduled campaign using rule-based audienceRules.
+  let processed = 0;
   for (const campaign of campaigns) {
-    // Delegate to the send endpoint logic inline
-    const full = await db.campaign.findUnique({
-      where: { id: campaign.id },
-      include: { list: true },
-    });
-    if (!full?.listId) continue;
-
-    const members = await db.contactListMember.findMany({
-      where: { listId: full.listId },
-      include: {
-        contact: {
-          select: { id: true, email: true, firstName: true },
-          include: { consents: { where: { topic: "CAMPAIGNS" } } } as never,
-        },
-      },
-    });
-
-    const eligible = members.filter((m) => {
-      const c = m.contact as unknown as { consents: Array<{ optedIn: boolean }> };
-      const consent = c.consents?.[0];
-      return !consent || consent.optedIn;
-    });
-    if (eligible.length === 0) continue;
-
-    await db.campaign.update({ where: { id: campaign.id }, data: { status: "SENDING" } });
-    await db.campaignSend.createMany({
-      data: eligible.map((m) => ({ campaignId: campaign.id, contactId: m.contactId })),
-      skipDuplicates: true,
-    });
-
-    let sent = 0;
-    const BATCH = 20;
-    for (let i = 0; i < eligible.length; i += BATCH) {
-      const batch = eligible.slice(i, i + BATCH);
-      await Promise.allSettled(
-        batch.map(async (m) => {
-          try {
-            const { subject, html, text } = buildCampaignEmail(
-              full,
-              m.contactId,
-              m.contact.firstName
-            );
-            await sendEmail({ to: m.contact.email, subject, html, text });
-            await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: campaign.id, contactId: m.contactId } },
-              data: { status: "SENT", sentAt: now },
-            });
-            sent++;
-          } catch {
-            // mark as failed but don't block others
-          }
-        })
-      );
-    }
-
-    await db.campaign.update({
-      where: { id: campaign.id },
-      data: { status: "SENT", sentAt: now },
-    });
+    const result = await sendCampaignNow(campaign.id).catch(() => null);
+    if (result) processed++;
   }
 
-  return { message: `Processed ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
+  return { message: `Processed ${processed} of ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
+}
+
+// UTC calendar-day window for "published today" — shared shape with the
+// Morning Boost content lookup below, kept inline since it's only two lines.
+function utcDayWindow(now: Date): { startOfDay: Date; endOfDay: Date } {
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  return { startOfDay, endOfDay };
+}
+
+async function runCampaignRecurringDispatch(): Promise<{ message: string }> {
+  const now = new Date();
+  const nowUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()));
+  const scheduledDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const currentBucketMinutes = Math.floor((nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes()) / 15) * 15;
+
+  const templates = await db.campaign.findMany({
+    where: {
+      isRecurring: true,
+      recurrenceActive: true,
+      parentCampaignId: null,
+      channelType: "EMAIL",
+      isAbTest: false,
+      recurrenceTime: { not: null },
+    },
+  });
+
+  let dispatched = 0;
+  let skipped = 0;
+
+  for (const template of templates) {
+    try {
+      const [hh, mm] = (template.recurrenceTime as string).split(":").map(Number);
+      const targetBucketMinutes = Math.floor((hh * 60 + mm) / 15) * 15;
+      if (targetBucketMinutes !== currentBucketMinutes) continue;
+
+      // Atomically claim today's slot for this template — a unique
+      // violation means another invocation already handled today, even
+      // under overlapping cron ticks (on top of the CronJob per-job lock
+      // below, which already prevents two concurrent runs of this job).
+      let run;
+      try {
+        run = await db.recurrenceRun.create({
+          data: { templateId: template.id, scheduledDate, outcome: "SENT" },
+        });
+      } catch {
+        skipped++;
+        continue;
+      }
+
+      if (template.recurrenceSource === "MORNING_BOOST") {
+        const { startOfDay, endOfDay } = utcDayWindow(now);
+        const entry = await db.morningBoost.findFirst({
+          where: { publishedAt: { gte: startOfDay, lt: endOfDay } },
+          select: { id: true, title: true, body: true, authorName: true, publishedAt: true, slug: true, excerpt: true, imageUrl: true },
+        });
+
+        if (!entry || !entry.publishedAt || entry.id === template.lastMorningBoostId) {
+          await db.recurrenceRun.update({
+            where: { id: run.id },
+            data: { outcome: entry ? "SKIPPED_DUPLICATE_CONTENT" : "SKIPPED_NO_CONTENT" },
+          });
+          skipped++;
+          continue;
+        }
+
+        const { subject, html, text } = buildMorningBoostEmail(
+          { ...entry, publishedAt: new Date(entry.publishedAt) },
+          null
+        );
+
+        const child = await db.campaign.create({
+          data: {
+            name: `${template.name} — ${scheduledDate.toISOString().slice(0, 10)}`,
+            channelType: "EMAIL",
+            subject,
+            htmlBody: html,
+            textBody: text,
+            fromName: template.fromName,
+            fromEmail: template.fromEmail,
+            listId: template.listId,
+            audienceRules: template.audienceRules ?? undefined,
+            parentCampaignId: template.id,
+            status: "DRAFT",
+          },
+        });
+
+        await db.campaign.update({ where: { id: template.id }, data: { lastMorningBoostId: entry.id } });
+        await db.recurrenceRun.update({ where: { id: run.id }, data: { childCampaignId: child.id } });
+        await sendCampaignNow(child.id);
+        dispatched++;
+      } else {
+        // Static recurring content: resend the template's own subject/body as-is.
+        const child = await db.campaign.create({
+          data: {
+            name: `${template.name} — ${scheduledDate.toISOString().slice(0, 10)}`,
+            channelType: "EMAIL",
+            subject: template.subject,
+            htmlBody: template.htmlBody,
+            textBody: template.textBody,
+            fromName: template.fromName,
+            fromEmail: template.fromEmail,
+            listId: template.listId,
+            audienceRules: template.audienceRules ?? undefined,
+            parentCampaignId: template.id,
+            status: "DRAFT",
+          },
+        });
+        await db.recurrenceRun.update({ where: { id: run.id }, data: { childCampaignId: child.id } });
+        await sendCampaignNow(child.id);
+        dispatched++;
+      }
+    } catch (err) {
+      console.error(`[campaign-recurring-dispatch] template ${template.id} failed:`, err);
+    }
+  }
+
+  return { message: `Dispatched ${dispatched}, skipped ${skipped} of ${templates.length} recurring template${templates.length !== 1 ? "s" : ""}` };
 }
 
 // Applications in accepted/onboarding states expire after 30 days of inactivity.
@@ -385,6 +459,7 @@ const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
+  "campaign-recurring-dispatch": runCampaignRecurringDispatch,
   "automation-tick": runAutomationTick,
   "application-expiration": runApplicationExpiration,
   "application-expiration-reminders": runApplicationExpirationReminders,

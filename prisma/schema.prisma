@@ -1045,6 +1045,21 @@ model Campaign {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  // ── Recurring campaigns ──
+  // A recurring "template" has isRecurring=true and parentCampaignId=null; it
+  // never itself gets CampaignSend rows or reaches SENT — it just holds
+  // config. Each firing clones a fresh child Campaign (parentCampaignId set)
+  // so CampaignSend's @@unique([campaignId, contactId]) and
+  // CampaignAudienceSnapshot's one-to-one campaignId are never touched
+  // across occurrences.
+  isRecurring          Boolean               @default(false)
+  recurrenceFrequency  RecurrenceFrequency?
+  recurrenceTime       String?               // "HH:MM", UTC
+  recurrenceSource     RecurrenceSource?      // null = resend static content
+  recurrenceActive     Boolean               @default(true)
+  lastMorningBoostId   String?               // anti-repeat: last entry id actually used
+  parentCampaignId     String?
+
   template         EmailTemplate?            @relation(fields: [templateId], references: [id], onDelete: SetNull)
   list             ContactList?              @relation(fields: [listId], references: [id], onDelete: SetNull)
   sends            CampaignSend[]
@@ -1052,9 +1067,30 @@ model Campaign {
   audienceSnapshot CampaignAudienceSnapshot?
   metric           CampaignMetric?
   variants         CampaignVariant[]
+  parentCampaign   Campaign?  @relation("CampaignOccurrence", fields: [parentCampaignId], references: [id], onDelete: SetNull)
+  occurrences      Campaign[] @relation("CampaignOccurrence")
+  recurrenceRuns   RecurrenceRun[]
 
   @@index([status])
   @@index([scheduledAt])
+  @@index([isRecurring, recurrenceActive])
+}
+
+// The atomic double-fire guard for recurring campaigns: the dispatcher
+// claims a calendar day's slot by creating this row first (unique on
+// templateId+scheduledDate) — a P2002 violation means another invocation
+// already handled today, so it's safe under overlapping cron ticks.
+model RecurrenceRun {
+  id              String   @id @default(cuid())
+  templateId      String
+  scheduledDate   DateTime @db.Date
+  childCampaignId String?
+  outcome         String   // SENT | SKIPPED_NO_CONTENT | SKIPPED_DUPLICATE_CONTENT
+  createdAt       DateTime @default(now())
+
+  template Campaign @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, scheduledDate])
 }
 
 model CampaignVersion {
@@ -1169,6 +1205,15 @@ enum CampaignSendStatus {
   CLICKED
   BOUNCED
   UNSUBSCRIBED
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+}
+
+enum RecurrenceSource {
+  MORNING_BOOST
 }
 
 // ─── Territory management (SP-3) ─────────────────────────────────────────────

@@ -27,6 +27,10 @@ const createSchema = z.object({
   listId: z.string().optional(),
   audienceRules: audienceRulesSchema,
   scheduledAt: z.string().datetime().optional(),
+  isRecurring: z.boolean().optional(),
+  recurrenceFrequency: z.enum(["DAILY", "WEEKLY"]).optional(),
+  recurrenceTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  recurrenceSource: z.enum(["MORNING_BOOST"]).optional(),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -55,6 +59,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const channelType = parsed.data.channelType ?? "EMAIL";
     if (channelType === "EMAIL" && !parsed.data.htmlBody) {
       return res.status(400).json({ error: "htmlBody is required for email campaigns" });
+    }
+    if (parsed.data.isRecurring) {
+      if (channelType === "PUSH") {
+        return res.status(400).json({ error: "Recurring campaigns support the email channel only" });
+      }
+      if (!parsed.data.recurrenceTime) {
+        return res.status(400).json({ error: "recurrenceTime is required for a recurring campaign" });
+      }
     }
 
     // Validate that the list (if provided) is FN_ADMIN-owned — AC-067

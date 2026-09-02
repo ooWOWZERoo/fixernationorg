@@ -84,6 +84,9 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
 
   // Step 5 — Schedule
   const [scheduledAt, setScheduledAt] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceTime, setRecurrenceTime] = useState("07:00");
+  const [recurrenceSource, setRecurrenceSource] = useState<"" | "MORNING_BOOST">("MORNING_BOOST");
 
   function applyTemplate(id: string) {
     setSelectedTemplateId(id);
@@ -178,7 +181,13 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
             textBody: textBody || undefined,
             templateId: selectedTemplateId || undefined,
             audienceRules: audienceRules.include.length > 0 ? audienceRules : undefined,
-            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+            scheduledAt: !isRecurring && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+            ...(isRecurring ? {
+              isRecurring: true as const,
+              recurrenceFrequency: "DAILY" as const,
+              recurrenceTime,
+              recurrenceSource: recurrenceSource || undefined,
+            } : {}),
             metadata: {
               utmSource: utmSource || undefined,
               utmMedium: utmMedium || undefined,
@@ -525,13 +534,51 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
         {step === 5 && (
           <div className="rounded-2xl border border-navy/8 bg-white p-6">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-ink-soft">Schedule</h2>
-            <div>
-              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Send time (optional)</label>
-              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-                className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
-              <p className="mt-1 text-xs text-ink-soft">Leave blank to save as a draft and send manually from the campaign detail page.</p>
-            </div>
-            {scheduledAt && (
+
+            {channelType === "EMAIL" && (
+              <div className="mb-5 flex overflow-hidden rounded-lg border border-navy/15 text-xs font-medium w-fit">
+                <button type="button" onClick={() => setIsRecurring(false)}
+                  className={`px-3 py-1.5 ${!isRecurring ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>One-time</button>
+                <button type="button" onClick={() => setIsRecurring(true)}
+                  className={`px-3 py-1.5 ${isRecurring ? "bg-navy text-white" : "text-ink-soft hover:bg-cream-panel"}`}>Recurring</button>
+              </div>
+            )}
+
+            {isRecurring && channelType === "EMAIL" ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Frequency</label>
+                  <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">Daily</div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time (UTC)</label>
+                  <input type="time" value={recurrenceTime} onChange={e => setRecurrenceTime(e.target.value)}
+                    className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  <p className="mt-1 text-xs text-ink-soft">A dispatcher checks every 15 minutes, so the actual send lands within 15 minutes of this time.</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
+                  <select value={recurrenceSource} onChange={e => setRecurrenceSource(e.target.value as "" | "MORNING_BOOST")}
+                    className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30">
+                    <option value="MORNING_BOOST">Today's Morning Boost — subject and body generated automatically each day</option>
+                    <option value="">Static content — reuses the Subject/Body from Step 2 every time</option>
+                  </select>
+                  {recurrenceSource === "MORNING_BOOST" && (
+                    <p className="mt-1 text-xs text-ink-soft">
+                      The Subject and Body from Step 2 are ignored — each day's email is generated fresh from that day's published Morning Boost entry. If no new entry is published on a given day, or it's the same one already used last time, that day's send is skipped rather than repeating it.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Send time (optional)</label>
+                <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
+                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                <p className="mt-1 text-xs text-ink-soft">Leave blank to save as a draft and send manually from the campaign detail page.</p>
+              </div>
+            )}
+            {!isRecurring && scheduledAt && (
               <div className="mt-4 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
                 Scheduled for {new Date(scheduledAt).toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}
               </div>
@@ -566,7 +613,11 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                 </div>
                 <div className="flex gap-3">
                   <dt className="w-28 shrink-0 font-semibold text-ink">Schedule</dt>
-                  <dd className="text-ink-soft">{scheduledAt ? new Date(scheduledAt).toLocaleString() : "Manual send (save as draft)"}</dd>
+                  <dd className="text-ink-soft">
+                    {isRecurring
+                      ? `Daily at ${recurrenceTime} UTC${recurrenceSource === "MORNING_BOOST" ? " — Today's Morning Boost" : " — static content"}`
+                      : scheduledAt ? new Date(scheduledAt).toLocaleString() : "Manual send (save as draft)"}
+                  </dd>
                 </div>
               </dl>
             </div>
@@ -590,7 +641,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
           ) : (
             <button type="button" disabled={saving || !canAdvance()} onClick={handleSubmit}
               className="rounded-xl bg-navy px-5 py-2.5 text-sm font-bold text-white hover:bg-navy-dark disabled:opacity-60">
-              {saving ? "Saving…" : scheduledAt ? "Save and schedule" : "Save as draft"}
+              {saving ? "Saving…" : isRecurring ? "Save recurring campaign" : scheduledAt ? "Save and schedule" : "Save as draft"}
             </button>
           )}
 

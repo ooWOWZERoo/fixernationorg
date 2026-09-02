@@ -115,6 +115,55 @@ export async function forceCampaignOverdueScheduled(campaignId: string): Promise
   });
 }
 
+// Recurring-campaign test fixtures. The dispatch cron's "today" lookup has
+// no orderBy (matching the legacy runMorningBoost query it replaces), so a
+// test shouldn't assume which entry gets picked if real content also exists
+// for today — these helpers ensure at least one candidate exists and let
+// the test read back whatever the dispatcher actually used, rather than
+// predicting it.
+export async function createMorningBoostEntryToday(title: string, slug: string): Promise<{ id: string; title: string }> {
+  const row = await client().morningBoost.create({
+    data: { title, slug, body: `${title}\n\nQA e2e fixture body.`, publishedAt: new Date() },
+    select: { id: true, title: true },
+  });
+  return row;
+}
+
+export async function forceCampaignRecurrenceTimeNow(campaignId: string): Promise<string> {
+  const now = new Date();
+  const bucket = Math.floor((now.getUTCHours() * 60 + now.getUTCMinutes()) / 15) * 15;
+  const hh = String(Math.floor(bucket / 60)).padStart(2, "0");
+  const mm = String(bucket % 60).padStart(2, "0");
+  const recurrenceTime = `${hh}:${mm}`;
+  await client().campaign.update({ where: { id: campaignId }, data: { recurrenceTime } });
+  return recurrenceTime;
+}
+
+export async function forceCampaignLastMorningBoostId(campaignId: string, entryId: string): Promise<void> {
+  await client().campaign.update({ where: { id: campaignId }, data: { lastMorningBoostId: entryId } });
+}
+
+export async function getRecurrenceRun(templateId: string): Promise<{ outcome: string; childCampaignId: string | null } | null> {
+  const row = await client().recurrenceRun.findFirst({
+    where: { templateId },
+    orderBy: { createdAt: "desc" },
+    select: { outcome: true, childCampaignId: true },
+  });
+  return row ?? null;
+}
+
+export async function countChildCampaigns(templateId: string): Promise<number> {
+  return client().campaign.count({ where: { parentCampaignId: templateId } });
+}
+
+export async function getCampaignById(id: string): Promise<{ subject: string; status: string; lastMorningBoostId: string | null } | null> {
+  const row = await client().campaign.findUnique({
+    where: { id },
+    select: { subject: true, status: true, lastMorningBoostId: true },
+  });
+  return row ?? null;
+}
+
 // Directly inserts an EmailFailure row rather than triggering a real send
 // failure — the admin dashboard's warning banner should be tested against
 // its own detection/rendering logic, not against whatever the live SMTP

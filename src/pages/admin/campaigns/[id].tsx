@@ -66,6 +66,11 @@ interface Props {
     createdAt: string;
     isAbTest: boolean;
     isAmbassadorMaterial: boolean;
+    isRecurring: boolean;
+    parentCampaignId: string | null;
+    recurrenceTime: string | null;
+    recurrenceSource: string | null;
+    recurrenceActive: boolean;
   };
   metric: MetricData | null;
   variants: VariantRow[];
@@ -73,6 +78,7 @@ interface Props {
   attributedCount: number;
   conversionCount: number;
   conversionRevenue: number;
+  occurrences: Array<{ id: string; name: string; subject: string; status: string; sentAt: string | null; sendCount: number }>;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -84,7 +90,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats, attributedCount, conversionCount, conversionRevenue }) => {
+const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial, metric: initialMetric, variants: initialVariants, variantStats: initialVariantStats, attributedCount, conversionCount, conversionRevenue, occurrences }) => {
   const router = useRouter();
   const [campaign, setCampaign] = useState(initial);
   const [metric, setMetric] = useState(initialMetric);
@@ -94,6 +100,50 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const [error, setError] = useState<string | null>(null);
 
   const [materialToggling, setMaterialToggling] = useState(false);
+
+  // ── Recurring template view state ──
+  const [recurrenceActive, setRecurrenceActive] = useState(initial.recurrenceActive ?? true);
+  const [recurrenceTimeInput, setRecurrenceTimeInput] = useState(initial.recurrenceTime ?? "07:00");
+  const [savingRecurrence, setSavingRecurrence] = useState(false);
+  const [pauseToggling, setPauseToggling] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewResult, setPreviewResult] = useState<{ willSend: boolean; reason?: string; subject?: string; html?: string } | null>(null);
+
+  async function togglePause() {
+    setPauseToggling(true);
+    const next = !recurrenceActive;
+    const res = await fetch(`/api/admin/campaigns/${campaign.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recurrenceActive: next }),
+    });
+    if (res.ok) setRecurrenceActive(next);
+    setPauseToggling(false);
+  }
+
+  async function saveRecurrenceTime() {
+    setSavingRecurrence(true);
+    await fetch(`/api/admin/campaigns/${campaign.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recurrenceTime: recurrenceTimeInput }),
+    });
+    setSavingRecurrence(false);
+  }
+
+  async function previewNextSend() {
+    setPreviewLoading(true);
+    setPreviewResult(null);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaign.id}/preview-occurrence`);
+      const data = await res.json();
+      setPreviewResult(data);
+    } catch {
+      setPreviewResult({ willSend: false, reason: "Preview failed to load" });
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   async function toggleAmbassadorMaterial() {
     setMaterialToggling(true);
@@ -215,6 +265,131 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const controlSplitPct = Math.max(0, 100 - variants.reduce((s, v) => s + v.splitPct, 0));
 
   const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  // Recurring templates never themselves get sent/tracked (occurrences
+  // handle that, and render via the normal path below unchanged since
+  // they're just regular Campaign rows with parentCampaignId set) — show a
+  // dedicated config + history view instead of the full send/stats page.
+  if (campaign.isRecurring && !campaign.parentCampaignId) {
+    return (
+      <>
+        <Head><title>{campaign.name} — Campaigns Admin</title></Head>
+        <div className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
+          <a href="/admin/campaigns" className="text-navy hover:underline">Campaigns</a>
+          <span>/</span>
+          <span>{campaign.name}</span>
+        </div>
+
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-navy">{campaign.name}</h1>
+            <p className="mt-1 text-sm text-ink-soft">Recurring campaign — fires daily and creates a fresh occurrence each time.</p>
+          </div>
+          <button onClick={deleteCampaign} className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50">
+            Delete template
+          </button>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-navy/8 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-ink-soft">Recurrence</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Frequency</label>
+              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">Daily</div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time (UTC)</label>
+              <div className="flex gap-2">
+                <input type="time" value={recurrenceTimeInput} onChange={(e) => setRecurrenceTimeInput(e.target.value)}
+                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                <button onClick={saveRecurrenceTime} disabled={savingRecurrence || recurrenceTimeInput === (campaign.recurrenceTime ?? "")}
+                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-semibold text-navy hover:bg-cream-panel disabled:opacity-40">
+                  {savingRecurrence ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
+              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">
+                {campaign.recurrenceSource === "MORNING_BOOST" ? "Today's Morning Boost" : "Static content"}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Status</label>
+              <button onClick={togglePause} disabled={pauseToggling}
+                className={[
+                  "rounded-full px-4 py-2 text-sm font-bold transition-colors disabled:opacity-40",
+                  recurrenceActive ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                ].join(" ")}>
+                {pauseToggling ? "…" : recurrenceActive ? "Active — click to pause" : "Paused — click to resume"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-navy/8 bg-white p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-ink-soft">Preview next send</h2>
+            <button onClick={previewNextSend} disabled={previewLoading}
+              className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-semibold text-navy hover:bg-cream-panel disabled:opacity-40">
+              {previewLoading ? "Loading…" : "Preview next send"}
+            </button>
+          </div>
+          {previewResult && (
+            previewResult.willSend ? (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                <p className="text-sm font-semibold text-green-800">Subject: {previewResult.subject}</p>
+                {previewResult.html && (
+                  <iframe title="Preview" srcDoc={previewResult.html} className="mt-3 h-96 w-full rounded-lg border border-navy/10 bg-white" />
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-soft">Won't send yet — {previewResult.reason}</p>
+            )
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-navy/8 bg-white">
+          <div className="border-b border-navy/8 px-6 py-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-ink-soft">Occurrence history ({occurrences.length})</h2>
+          </div>
+          {occurrences.length === 0 ? (
+            <p className="p-6 text-sm text-ink-soft">No occurrences yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
+                    <th className="px-5 py-3">Occurrence</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Sends</th>
+                    <th className="px-5 py-3">Sent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occurrences.map((o) => (
+                    <tr key={o.id} className="border-b border-navy/5 hover:bg-cream-panel/40">
+                      <td className="px-5 py-3">
+                        <a href={`/admin/campaigns/${o.id}`} className="font-semibold text-navy hover:underline">{o.name}</a>
+                        <div className="text-xs text-ink-soft">{o.subject}</div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLORS[o.status] ?? "bg-navy/8 text-navy"}`}>
+                          {o.status.toLowerCase()}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-ink-soft">{o.sendCount}</td>
+                      <td className="px-5 py-3 text-ink-soft">{o.sentAt ? new Date(o.sentAt).toLocaleString() : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -799,6 +974,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ].filter((s) => s.sent > 0)
     : [];
 
+  const occurrenceRows = campaign.isRecurring && !campaign.parentCampaignId
+    ? await db.campaign.findMany({
+        where: { parentCampaignId: id },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: { _count: { select: { sends: true } } },
+      })
+    : [];
+
   return {
     props: {
       campaign: {
@@ -823,6 +1007,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         createdAt: campaign.createdAt.toISOString(),
         isAbTest,
         isAmbassadorMaterial: (campaign as unknown as { isAmbassadorMaterial: boolean }).isAmbassadorMaterial ?? false,
+        isRecurring: campaign.isRecurring,
+        parentCampaignId: campaign.parentCampaignId,
+        recurrenceTime: campaign.recurrenceTime,
+        recurrenceSource: campaign.recurrenceSource,
+        recurrenceActive: campaign.recurrenceActive,
       },
       variants: variantRows.map((v) => ({
         id: v.id, name: v.name, subject: v.subject, fromName: v.fromName, fromEmail: v.fromEmail,
@@ -832,6 +1021,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       attributedCount,
       conversionCount,
       conversionRevenue,
+      occurrences: occurrenceRows.map((o) => ({
+        id: o.id,
+        name: o.name,
+        subject: o.subject,
+        status: o.status,
+        sentAt: o.sentAt?.toISOString() ?? null,
+        sendCount: o._count.sends,
+      })),
       metric: m ? {
         totalSent: m.totalSent,
         totalDelivered: m.totalDelivered,

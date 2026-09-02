@@ -22,6 +22,12 @@ interface CampaignRow {
   createdAt: string;
   needsAttention: boolean;
   attentionReason: string | null;
+  isRecurring: boolean;
+  parentCampaignId: string | null;
+  recurrenceTime: string | null;
+  recurrenceSource: string | null;
+  recurrenceActive: boolean;
+  occurrenceCount: number;
 }
 
 interface Stats {
@@ -43,9 +49,10 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-type HealthGroup = "attention" | "sending" | "scheduled" | "sent" | "draft" | "paused_cancelled";
+type HealthGroup = "recurring_template" | "attention" | "sending" | "scheduled" | "sent" | "draft" | "paused_cancelled";
 
 function classify(c: CampaignRow): HealthGroup {
+  if (c.isRecurring && !c.parentCampaignId) return "recurring_template";
   if (c.needsAttention) return "attention";
   if (c.status === "SENDING") return "sending";
   if (c.status === "SCHEDULED") return "scheduled";
@@ -93,6 +100,11 @@ function CampaignTable({ campaigns }: { campaigns: CampaignRow[] }) {
                     {c.name}
                   </Link>
                   <div className="text-xs text-ink-soft">{c.subject}</div>
+                  {c.parentCampaignId && (
+                    <Link href={`/admin/campaigns/${c.parentCampaignId}`} className="text-xs text-ink-soft/70 hover:underline">
+                      🔁 recurring occurrence
+                    </Link>
+                  )}
                 </td>
                 <td className="px-5 py-3">
                   <StatusCell c={c} />
@@ -138,11 +150,26 @@ const GROUP_ORDER: { key: HealthGroup; label: string }[] = [
 
 const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => {
   const [showPausedCancelled, setShowPausedCancelled] = useState(false);
+  const [templates, setTemplates] = useState<CampaignRow[]>(() => campaigns.filter((c) => c.isRecurring && !c.parentCampaignId));
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const grouped: Record<HealthGroup, CampaignRow[]> = {
-    attention: [], sending: [], scheduled: [], sent: [], draft: [], paused_cancelled: [],
+    recurring_template: [], attention: [], sending: [], scheduled: [], sent: [], draft: [], paused_cancelled: [],
   };
   for (const c of campaigns) grouped[classify(c)].push(c);
+
+  async function togglePause(t: CampaignRow) {
+    setTogglingId(t.id);
+    const res = await fetch(`/api/admin/campaigns/${t.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recurrenceActive: !t.recurrenceActive }),
+    });
+    if (res.ok) {
+      setTemplates((prev) => prev.map((x) => (x.id === t.id ? { ...x, recurrenceActive: !x.recurrenceActive } : x)));
+    }
+    setTogglingId(null);
+  }
 
   return (
     <>
@@ -158,7 +185,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
       {stats.totalCampaigns > 0 && (
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            { label: "Total campaigns", value: stats.totalCampaigns },
+            { label: "Campaigns (90d)", value: stats.totalCampaigns },
             { label: "Sent", value: stats.sentCampaigns },
             { label: "Emails sent", value: stats.totalSent.toLocaleString() },
             { label: "Avg open rate", value: stats.avgOpenRate != null ? `${Math.round(stats.avgOpenRate * 100)}%` : "—" },
@@ -176,6 +203,57 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
             <p className={`mt-1 text-2xl font-extrabold ${grouped.attention.length > 0 ? "text-red-700" : "text-navy"}`}>
               {grouped.attention.length}
             </p>
+          </div>
+        </div>
+      )}
+
+      {templates.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-soft">
+            Recurring campaigns <span className="font-normal text-ink-soft/60">({templates.length})</span>
+          </h2>
+          <div className="rounded-2xl border border-navy/8 bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
+                    <th className="px-5 py-3">Campaign</th>
+                    <th className="px-5 py-3">Time (UTC)</th>
+                    <th className="px-5 py-3">Source</th>
+                    <th className="px-5 py-3">Occurrences</th>
+                    <th className="px-5 py-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr key={t.id} className="border-b border-navy/5 hover:bg-cream-panel/40">
+                      <td className="px-5 py-3">
+                        <Link href={`/admin/campaigns/${t.id}`} className="font-semibold text-navy hover:underline">
+                          {t.name}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3 text-ink-soft">Daily at {t.recurrenceTime}</td>
+                      <td className="px-5 py-3 text-ink-soft">{t.recurrenceSource === "MORNING_BOOST" ? "Today's Morning Boost" : "Static content"}</td>
+                      <td className="px-5 py-3 text-ink-soft">{t.occurrenceCount}</td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => togglePause(t)}
+                          disabled={togglingId === t.id}
+                          className={[
+                            "rounded-full px-3 py-1 text-xs font-bold transition-colors disabled:opacity-40",
+                            t.recurrenceActive
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                          ].join(" ")}
+                        >
+                          {togglingId === t.id ? "…" : t.recurrenceActive ? "Active" : "Paused"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -224,12 +302,26 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return { redirect: { destination: "/", permanent: false } };
   }
 
+  // A daily recurring template adds 365+ occurrence rows a year — bound the
+  // main query to recent activity rather than loading every campaign ever
+  // created. Templates themselves are always included regardless of age
+  // (there will only ever be a handful); older occurrences are reachable
+  // from their template's own detail page, not this list.
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
   const [campaigns, metricsAgg] = await Promise.all([
     db.campaign.findMany({
+      where: {
+        OR: [
+          { createdAt: { gte: ninetyDaysAgo } },
+          { isRecurring: true, parentCampaignId: null },
+        ],
+      },
       orderBy: { createdAt: "desc" },
+      take: 200,
       include: {
         list: { select: { name: true } },
-        _count: { select: { sends: true } },
+        _count: { select: { sends: true, occurrences: true } },
         metric: { select: { openRate: true, bounceRate: true } },
       },
     }),
@@ -277,6 +369,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           createdAt: c.createdAt.toISOString(),
           needsAttention,
           attentionReason,
+          isRecurring: c.isRecurring,
+          parentCampaignId: c.parentCampaignId,
+          recurrenceTime: c.recurrenceTime,
+          recurrenceSource: c.recurrenceSource,
+          recurrenceActive: c.recurrenceActive,
+          occurrenceCount: c._count.occurrences,
         };
       }),
       stats: {
