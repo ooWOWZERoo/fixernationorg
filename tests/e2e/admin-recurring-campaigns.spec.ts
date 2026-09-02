@@ -23,22 +23,38 @@ async function dispatch(page: Page) {
   expect(res.ok()).toBeTruthy();
 }
 
-async function createTemplateViaApi(name: string, recurrenceSource: "MORNING_BOOST" | undefined) {
-  return async (page: Page) => {
-    const res = await page.request.post("/api/admin/campaigns", {
-      data: {
-        name,
-        subject: "placeholder subject (ignored for Morning Boost source)",
-        htmlBody: "<p>placeholder body</p>",
-        isRecurring: true,
-        recurrenceFrequency: "DAILY",
-        recurrenceTime: "07:00",
-        recurrenceSource,
-      },
-    });
-    expect(res.ok()).toBeTruthy();
-    return (await res.json()).id as string;
-  };
+async function createContactWithTag(page: Page, email: string, lastName: string, tag: string) {
+  await page.goto("/admin/contacts/new");
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="text"]').nth(0).fill("QA");
+  await page.locator('input[type="text"]').nth(1).fill(lastName);
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
+  await page.getByPlaceholder("Add tag…").fill(tag);
+  await page.getByRole("button", { name: "Add tag" }).click();
+  await expect(page.getByText(tag).first()).toBeVisible();
+}
+
+async function createTemplateViaApi(
+  page: Page,
+  name: string,
+  recurrenceSource: "MORNING_BOOST" | undefined,
+  audienceTag: string
+): Promise<string> {
+  const res = await page.request.post("/api/admin/campaigns", {
+    data: {
+      name,
+      subject: "placeholder subject (ignored for Morning Boost source)",
+      htmlBody: "<p>placeholder body</p>",
+      audienceRules: { logic: "OR", include: [{ type: "tag", tag: audienceTag }], exclude: [] },
+      isRecurring: true,
+      recurrenceFrequency: "DAILY",
+      recurrenceTime: "07:00",
+      recurrenceSource,
+    },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()).id as string;
 }
 
 test("wizard creates a recurring campaign and its config persists", async ({ page }) => {
@@ -77,7 +93,9 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
 
   await createMorningBoostEntryToday(`QA e2e boost ${STAMP}`, `qa-e2e-boost-${STAMP}`);
 
-  const templateId = await (await createTemplateViaApi(`QA e2e dispatch template ${STAMP}`, "MORNING_BOOST"))(page);
+  const tag = `qa-recurring-dispatch-${STAMP}`;
+  await createContactWithTag(page, `qa-recurring-dispatch-${STAMP}@example.com`, `RecurringDispatch${STAMP}`, tag);
+  const templateId = await createTemplateViaApi(page, `QA e2e dispatch template ${STAMP}`, "MORNING_BOOST", tag);
 
   await dispatch(page);
 
@@ -110,7 +128,9 @@ test("duplicate-content guard skips a template whose lastMorningBoostId already 
 
   const entry = await createMorningBoostEntryToday(`QA e2e boost dup ${STAMP}`, `qa-e2e-boost-dup-${STAMP}`);
 
-  const templateId = await (await createTemplateViaApi(`QA e2e duplicate-guard template ${STAMP}`, "MORNING_BOOST"))(page);
+  const tag = `qa-recurring-dupguard-${STAMP}`;
+  await createContactWithTag(page, `qa-recurring-dupguard-${STAMP}@example.com`, `RecurringDupGuard${STAMP}`, tag);
+  const templateId = await createTemplateViaApi(page, `QA e2e duplicate-guard template ${STAMP}`, "MORNING_BOOST", tag);
   await forceCampaignLastMorningBoostId(templateId, entry.id);
 
   await dispatch(page);
