@@ -116,7 +116,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
       });
       if (res.ok) {
         const data = await res.json();
-        setAudiencePreview({ count: data.count ?? 0 });
+        setAudiencePreview({ count: data.totalIncluded ?? 0 });
       }
     } catch { /* silent */ }
     setPreviewingAudience(false);
