@@ -115,6 +115,15 @@ export async function forceCampaignOverdueScheduled(campaignId: string): Promise
   });
 }
 
+// Directly inserts an EmailFailure row rather than triggering a real send
+// failure — the admin dashboard's warning banner should be tested against
+// its own detection/rendering logic, not against whatever the live SMTP
+// provider's current health happens to be (which is exactly the kind of
+// thing that's broken right now, but won't always be).
+export async function createEmailFailure(to: string, subject: string, errorMessage: string): Promise<void> {
+  await client().emailFailure.create({ data: { to, subject, errorMessage } });
+}
+
 export async function getLatestContactMergeHistory(
   survivorId: string
 ): Promise<{ absorbedId: string; absorbedEmail: string } | null> {
