@@ -1848,6 +1848,24 @@ model RateLimitEntry {
   @@index([windowStart])
 }
 
+// ─── Email delivery health ────────────────────────────────────────────────────
+// Every failed sendMail() attempt lands here (recorded centrally in
+// src/lib/email.ts so every caller — password reset, verify-email, Morning
+// Boost, campaigns, admin notifications — is covered without each needing
+// its own tracking). Surfaced as an admin dashboard warning; not a general
+// audit log, so no success rows and no dedicated cleanup job — failures are
+// rare enough that this table stays small on its own.
+model EmailFailure {
+  id           String   @id @default(cuid())
+  to           String
+  subject      String
+  errorCode    String?
+  errorMessage String   @db.Text
+  occurredAt   DateTime @default(now())
+
+  @@index([occurredAt])
+}
+
 // ─── SP-41: Provider Campaign Creation ───────────────────────────────────────
 
 enum ProviderCampaignStatus {

@@ -55,12 +55,18 @@ interface ActivationSummary {
   totalActiveAffiliates: number;
 }
 
+interface EmailHealth {
+  failureCount24h: number;
+  lastFailure: { to: string; errorMessage: string; occurredAt: string } | null;
+}
+
 interface Props {
   stats: Stats;
   recentUsers: RecentUser[];
   funnel: AppFunnel;
   conversion: ConversionMetrics;
   activation: ActivationSummary;
+  emailHealth: EmailHealth;
 }
 
 const QUICK_ACTIONS = [
@@ -86,6 +92,7 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
   funnel,
   conversion,
   activation,
+  emailHealth,
 }) => {
   const statCards = [
     { label: "Total Users", value: stats.totalUsers },
@@ -123,6 +130,30 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">Fixer Nation overview.</p>
       </div>
+
+      {emailHealth.failureCount24h > 0 && (
+        <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
+            <div>
+              <p className="text-sm font-bold text-red-800">
+                Outgoing email is failing — {emailHealth.failureCount24h} failed send
+                {emailHealth.failureCount24h !== 1 ? "s" : ""} in the last 24 hours
+              </p>
+              <p className="mt-1 text-sm text-red-700">
+                Password resets, verification emails, Morning Boost, and campaigns may not be
+                reaching recipients right now.
+              </p>
+              {emailHealth.lastFailure && (
+                <p className="mt-2 text-xs text-red-600">
+                  Most recent: <span className="font-mono">{emailHealth.lastFailure.errorMessage}</span>
+                  {" "}(to {emailHealth.lastFailure.to}, {new Date(emailHealth.lastFailure.occurredAt).toLocaleString()})
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
@@ -349,6 +380,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       providerAffiliates,
       ambassadorAffiliates,
       ambassadorsWithTerritory,
+      failureCount24h,
+      lastFailure,
     ] = await Promise.all([
       db.user.count(),
       db.user.count({ where: { role: { in: PAID_ROLES } } }),
@@ -390,6 +423,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           status: "ACTIVE",
           territoryAssignments: { some: { status: "ACTIVE" } },
         },
+      }),
+      db.emailFailure.count({ where: { occurredAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } } }),
+      db.emailFailure.findFirst({
+        orderBy: { occurredAt: "desc" },
+        select: { to: true, errorMessage: true, occurredAt: true },
       }),
     ]);
 
@@ -445,6 +483,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           ambassadorsWithTerritory,
           totalActiveAffiliates: activeAffiliates,
         },
+        emailHealth: {
+          failureCount24h,
+          lastFailure: lastFailure ? JSON.parse(JSON.stringify(lastFailure)) : null,
+        },
       },
     };
   } catch (e) {
@@ -461,6 +503,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         funnel: emptyFunnel,
         conversion: { totalSubmitted: 0, totalAccepted: 0, totalPaid: 0, totalActive: 0, avgDaysToReview: null },
         activation: { activeProviders: 0, activeAmbassadors: 0, providersWithAffiliate: 0, ambassadorsWithAffiliate: 0, ambassadorsWithTerritory: 0, totalActiveAffiliates: 0 },
+        emailHealth: { failureCount24h: 0, lastFailure: null },
       },
     };
   }

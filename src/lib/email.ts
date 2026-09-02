@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { db } from "@/lib/db";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST ?? "localhost",
@@ -30,7 +31,29 @@ export async function sendEmail({
     console.warn("[email] SMTP_USER not set — skipping send to", to);
     return;
   }
-  await transporter.sendMail({ from: from ?? FROM, to, subject, html, text });
+  try {
+    await transporter.sendMail({ from: from ?? FROM, to, subject, html, text });
+  } catch (err) {
+    // Recorded centrally here — every caller (password reset, verify-email,
+    // Morning Boost, campaigns, admin notifications) goes through this one
+    // function, so this is the one place that catches all of them without
+    // each call site needing its own tracking. Best-effort: a DB hiccup
+    // while recording the failure must never mask the original send error.
+    const code = (err as { code?: string; responseCode?: number })?.code
+      ?? (err as { responseCode?: number })?.responseCode?.toString()
+      ?? null;
+    await db.emailFailure
+      .create({
+        data: {
+          to,
+          subject,
+          errorCode: code,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        },
+      })
+      .catch((dbErr) => console.error("[email] Failed to record email failure:", dbErr));
+    throw err;
+  }
 }
 
 export async function sendVerificationEmail(to: string, token: string) {
