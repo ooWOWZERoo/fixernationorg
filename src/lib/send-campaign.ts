@@ -43,6 +43,95 @@ type PushDb = {
   };
 };
 
+type EmailContent = { subject: string; fromName: string; fromEmail: string; htmlBody: string | null; textBody: string | null };
+
+// A single serverless invocation can't reliably finish sending a
+// large-audience campaign (thousands of contacts, ~20 at a time) before the
+// platform's execution time limit kills it — leaving the campaign stuck in
+// SENDING with only a partial, unknown fraction actually reached. This time
+// budget bounds each invocation's work; if QUEUED sends remain when the
+// budget runs out, triggerContinuation() fires a fresh invocation to pick up
+// where this one left off, chaining until the audience is exhausted.
+const TIME_BUDGET_MS = 45_000;
+const BATCH = 20;
+
+// Marking a failed send as BOUNCED (not leaving it QUEUED) matters more than
+// it looks: the continuation loop below re-queries "status: QUEUED" every
+// pass, so a row that stays QUEUED after a permanent failure (bad address,
+// etc.) would be retried forever and block progress on every contact behind
+// it in the same chain.
+async function sendQueuedEmailBatches(
+  campaignId: string,
+  fallbackContent: EmailContent,
+  variantById: Map<string, EmailContent>,
+  deadline: number,
+): Promise<{ done: boolean; sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
+
+  while (Date.now() < deadline) {
+    const queued = await db.campaignSend.findMany({
+      where: { campaignId, status: "QUEUED" },
+      take: BATCH,
+      include: { contact: { select: { email: true, firstName: true } } },
+    });
+    if (queued.length === 0) return { done: true, sent, failed };
+
+    await Promise.allSettled(
+      queued.map(async (row) => {
+        try {
+          const content = row.variantId ? (variantById.get(row.variantId) ?? fallbackContent) : fallbackContent;
+          const { subject, html, text } = buildCampaignEmail(content, row.contactId, row.contact.firstName, row.id);
+          await sendEmail({ to: row.contact.email, subject, html, text });
+          await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
+          sent++;
+        } catch {
+          await db.campaignSend.update({ where: { id: row.id }, data: { status: "BOUNCED", bouncedAt: new Date() } }).catch(() => {});
+          failed++;
+        }
+      })
+    );
+  }
+  return { done: false, sent, failed };
+}
+
+// Fire-and-forget: intentionally not awaited, so the current invocation can
+// return (and free its own execution-time budget) while the next hop starts
+// almost immediately rather than waiting for the next cron tick.
+function triggerContinuation(campaignId: string) {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
+  const url = `${base}/api/cron?job=campaign-send-continue&campaignId=${campaignId}&token=${encodeURIComponent(process.env.CRON_SECRET ?? "")}`;
+  fetch(url).catch((err) => console.error("[send-campaign] continuation trigger failed:", err));
+}
+
+// Called only from the campaign-send-continue cron job — deliberately
+// bypasses sendCampaignNow's already_sent guard, since re-entering a
+// campaign that's already SENDING is exactly the point of a continuation
+// (as opposed to an external duplicate "Send now" trigger, which that guard
+// still correctly blocks).
+export async function continueCampaignSend(campaignId: string): Promise<{ done: boolean; sent: number; failed: number }> {
+  const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
+  if (!campaign || campaign.status !== "SENDING") return { done: true, sent: 0, failed: 0 };
+
+  const variantById = new Map<string, EmailContent>();
+  if (campaign.isAbTest) {
+    const varDb = db as never as VarDb;
+    const variants = await varDb.campaignVariant.findMany({ where: { campaignId } as never });
+    for (const v of variants) variantById.set(v.id, v);
+  }
+
+  const deadline = Date.now() + TIME_BUDGET_MS;
+  const result = await sendQueuedEmailBatches(campaignId, campaign, variantById, deadline);
+
+  if (result.done) {
+    await db.campaign.update({ where: { id: campaignId }, data: { status: "SENT", sentAt: new Date() } });
+    computeCampaignMetric(campaignId).catch(() => {});
+  } else {
+    triggerContinuation(campaignId);
+  }
+  return result;
+}
+
 export async function computeCampaignMetric(campaignId: string) {
   const rows = await db.campaignSend.groupBy({
     by: ["status"],
@@ -86,6 +175,7 @@ export type SendCampaignResult =
   | { status: "no_recipients" }
   | { status: "no_push_subscriptions" }
   | { status: "ab_test_misconfigured"; error: string }
+  | { status: "sending_in_progress"; sent: number; failed: number }
   | { status: "sent"; sent: number; failed: number };
 
 // Re-validates guards internally rather than assuming a caller pre-checked —
@@ -206,7 +296,6 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
 
   await db.campaign.update({ where: { id }, data: { status: "SENDING" } });
 
-  const BATCH = 20;
   let sent = 0;
   let failed = 0;
   const now = new Date();
@@ -323,33 +412,14 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
       } as never);
     }
 
-    const sendRows = await abDb.campaignSend.findMany({
-      where: { campaignId: id, status: "QUEUED" } as never,
-      select: { id: true, contactId: true, variantId: true } as never,
-    });
-    const sendInfoByContact = Object.fromEntries(
-      sendRows.map((r) => [r.contactId, { sendId: r.id, variantId: r.variantId }])
-    );
-
-    for (const group of groups) {
-      for (let i = 0; i < group.contacts.length; i += BATCH) {
-        const batch = group.contacts.slice(i, i + BATCH);
-        await Promise.allSettled(
-          batch.map(async (c) => {
-            try {
-              const info = sendInfoByContact[c.id];
-              if (!info) return;
-              const { subject, html, text } = buildCampaignEmail(group.content, c.id, c.firstName, info.sendId);
-              await sendEmail({ to: c.email, subject, html, text });
-              await abDb.campaignSend.update({
-                where: { campaignId_contactId: { campaignId: id, contactId: c.id } } as never,
-                data: { status: "SENT", sentAt: now } as never,
-              } as never);
-              sent++;
-            } catch { failed++; }
-          })
-        );
-      }
+    const variantById = new Map<string, EmailContent>(variants.map((v) => [v.id, v]));
+    const deadline = Date.now() + TIME_BUDGET_MS;
+    const result = await sendQueuedEmailBatches(id, campaign, variantById, deadline);
+    sent = result.sent;
+    failed = result.failed;
+    if (!result.done) {
+      triggerContinuation(id);
+      return { status: "sending_in_progress", sent, failed };
     }
   } else {
     // ── Standard (non-A/B) send ──────────────────────────────────────────
@@ -357,28 +427,14 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
       data: eligibleContacts.map((c) => ({ campaignId: id, contactId: c.id })),
       skipDuplicates: true,
     });
-    const sendRows = await db.campaignSend.findMany({
-      where: { campaignId: id, status: "QUEUED" },
-      select: { id: true, contactId: true },
-    });
-    const sendIdByContact = Object.fromEntries(sendRows.map((r) => [r.contactId, r.id]));
 
-    for (let i = 0; i < eligibleContacts.length; i += BATCH) {
-      const batch = eligibleContacts.slice(i, i + BATCH);
-      await Promise.allSettled(
-        batch.map(async (c) => {
-          try {
-            const sendId = sendIdByContact[c.id];
-            const { subject, html, text } = buildCampaignEmail(campaign, c.id, c.firstName, sendId);
-            await sendEmail({ to: c.email, subject, html, text });
-            await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: id, contactId: c.id } },
-              data: { status: "SENT", sentAt: now },
-            });
-            sent++;
-          } catch { failed++; }
-        })
-      );
+    const deadline = Date.now() + TIME_BUDGET_MS;
+    const result = await sendQueuedEmailBatches(id, campaign, new Map<string, EmailContent>(), deadline);
+    sent = result.sent;
+    failed = result.failed;
+    if (!result.done) {
+      triggerContinuation(id);
+      return { status: "sending_in_progress", sent, failed };
     }
   }
 

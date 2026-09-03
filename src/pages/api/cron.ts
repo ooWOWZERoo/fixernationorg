@@ -8,7 +8,13 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
-import { sendCampaignNow } from "@/lib/send-campaign";
+import { sendCampaignNow, continueCampaignSend } from "@/lib/send-campaign";
+
+// Vercel Hobby's default execution limit (~10s) isn't enough to send a
+// large-audience campaign in one invocation; this raises the ceiling so
+// each hop of the self-continuing send chain (see send-campaign.ts) can get
+// through more of the audience before it has to hand off to the next hop.
+export const config = { maxDuration: 60 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
@@ -488,6 +494,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!jobKey) {
     return res.status(400).json({ error: "Missing ?job= parameter" });
+  }
+
+  // Not a scheduled cron entry — a self-triggered hop in the chunked send
+  // chain (see triggerContinuation in send-campaign.ts). It rides on this
+  // route's existing token auth but deliberately skips the generic
+  // once-a-day CronJob lock below: that lock is keyed by jobKey, and a
+  // single "campaign-send-continue" key would incorrectly serialize hops
+  // for two different campaigns sending at once. The per-campaign guard
+  // (campaign.status === "SENDING") inside continueCampaignSend is what
+  // actually protects this one.
+  if (jobKey === "campaign-send-continue") {
+    const campaignId = req.query.campaignId as string | undefined;
+    if (!campaignId) return res.status(400).json({ error: "Missing campaignId" });
+    const result = await continueCampaignSend(campaignId);
+    return res.status(200).json({ ok: true, job: jobKey, campaignId, ...result });
   }
 
   const jobHandler = JOBS[jobKey];

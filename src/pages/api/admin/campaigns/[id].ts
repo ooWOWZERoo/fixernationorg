@@ -145,6 +145,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: result.error });
       case "not_found":
         return res.status(404).json({ error: "Campaign not found" });
+      case "sending_in_progress":
+        return res.status(200).json({
+          message: `Send in progress — ${result.sent} sent so far${result.failed > 0 ? ` (${result.failed} failed)` : ""}, continuing in the background`,
+          sent: result.sent,
+          failed: result.failed,
+        });
       case "sent":
         return res.status(200).json({
           message: `Sent to ${result.sent} contacts${result.failed > 0 ? ` (${result.failed} failed)` : ""}`,
