@@ -52,7 +52,7 @@ type EmailContent = { subject: string; fromName: string; fromEmail: string; html
 // budget bounds each invocation's work; if QUEUED sends remain when the
 // budget runs out, triggerContinuation() fires a fresh invocation to pick up
 // where this one left off, chaining until the audience is exhausted.
-const TIME_BUDGET_MS = 45_000;
+const TIME_BUDGET_MS = Number(process.env.SEND_TIME_BUDGET_MS ?? 45_000);
 const BATCH = 20;
 
 // Marking a failed send as BOUNCED (not leaving it QUEUED) matters more than
