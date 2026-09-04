@@ -19,10 +19,6 @@
     {
       "path": "/api/cron?job=expired-token-cleanup",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron?job=campaign-send-hourly-resume",
-      "schedule": "5 * * * *"
     }
   ]
 }
