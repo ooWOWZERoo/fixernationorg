@@ -25,7 +25,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const where: Record<string, unknown> = {};
   if (status && typeof status === "string") {
-    where.status = status;
+    if (status === "RENEWING_SOON") {
+      const now = new Date();
+      const in30d = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      where.status = { in: ["ACTIVE", "TRIALING"] };
+      where.currentPeriodEnd = { gte: now, lte: in30d };
+    } else {
+      where.status = status;
+    }
   }
 
   const memberships = await membershipDb.userMembership.findMany({

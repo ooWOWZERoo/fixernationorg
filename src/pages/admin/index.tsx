@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
-import { UserRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+
+// SP-67 Stage 4 — UserMembership isn't known to the local Prisma client yet.
+type ActiveMembersDb = {
+  userMembership: {
+    count: (a: Record<string, unknown>) => Promise<number>;
+  };
+};
 
 interface Stats {
   totalUsers: number;
@@ -349,12 +355,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
-  const PAID_ROLES: UserRole[] = [
-    UserRole.MEMBER,
-    UserRole.AMBASSADOR,
-    UserRole.PROVIDER,
-  ];
-
   const ACCEPTED_STATUSES = [
     "ACCEPTED_ONBOARDING_REQUIRED",
     "ONBOARDING_IN_PROGRESS",
@@ -384,7 +384,12 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       lastFailure,
     ] = await Promise.all([
       db.user.count(),
-      db.user.count({ where: { role: { in: PAID_ROLES } } }),
+      // Active Members now reflects real UserMembership status (paid or gift),
+      // not User.role — a PAST_DUE/CANCELED subscriber with a stale role would
+      // otherwise still be counted as active.
+      (db as never as ActiveMembersDb).userMembership.count({
+        where: { status: { in: ["ACTIVE", "TRIALING"] } },
+      }),
       db.product.count({ where: { active: true } }),
       db.user.count({ where: { createdAt: { gte: weekAgo } } }),
       db.user.findMany({

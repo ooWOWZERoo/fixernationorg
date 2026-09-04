@@ -21,6 +21,38 @@ interface SendRow     { id: string; campaignName: string; status: string; sentAt
 interface ListOption  { id: string; name: string }
 interface ActivityRow { id: string; type: string; summary: string; occurredAt: string }
 interface AttributionRow { source: string; attributedAt: string; campaignId: string | null }
+interface MembershipInfo {
+  id: string;
+  status: string;
+  source: string;
+  planName: string;
+  priceAmount: number;
+  priceInterval: string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  trialEnd: string | null;
+  renewal30ReminderSentAt: string | null;
+  renewal7ReminderSentAt: string | null;
+  stripeSubscriptionId: string | null;
+}
+
+// Mirrors the badge styling in /admin/memberships/index.tsx for visual consistency.
+const MEMBERSHIP_STATUS_COLORS: Record<string, string> = {
+  ACTIVE: "bg-green-100 text-green-700",
+  TRIALING: "bg-amber-100 text-amber-700",
+  PAST_DUE: "bg-red-100 text-red-600",
+  CANCELED: "bg-slate-100 text-slate-500",
+  INCOMPLETE: "bg-orange-100 text-orange-600",
+};
+
+function fmtMoney(cents: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
+function fmtMembershipDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 const ATTR_COLORS: Record<string, string> = {
   ORGANIC: "bg-green-100 text-green-800",
@@ -136,11 +168,12 @@ interface Props {
   customFieldValues: CustomFieldVal[];
   activeSuppression: ActiveSuppression | null;
   identities: IdentityRow[];
+  membership: MembershipInfo | null;
 }
 
 const AdminContactDetailPage: NextPageWithLayout<Props> = ({
   contact: initial, allLists, customFieldDefs, customFieldValues: initialCfv, activeSuppression: initialSuppression,
-  identities: initialIdentities,
+  identities: initialIdentities, membership,
 }) => {
   const router = useRouter();
   const [contact, setContact] = useState(initial);
@@ -646,6 +679,61 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
           </div>
         )}
       </div>
+
+      {/* Membership */}
+      {contact.userId && (
+        <div className="mb-6 rounded-2xl border border-navy/8 bg-white p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-ink-soft">Membership</h2>
+            {membership && (
+              <Link href="/admin/memberships" className="text-xs font-semibold text-navy hover:underline">
+                View in Memberships →
+              </Link>
+            )}
+          </div>
+          {!membership ? (
+            <p className="text-sm text-ink-soft">No membership on file for this account.</p>
+          ) : (
+            <div className="space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-navy">{membership.planName}</span>
+                <span className="text-ink-soft">
+                  {fmtMoney(membership.priceAmount)} / {membership.priceInterval.toLowerCase()}
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${MEMBERSHIP_STATUS_COLORS[membership.status] ?? "bg-navy/8 text-navy"}`}>
+                  {membership.status.replace("_", " ")}
+                  {membership.cancelAtPeriodEnd ? " · cancels at period end" : ""}
+                </span>
+                <span className="rounded-full bg-navy/8 px-2 py-0.5 text-xs font-semibold text-navy">
+                  {membership.source === "GIFT_CODE" ? "Gift membership" : "Paid subscription"}
+                </span>
+              </div>
+              <p className="text-ink-soft">
+                {membership.status === "CANCELED" ? "Ended" : "Renews / expires"}: {fmtMembershipDate(membership.currentPeriodEnd)}
+              </p>
+              {membership.trialEnd && (
+                <p className="text-ink-soft">Trial ends: {fmtMembershipDate(membership.trialEnd)}</p>
+              )}
+              {membership.renewal30ReminderSentAt && (
+                <p className="text-xs text-ink-soft">30-day reminder sent {fmtMembershipDate(membership.renewal30ReminderSentAt)}</p>
+              )}
+              {membership.renewal7ReminderSentAt && (
+                <p className="text-xs text-ink-soft">7-day reminder sent {fmtMembershipDate(membership.renewal7ReminderSentAt)}</p>
+              )}
+              {membership.source === "STRIPE" && membership.stripeSubscriptionId && (
+                <a
+                  href={`https://dashboard.stripe.com/subscriptions/${membership.stripeSubscriptionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs font-mono text-blue-600 hover:underline"
+                >
+                  {membership.stripeSubscriptionId} ↗
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="mb-6 border-b border-navy/8">
@@ -1234,14 +1322,32 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       findMany: (a: unknown) => Promise<{ id: string; type: string; value: string; label: string | null; isPrimary: boolean; createdAt: Date }[]>;
     };
   };
+  // SP-67 Stage 4 — UserMembership isn't known to the local Prisma client yet.
+  type MembershipDb = {
+    userMembership: {
+      findUnique: (a: unknown) => Promise<{
+        id: string;
+        status: string;
+        source: string;
+        currentPeriodEnd: Date | null;
+        cancelAtPeriodEnd: boolean;
+        trialEnd: Date | null;
+        renewal30ReminderSentAt: Date | null;
+        renewal7ReminderSentAt: Date | null;
+        stripeSubscriptionId: string | null;
+        price: { amount: number; interval: string; product: { name: string } };
+      } | null>;
+    };
+  };
   const cfDb = db as never as CfDb;
   const supDb = db as never as SupDb;
   const idDb = db as never as IdDb;
+  const membershipDb = db as never as MembershipDb;
 
-  const contactRaw = await db.contact.findUnique({ where: { id }, select: { email: true } });
+  const contactRaw = await db.contact.findUnique({ where: { id }, select: { email: true, userId: true } });
   if (!contactRaw) return { notFound: true };
 
-  const [contact, allLists, cfDefs, cfVals, suppression, identitiesRaw] = await Promise.all([
+  const [contact, allLists, cfDefs, cfVals, suppression, identitiesRaw, membershipRaw] = await Promise.all([
     db.contact.findUnique({
       where: { id },
       include: {
@@ -1279,6 +1385,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       where: { contactId: id } as never,
       orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] as never,
     }),
+    // Skip the lookup entirely for the majority of CRM contacts who never
+    // created a platform account — there's nothing to find.
+    contactRaw.userId
+      ? membershipDb.userMembership.findUnique({
+          where: { userId: contactRaw.userId },
+          include: { price: { include: { product: { select: { name: true } } } } },
+        })
+      : Promise.resolve(null),
   ]);
 
   if (!contact) return { notFound: true };
@@ -1339,6 +1453,22 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         isPrimary: i.isPrimary,
         createdAt: i.createdAt.toISOString(),
       })),
+      membership: membershipRaw
+        ? {
+            id: membershipRaw.id,
+            status: membershipRaw.status,
+            source: membershipRaw.source,
+            planName: membershipRaw.price.product.name,
+            priceAmount: membershipRaw.price.amount,
+            priceInterval: membershipRaw.price.interval,
+            currentPeriodEnd: membershipRaw.currentPeriodEnd?.toISOString() ?? null,
+            cancelAtPeriodEnd: membershipRaw.cancelAtPeriodEnd,
+            trialEnd: membershipRaw.trialEnd?.toISOString() ?? null,
+            renewal30ReminderSentAt: membershipRaw.renewal30ReminderSentAt?.toISOString() ?? null,
+            renewal7ReminderSentAt: membershipRaw.renewal7ReminderSentAt?.toISOString() ?? null,
+            stripeSubscriptionId: membershipRaw.stripeSubscriptionId,
+          }
+        : null,
     },
   };
 };

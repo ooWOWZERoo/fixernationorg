@@ -53,7 +53,16 @@ const STATUS_TABS = [
   { value: "PAST_DUE", label: "Past due" },
   { value: "CANCELED", label: "Canceled" },
   { value: "INCOMPLETE", label: "Incomplete" },
+  { value: "RENEWING_SOON", label: "Renewing soon" },
 ];
+
+function isRenewingSoon(m: MembershipRow): boolean {
+  if (m.status !== "ACTIVE" && m.status !== "TRIALING") return false;
+  if (!m.currentPeriodEnd) return false;
+  const end = new Date(m.currentPeriodEnd).getTime();
+  const now = Date.now();
+  return end >= now && end <= now + 30 * 24 * 60 * 60 * 1000;
+}
 
 function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -67,9 +76,14 @@ function fmtDate(iso: string | null) {
 const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }) => {
   const [statusFilter, setStatusFilter] = useState("");
 
-  const filtered = statusFilter
-    ? memberships.filter((m) => m.status === statusFilter)
-    : memberships;
+  const renewingSoonCount = memberships.filter(isRenewingSoon).length;
+  const tabCounts: Record<string, number> = { ...counts, RENEWING_SOON: renewingSoonCount };
+
+  const filtered = statusFilter === "RENEWING_SOON"
+    ? memberships.filter(isRenewingSoon)
+    : statusFilter
+      ? memberships.filter((m) => m.status === statusFilter)
+      : memberships;
 
   const total = memberships.length;
 
@@ -127,7 +141,7 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            {tab.value ? `${tab.label} (${counts[tab.value] ?? 0})` : `All (${total})`}
+            {tab.value ? `${tab.label} (${tabCounts[tab.value] ?? 0})` : `All (${total})`}
           </button>
         ))}
       </div>

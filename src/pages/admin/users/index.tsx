@@ -1,10 +1,18 @@
 import { useState } from "react";
+import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+
+// SP-67 Stage 4 — UserMembership isn't known to the local Prisma client yet.
+type UsersMembershipDb = {
+  userMembership: {
+    findMany: (a: Record<string, unknown>) => Promise<{ userId: string }[]>;
+  };
+};
 
 const MEMBERSHIP_ROLES = ["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR"] as const;
 const ADMIN_ROLE_OPTIONS = ["NONE", "ADMIN", "SUPER_ADMIN"] as const;
@@ -42,6 +50,7 @@ interface UserRow {
   role: string;
   adminRole: string;
   createdAt: string;
+  hasMembership: boolean;
 }
 
 interface Props {
@@ -130,6 +139,15 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                             you
                           </span>
                         )}
+                        {user.hasMembership && (
+                          <Link
+                            href="/admin/memberships"
+                            title="View membership"
+                            className="rounded-full bg-navy/10 px-2 py-0.5 text-[10px] font-semibold text-navy hover:bg-navy/20"
+                          >
+                            Membership →
+                          </Link>
+                        )}
                       </div>
                     </td>
 
@@ -203,14 +221,20 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
-  const users = await db.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, email: true, role: true, adminRole: true, createdAt: true },
-  });
+  const [users, memberships] = await Promise.all([
+    db.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, email: true, role: true, adminRole: true, createdAt: true },
+    }),
+    (db as never as UsersMembershipDb).userMembership.findMany({ select: { userId: true } }),
+  ]);
+
+  const membershipUserIds = new Set(memberships.map((m) => m.userId));
+  const usersWithMembership = users.map((u) => ({ ...u, hasMembership: membershipUserIds.has(u.id) }));
 
   return {
     props: {
-      users: JSON.parse(JSON.stringify(users)),
+      users: JSON.parse(JSON.stringify(usersWithMembership)),
       myId: session.user.id,
       myAdminRole: session.user.adminRole,
     },
