@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAction, getClientIp } from "@/lib/audit";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const Schema = z.object({ password: z.string().min(8, "Password must be at least 8 characters") });
@@ -49,6 +50,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // (e.g. one generated earlier while email was down) can't later
   // overwrite the password an admin just deliberately set.
   await db.verificationToken.deleteMany({ where: { identifier: `reset:${target.email}` } }).catch(() => {});
+
+  // Deliberately no password value in the metadata — only that it happened.
+  await logAction({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "user.password_set_by_admin",
+    resource: "User",
+    resourceId: id,
+    metadata: { targetEmail: target.email },
+    ip: getClientIp(req),
+  });
 
   return res.status(200).json({ ok: true });
 }
