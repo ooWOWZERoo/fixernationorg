@@ -461,6 +461,105 @@ async function runExpiredTokenCleanup(): Promise<{ message: string }> {
   return { message: `Deleted ${result.count} expired verification token${result.count !== 1 ? "s" : ""}` };
 }
 
+// SP-67 Stage 1 — UserMembership.source/GiftCode.membershipDurationDays are new
+// columns the local Prisma client doesn't know about yet.
+type GiftBackfillMembershipDb = {
+  userMembership: {
+    findUnique: (a: unknown) => Promise<{ id: string; source: string; status: string } | null>;
+    upsert: (a: unknown) => Promise<unknown>;
+  };
+};
+
+// One-time manual backfill: every GiftCode redeemed before SP-67 shipped WAS
+// the free 90-day book promo (confirmed retroactively), so this treats all
+// redeemed codes as such and gives each one a real UserMembership row —
+// making them participate in the renewal/expiry system going forward.
+// Not scheduled — trigger once via ?job=membership-gift-retroactive-backfill&token=CRON_SECRET.
+async function runMembershipGiftRetroactiveBackfill(): Promise<{ message: string }> {
+  const giftPrice = await db.price.findFirst({
+    where: { product: { slug: "free-90-day-book-gift" } },
+    select: { id: true },
+  });
+  if (!giftPrice) {
+    return { message: "Gift membership Price (slug free-90-day-book-gift) not found — deploy the SP-67 migration first." };
+  }
+
+  const giftCodes = await db.giftCode.findMany({
+    where: { redeemedByUserId: { not: null }, redeemedAt: { not: null } },
+    select: { redeemedByUserId: true, redeemedAt: true },
+  });
+
+  const membershipDb = db as never as GiftBackfillMembershipDb;
+  const processedUserIds = new Set<string>();
+  let created = 0;
+  let downgraded = 0;
+  let skipped = 0;
+
+  for (const gc of giftCodes) {
+    const userId = gc.redeemedByUserId;
+    const redeemedAt = gc.redeemedAt;
+    if (!userId || !redeemedAt) {
+      skipped++;
+      continue;
+    }
+    if (processedUserIds.has(userId)) {
+      // A user who redeemed more than one gift code only gets one UserMembership row (1:1).
+      skipped++;
+      continue;
+    }
+    processedUserIds.add(userId);
+
+    const existing = await membershipDb.userMembership.findUnique({ where: { userId } });
+
+    if (existing?.source === "GIFT_CODE") {
+      // Already backfilled in a prior run of this job.
+      skipped++;
+      continue;
+    }
+    if (existing?.source === "STRIPE" && (existing.status === "ACTIVE" || existing.status === "TRIALING")) {
+      // Never let a gift-code backfill touch a real, currently-active paid subscription.
+      skipped++;
+      continue;
+    }
+
+    const currentPeriodEnd = new Date(redeemedAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const isExpired = currentPeriodEnd < new Date();
+    const status = isExpired ? "CANCELED" : "ACTIVE";
+
+    await membershipDb.userMembership.upsert({
+      where: { userId },
+      create: {
+        userId,
+        priceId: giftPrice.id,
+        source: "GIFT_CODE",
+        status,
+        currentPeriodEnd,
+      },
+      update: {
+        priceId: giftPrice.id,
+        source: "GIFT_CODE",
+        status,
+        currentPeriodEnd,
+        stripeSubscriptionId: null,
+        cancelAtPeriodEnd: false,
+        trialEnd: null,
+        updatedAt: new Date(),
+      },
+    });
+    created++;
+
+    if (isExpired) {
+      // Mirrors what customer.subscription.deleted already does for expired paid subs.
+      await db.user.update({ where: { id: userId }, data: { role: "CONSUMER" } });
+      downgraded++;
+    }
+  }
+
+  return {
+    message: `Gift membership backfill complete — created ${created}, downgraded ${downgraded}, skipped ${skipped}`,
+  };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
@@ -472,6 +571,7 @@ const JOBS: Record<string, JobHandler> = {
   "account-invitation-reminders": runAccountInvitationReminders,
   "campaign-recovery": runCampaignRecovery,
   "expired-token-cleanup": runExpiredTokenCleanup,
+  "membership-gift-retroactive-backfill": runMembershipGiftRetroactiveBackfill,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

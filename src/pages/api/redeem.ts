@@ -8,6 +8,20 @@ const schema = z.object({
   code: z.string().min(1).max(40).transform((s) => s.trim().toUpperCase()),
 });
 
+// GiftCode.membershipDurationDays is a new column the local Prisma client
+// doesn't know about yet (regenerates on the next Vercel build) — cast at
+// the call site per project convention.
+type GiftCodeDurationRow = { membershipDurationDays: number | null };
+
+// Same story for UserMembership.source, added alongside membershipDurationDays.
+type GiftMembershipTxDb = {
+  userMembership: {
+    upsert: (a: unknown) => Promise<unknown>;
+  };
+};
+
+const GIFT_MEMBERSHIP_PRODUCT_SLUG = "free-90-day-book-gift";
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -30,10 +44,66 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(410).json({ error: "That code has expired." });
   }
 
+  const redeemedAt = new Date();
+  const membershipDurationDays = (giftCode as unknown as GiftCodeDurationRow).membershipDurationDays;
+
+  // Time-bound gift membership (e.g. the free 90-day book promo) — mirror it
+  // into a real UserMembership row so it participates in the same
+  // renewal/expiry/reminder system as paid Stripe subscriptions.
+  if (membershipDurationDays) {
+    const giftPrice = await db.price.findFirst({
+      where: { product: { slug: GIFT_MEMBERSHIP_PRODUCT_SLUG } },
+      select: { id: true, membershipRole: true },
+    });
+
+    if (!giftPrice) {
+      return res.status(500).json({ error: "Gift membership plan is not configured. Contact support." });
+    }
+
+    const grantedRole = giftPrice.membershipRole ?? giftCode.grantedRole;
+    const currentPeriodEnd = new Date(redeemedAt.getTime() + membershipDurationDays * 24 * 60 * 60 * 1000);
+
+    await db.$transaction(async (tx) => {
+      await tx.giftCode.update({
+        where: { id: giftCode.id },
+        data: { redeemedByUserId: session.user.id, redeemedAt },
+      });
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: { role: grantedRole },
+      });
+
+      const membershipTx = tx as never as GiftMembershipTxDb;
+      await membershipTx.userMembership.upsert({
+        where: { userId: session.user.id },
+        create: {
+          userId: session.user.id,
+          priceId: giftPrice.id,
+          source: "GIFT_CODE",
+          status: "ACTIVE",
+          currentPeriodEnd,
+        },
+        update: {
+          priceId: giftPrice.id,
+          source: "GIFT_CODE",
+          status: "ACTIVE",
+          currentPeriodEnd,
+          stripeSubscriptionId: null,
+          cancelAtPeriodEnd: false,
+          trialEnd: null,
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    return res.json({ grantedRole });
+  }
+
+  // Existing behavior, unchanged: permanent ad-hoc role grant, no membership tracking.
   await db.$transaction([
     db.giftCode.update({
       where: { id: giftCode.id },
-      data: { redeemedByUserId: session.user.id, redeemedAt: new Date() },
+      data: { redeemedByUserId: session.user.id, redeemedAt },
     }),
     db.user.update({
       where: { id: session.user.id },
