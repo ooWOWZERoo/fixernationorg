@@ -52,13 +52,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!email) return res.status(400).json({ error: "email or scanOrphaned required" });
     const user = await db.user.findUnique({
       where: { email },
-      select: { id: true, email: true, role: true, stripeCustomerId: true },
+      select: {
+        id: true, email: true, role: true, adminRole: true, stripeCustomerId: true,
+        emailVerified: true, passwordHash: true,
+      },
     });
     if (!user) return res.status(404).json({ error: "no user with that email" });
+    const { passwordHash, ...userWithoutHash } = user;
     const membership = await membershipDb.userMembership.findFirst({
       where: { userId: user.id } as unknown as Record<string, unknown>,
     });
-    return res.status(200).json({ user, membership });
+    return res.status(200).json({ user: { ...userWithoutHash, hasPassword: !!passwordHash }, membership });
   }
 
   if (req.method === "POST") {
