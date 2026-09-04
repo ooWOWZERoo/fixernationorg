@@ -1,18 +1,11 @@
 import { useState } from "react";
+import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
-
-interface AdminUser {
-  id: string;
-  name: string | null;
-  email: string;
-  adminRole: string;
-  createdAt: string;
-}
 
 interface PendingInvite {
   id: string;
@@ -24,7 +17,6 @@ interface PendingInvite {
 }
 
 interface Props {
-  admins: AdminUser[];
   pendingInvites: PendingInvite[];
 }
 
@@ -39,10 +31,8 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 const AdminTeamPage: NextPageWithLayout<Props> = ({
-  admins: initialAdmins,
   pendingInvites: initialInvites,
 }) => {
-  const [admins] = useState(initialAdmins);
   const [invites, setInvites] = useState(initialInvites);
   const [showForm, setShowForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -99,7 +89,7 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Admin Team</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Manage who has admin access to this backend.
+            Invite new admins and manage pending invitations.
           </p>
         </div>
         <button
@@ -164,39 +154,14 @@ const AdminTeamPage: NextPageWithLayout<Props> = ({
         </div>
       )}
 
-      {/* Current admins */}
-      <div className="mb-8 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-slate-700">Current team</h2>
-        </div>
-        <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-100">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Email</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Role</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Member since</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {admins.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 text-sm font-medium text-slate-900">{u.name ?? "—"}</td>
-                <td className="px-4 py-3 text-sm text-slate-600">{u.email}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${ROLE_BADGE[u.adminRole] ?? "bg-slate-100 text-slate-600"}`}>
-                    {ROLE_LABEL[u.adminRole] ?? u.adminRole}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-slate-400">
-                  {new Date(u.createdAt).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+      {/* Current staff lives on the Users page, not duplicated here */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white px-5 py-4">
+        <p className="text-sm text-slate-600">
+          Need to change someone&apos;s existing access?{" "}
+          <Link href="/admin/users" className="font-semibold text-navy hover:underline">
+            Head to the Users page →
+          </Link>
+        </p>
       </div>
 
       {/* Pending invites */}
@@ -267,23 +232,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const now = new Date();
 
-  const [admins, pendingInvites] = await Promise.all([
-    db.user.findMany({
-      where: { adminRole: { in: ["ADMIN", "SUPER_ADMIN"] } },
-      select: { id: true, name: true, email: true, adminRole: true, createdAt: true },
-      orderBy: [{ adminRole: "asc" }, { createdAt: "asc" }],
-    }),
-    (db as never as { adminInvite: { findMany: (a: unknown) => Promise<unknown[]> } })
-      .adminInvite.findMany({
-        where: { claimedAt: null, expiresAt: { gt: now } },
-        select: { id: true, email: true, role: true, invitedById: true, createdAt: true, expiresAt: true },
-        orderBy: { createdAt: "desc" },
-      }),
-  ]);
+  const pendingInvites = await (db as never as { adminInvite: { findMany: (a: unknown) => Promise<unknown[]> } })
+    .adminInvite.findMany({
+      where: { claimedAt: null, expiresAt: { gt: now } },
+      select: { id: true, email: true, role: true, invitedById: true, createdAt: true, expiresAt: true },
+      orderBy: { createdAt: "desc" },
+    });
 
   return {
     props: {
-      admins: JSON.parse(JSON.stringify(admins)),
       pendingInvites: JSON.parse(JSON.stringify(pendingInvites)),
     },
   };

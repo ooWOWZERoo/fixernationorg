@@ -148,14 +148,24 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Users</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {users.length} registered user{users.length !== 1 ? "s" : ""}.{" "}
-          {iAmSuperAdmin && (
-            <span className="text-slate-400">Membership and staff access can be edited independently.</span>
-          )}
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Users</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {users.length} registered user{users.length !== 1 ? "s" : ""}.{" "}
+            {iAmSuperAdmin && (
+              <span className="text-slate-400">Membership and staff access can be edited independently.</span>
+            )}
+          </p>
+        </div>
+        {iAmSuperAdmin && (
+          <Link
+            href="/admin/team"
+            className="whitespace-nowrap text-sm font-semibold text-navy hover:underline"
+          >
+            Invite a new admin →
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">

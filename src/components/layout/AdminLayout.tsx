@@ -83,7 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "System",
     items: [
-      { href: "/admin/team", label: "Team" },
+      { href: "/admin/team", label: "Invite admin" },
       { href: "/admin/settings", label: "Settings" },
       { href: "/admin/audit", label: "Audit log" },
       { href: "/admin/blocked-emails", label: "Blocked emails" },
