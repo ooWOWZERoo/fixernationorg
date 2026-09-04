@@ -3,15 +3,20 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { UserRole, AdminRole } from "@prisma/client";
+import { AdminRole } from "@prisma/client";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
 import { enrollInJourneys } from "@/lib/automation";
 
 const STAFF_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+// Only the 4 real membership tiers are valid here — UserRole still contains
+// legacy ADMIN/SUPER_ADMIN values left over from before SP-45 split staff
+// access into its own adminRole field, but this endpoint's membership-role
+// branch must never be able to set them (that's what the adminRole branch,
+// below, is for).
 const membershipSchema = z.object({
-  role: z.nativeEnum(UserRole),
+  role: z.enum(["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR"]),
 });
 
 const adminRoleSchema = z.object({

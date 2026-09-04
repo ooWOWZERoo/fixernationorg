@@ -19,7 +19,10 @@ interface PreviewResult {
   sample: Array<{ id: string; email: string; firstName: string | null }>;
 }
 
-const ROLES = ["MEMBER", "CONSUMER", "PROVIDER", "AMBASSADOR", "ADMIN", "SUPER_ADMIN"];
+// Membership tiers only — ADMIN/SUPER_ADMIN are legacy UserRole values left
+// over from before SP-45 split staff access into its own adminRole field,
+// and audience segmentation should never offer them as a "Has role" rule.
+const ROLES = ["MEMBER", "CONSUMER", "PROVIDER", "AMBASSADOR"];
 const TOPICS = ["CAMPAIGNS", "NEWSLETTERS", "MORNING_BOOST", "PRODUCT_UPDATES"];
 const CF_OPS: { value: string; label: string }[] = [
   { value: "set",      label: "is set (any value)" },
