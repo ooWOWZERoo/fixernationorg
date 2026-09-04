@@ -51,6 +51,7 @@ interface UserRow {
   adminRole: string;
   createdAt: string;
   hasMembership: boolean;
+  emailVerified: string | null;
 }
 
 interface Props {
@@ -67,8 +68,28 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
   const [passwordDraft, setPasswordDraft] = useState("");
   const [settingPassword, setSettingPassword] = useState<string | null>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
+  const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
 
   const iAmSuperAdmin = myAdminRole === "SUPER_ADMIN";
+
+  async function verifyEmail(userId: string) {
+    setVerifyingEmail(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/verify-email`, { method: "POST" });
+      if (res.ok) {
+        setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, emailVerified: new Date().toISOString() } : u)));
+        setPasswordFeedback({ id: userId, ok: true, msg: "Email verified" });
+        setTimeout(() => setPasswordFeedback(null), 2000);
+      } else {
+        const data = await res.json();
+        setPasswordFeedback({ id: userId, ok: false, msg: data.error ?? "Failed" });
+      }
+    } catch {
+      setPasswordFeedback({ id: userId, ok: false, msg: "Network error" });
+    } finally {
+      setVerifyingEmail(null);
+    }
+  }
 
   async function submitPassword(userId: string) {
     if (passwordDraft.length < 8) {
@@ -244,19 +265,38 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                     </td>
 
                     <td className="px-4 py-3">
-                      {canSetPassword && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPasswordDraft("");
-                            setPasswordFeedback(null);
-                            setPasswordPanelFor(panelOpen ? null : user.id);
-                          }}
-                          className="text-xs font-medium text-navy hover:underline"
-                        >
-                          {panelOpen ? "Cancel" : "Set password"}
-                        </button>
-                      )}
+                      <div className="flex flex-col items-start gap-1">
+                        {canSetPassword && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPasswordDraft("");
+                              setPasswordFeedback(null);
+                              setPasswordPanelFor(panelOpen ? null : user.id);
+                            }}
+                            className="text-xs font-medium text-navy hover:underline"
+                          >
+                            {panelOpen ? "Cancel" : "Set password"}
+                          </button>
+                        )}
+                        {!user.emailVerified && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                              Unverified
+                            </span>
+                            {canSetPassword && (
+                              <button
+                                type="button"
+                                onClick={() => verifyEmail(user.id)}
+                                disabled={verifyingEmail === user.id}
+                                className="text-xs font-medium text-navy hover:underline disabled:opacity-50"
+                              >
+                                {verifyingEmail === user.id ? "Verifying…" : "Verify email"}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {panelOpen && (
@@ -317,7 +357,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const [users, memberships] = await Promise.all([
     db.user.findMany({
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, email: true, role: true, adminRole: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, adminRole: true, createdAt: true, emailVerified: true },
     }),
     (db as never as UsersMembershipDb).userMembership.findMany({ select: { userId: true } }),
   ]);
