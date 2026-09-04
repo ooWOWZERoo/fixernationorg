@@ -147,8 +147,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: "Campaign not found" });
       case "sending_in_progress":
         return res.status(200).json({
+          // Deliberately doesn't promise "automatically" — resuming depends on
+          // the campaign-send-hourly-resume cron actually being scheduled
+          // (Vercel cron entry or the cPanel-triggered fallback URL), which
+          // is confirmed at deploy/ops time, not guaranteed by this code path.
           message: result.pausedForHourlyCap
-            ? `Paused — hourly send limit reached, will resume automatically next hour (${result.sent} sent so far${result.failed > 0 ? `, ${result.failed} failed` : ""})`
+            ? `Paused — hourly send limit reached (${result.sent} sent so far${result.failed > 0 ? `, ${result.failed} failed` : ""}). Resumes once the campaign-send-hourly-resume job next runs — confirm it's scheduled (Vercel cron or cPanel).`
             : `Send in progress — ${result.sent} sent so far${result.failed > 0 ? ` (${result.failed} failed)` : ""}, continuing in the background`,
           sent: result.sent,
           failed: result.failed,
