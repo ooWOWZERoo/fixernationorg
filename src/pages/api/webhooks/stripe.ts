@@ -97,11 +97,6 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
   const priceId = sub.items.data[0]?.price?.metadata?.priceId;
-  await db.setting.upsert({
-    where: { key: "stripe_sub_upsert_diag" },
-    create: { key: "stripe_sub_upsert_diag", value: JSON.stringify({ customerId, userId, priceId, subStatus: sub.status, rawPrice: sub.items.data[0]?.price }) },
-    update: { value: JSON.stringify({ customerId, userId, priceId, subStatus: sub.status, rawPrice: sub.items.data[0]?.price }) },
-  }).catch(() => {});
   if (!userId) return;
   const membershipDb = db as never as MembershipDb;
 
@@ -117,10 +112,19 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     paused: "PAST_DUE",
   };
   const status = statusMap[sub.status] ?? "ACTIVE";
-  const currentPeriodEnd = new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000);
-  const trialEnd = (sub as unknown as { trial_end: number | null }).trial_end
-    ? new Date((sub as unknown as { trial_end: number }).trial_end * 1000)
-    : null;
+  // Newer Stripe API versions (this app is pinned to 2025-02-24.acacia) moved
+  // current_period_end/start off the top-level Subscription object down onto
+  // each subscription item, to support multiple billing periods per
+  // subscription — the top-level field is undefined now. Fall back to the
+  // item-level field so this doesn't silently produce an Invalid Date.
+  const rawSub = sub as unknown as {
+    current_period_end?: number;
+    trial_end: number | null;
+    items: { data: Array<{ current_period_end?: number }> };
+  };
+  const currentPeriodEndSeconds = rawSub.current_period_end ?? rawSub.items.data[0]?.current_period_end;
+  const currentPeriodEnd = new Date((currentPeriodEndSeconds ?? 0) * 1000);
+  const trialEnd = rawSub.trial_end ? new Date(rawSub.trial_end * 1000) : null;
 
   if (!priceId) {
     // Fall back to matching via existing membership row
@@ -239,18 +243,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: message });
   }
 
-
-  // Temporary diagnostic: confirm which event types the (hopefully now
-  // test-mode-corrected) webhook endpoint is actually sending us.
-  await db.setting.upsert({
-    where: { key: "stripe_webhook_events_seen" },
-    create: { key: "stripe_webhook_events_seen", value: event.type },
-    update: {},
-  }).catch(() => {});
-  await db.$executeRawUnsafe(
-    `UPDATE "Setting" SET value = value || ',' || $1 WHERE key = 'stripe_webhook_events_seen'`,
-    event.type
-  ).catch(() => {});
 
   switch (event.type) {
     // ── Onboarding / SP+BA payment ────────────────────────────────────────────
