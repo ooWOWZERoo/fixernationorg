@@ -32,7 +32,9 @@ type MembershipDb = {
   userMembership: {
     upsert: (a: unknown) => Promise<unknown>;
     updateMany: (a: unknown) => Promise<unknown>;
-    findFirst: (a: unknown) => Promise<{ userId: string; priceId: string } | null>;
+    findFirst: (
+      a: unknown
+    ) => Promise<{ userId: string; priceId: string; currentPeriodEnd: Date | null } | null>;
   };
 };
 
@@ -137,6 +139,14 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   });
   const isNewMembership = !existingMembership;
 
+  // A new billing period means the 30/7-day renewal reminders need to be
+  // able to fire again for this cycle — otherwise, once sent, they'd stay
+  // permanently non-null and the reminder job would never fire after the
+  // first renewal.
+  const periodChanged =
+    !!existingMembership &&
+    existingMembership.currentPeriodEnd?.getTime() !== currentPeriodEnd.getTime();
+
   await membershipDb.userMembership.upsert({
     where: { userId } as unknown as Record<string, unknown>,
     create: {
@@ -157,6 +167,7 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
       cancelAtPeriodEnd: sub.cancel_at_period_end,
       trialEnd,
       updatedAt: new Date(),
+      ...(periodChanged ? { renewal30ReminderSentAt: null, renewal7ReminderSentAt: null } : {}),
     } as unknown as Record<string, unknown>,
   });
 

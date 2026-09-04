@@ -9,6 +9,12 @@ import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
 import { sendCampaignNow, continueCampaignSend } from "@/lib/send-campaign";
+import {
+  buildRenewalReminder30Email,
+  buildRenewalReminder7Email,
+  buildGiftExpiring30Email,
+  buildGiftExpiring7Email,
+} from "@/lib/emails/membership";
 
 // Vercel Hobby's default execution limit (~10s) isn't enough to send a
 // large-audience campaign in one invocation; this raises the ceiling so
@@ -560,6 +566,183 @@ async function runMembershipGiftRetroactiveBackfill(): Promise<{ message: string
   };
 }
 
+// SP-67 Stage 3 — renewal30ReminderSentAt/renewal7ReminderSentAt/source are
+// new UserMembership columns the local Prisma client doesn't know about yet
+// (same situation as GiftBackfillMembershipDb above).
+type RenewalMembershipRow = {
+  id: string;
+  userId: string;
+  status: string;
+  source: string;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  user: { email: string; name: string | null };
+  price: { amount: number; product: { name: string } };
+};
+type RenewalMembershipDb = {
+  userMembership: {
+    findMany: (a: unknown) => Promise<RenewalMembershipRow[]>;
+    update: (a: unknown) => Promise<unknown>;
+    updateMany: (a: unknown) => Promise<{ count: number }>;
+  };
+};
+
+function renewalFirstName(name: string | null): string {
+  return (name ?? "").split(" ")[0] || "there";
+}
+
+function formatRenewalDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+// 30/7-day renewal reminders (Stripe-sourced, still auto-renewing) and
+// 30/7-day expiring-soon notices (gift-code-sourced, never auto-renew) —
+// plus, in the same invocation, expiring out gift memberships whose free
+// period has already ended. Combined into one job since this project's
+// Vercel Hobby plan can't afford a separate cron slot per tier; all three
+// pieces are independently idempotent (guarded by the *ReminderSentAt null
+// checks and the source/status filters), so running them together is safe.
+async function runMembershipRenewalReminders(): Promise<{ message: string }> {
+  const now = new Date();
+  const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const in30d = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const membershipDb = db as never as RenewalMembershipDb;
+
+  let sent30 = 0;
+  let sent7 = 0;
+  let giftExpired = 0;
+
+  // ── 30-day tier ──────────────────────────────────────────────────────────
+  const due30 = await membershipDb.userMembership.findMany({
+    where: {
+      renewal30ReminderSentAt: null,
+      status: { in: ["ACTIVE", "TRIALING"] },
+      currentPeriodEnd: { gt: in7d, lte: in30d },
+      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }],
+    },
+    include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
+  });
+
+  for (const m of due30) {
+    if (!m.currentPeriodEnd) continue;
+    try {
+      const firstName = renewalFirstName(m.user.name);
+      const renewalDate = formatRenewalDate(m.currentPeriodEnd);
+
+      if (m.source === "STRIPE") {
+        const billingUrl = `${APP_URL}/account/billing`;
+        const amount = formatCents(m.price.amount);
+        const email =
+          (await loadTemplate("membership.renewal_reminder_30", {
+            first_name: firstName,
+            plan_name: m.price.product.name,
+            renewal_date: renewalDate,
+            amount,
+            billing_url: billingUrl,
+          })) ?? buildRenewalReminder30Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
+        await sendEmail({ to: m.user.email, ...email });
+      } else {
+        const upgradeUrl = `${APP_URL}/join`;
+        const email =
+          (await loadTemplate("membership.gift_expiring_30", {
+            first_name: firstName,
+            renewal_date: renewalDate,
+            upgrade_url: upgradeUrl,
+          })) ?? buildGiftExpiring30Email(m.user.name, renewalDate, upgradeUrl);
+        await sendEmail({ to: m.user.email, ...email });
+      }
+    } catch (err) {
+      console.error(`[membership-renewal-reminders] 30-day email failed for membership ${m.id}:`, err);
+    } finally {
+      await membershipDb.userMembership.update({
+        where: { id: m.id },
+        data: { renewal30ReminderSentAt: now },
+      });
+      sent30++;
+    }
+  }
+
+  // ── 7-day tier ───────────────────────────────────────────────────────────
+  const due7 = await membershipDb.userMembership.findMany({
+    where: {
+      renewal7ReminderSentAt: null,
+      status: { in: ["ACTIVE", "TRIALING"] },
+      currentPeriodEnd: { gt: now, lte: in7d },
+      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }],
+    },
+    include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
+  });
+
+  for (const m of due7) {
+    if (!m.currentPeriodEnd) continue;
+    try {
+      const firstName = renewalFirstName(m.user.name);
+      const renewalDate = formatRenewalDate(m.currentPeriodEnd);
+
+      if (m.source === "STRIPE") {
+        const billingUrl = `${APP_URL}/account/billing`;
+        const amount = formatCents(m.price.amount);
+        const email =
+          (await loadTemplate("membership.renewal_reminder_7", {
+            first_name: firstName,
+            plan_name: m.price.product.name,
+            renewal_date: renewalDate,
+            amount,
+            billing_url: billingUrl,
+          })) ?? buildRenewalReminder7Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
+        await sendEmail({ to: m.user.email, ...email });
+      } else {
+        const upgradeUrl = `${APP_URL}/join`;
+        const email =
+          (await loadTemplate("membership.gift_expiring_7", {
+            first_name: firstName,
+            renewal_date: renewalDate,
+            upgrade_url: upgradeUrl,
+          })) ?? buildGiftExpiring7Email(m.user.name, renewalDate, upgradeUrl);
+        await sendEmail({ to: m.user.email, ...email });
+      }
+    } catch (err) {
+      console.error(`[membership-renewal-reminders] 7-day email failed for membership ${m.id}:`, err);
+    } finally {
+      await membershipDb.userMembership.update({
+        where: { id: m.id },
+        data: { renewal7ReminderSentAt: now },
+      });
+      sent7++;
+    }
+  }
+
+  // ── Gift-code expiry enforcement ────────────────────────────────────────
+  // Mirrors what customer.subscription.deleted already does for the Stripe
+  // path (same two writes, same role value) — this is the actual expiry
+  // enforcement for the free 90-day gift membership.
+  const expiredGifts = await membershipDb.userMembership.findMany({
+    where: { source: "GIFT_CODE", status: "ACTIVE", currentPeriodEnd: { lt: now } },
+    include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
+  });
+
+  for (const m of expiredGifts) {
+    try {
+      await membershipDb.userMembership.update({
+        where: { id: m.id },
+        data: { status: "CANCELED" },
+      });
+      await db.user.update({ where: { id: m.userId }, data: { role: "CONSUMER" } });
+      giftExpired++;
+    } catch (err) {
+      console.error(`[membership-renewal-reminders] gift expiry failed for membership ${m.id}:`, err);
+    }
+  }
+
+  return {
+    message: `30-day: ${sent30} sent, 7-day: ${sent7} sent, gift expired: ${giftExpired}`,
+  };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
@@ -572,6 +755,7 @@ const JOBS: Record<string, JobHandler> = {
   "campaign-recovery": runCampaignRecovery,
   "expired-token-cleanup": runExpiredTokenCleanup,
   "membership-gift-retroactive-backfill": runMembershipGiftRetroactiveBackfill,
+  "membership-renewal-reminders": runMembershipRenewalReminders,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
