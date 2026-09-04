@@ -235,6 +235,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
 
+  // Temporary: record every event type actually received, regardless of
+  // whether it's handled below, to diagnose which events the test-mode
+  // webhook endpoint is actually configured to send.
+  await db.setting.upsert({
+    where: { key: "stripe_webhook_events_seen" },
+    create: { key: "stripe_webhook_events_seen", value: event.type },
+    update: {},
+  }).catch(() => {});
+  await db.$executeRawUnsafe(
+    `UPDATE "Setting" SET value = value || ',' || $1 WHERE key = 'stripe_webhook_events_seen'`,
+    event.type
+  ).catch(() => {});
+
   switch (event.type) {
     // ── Onboarding / SP+BA payment ────────────────────────────────────────────
     case "checkout.session.completed": {
