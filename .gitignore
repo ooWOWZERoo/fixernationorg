@@ -25,6 +25,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*-results.txt
 
 # local env — NEVER commit .env or .env.local
 .env
