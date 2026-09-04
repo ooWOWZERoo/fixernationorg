@@ -96,14 +96,22 @@ async function sendMembershipThankYouEmail(userId: string, priceId: string) {
 async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
-  console.error("[stripe-webhook-diag]", JSON.stringify({
-    subId: sub.id, subStatus: sub.status, customerId, userId,
-    rawPrice: sub.items.data[0]?.price,
-  }));
-  if (!userId) return;
-
   const priceId = sub.items.data[0]?.price?.metadata?.priceId;
-  console.error("[stripe-webhook-diag] resolved priceId:", priceId);
+  await db.setting.upsert({
+    where: { key: "stripe_webhook_diag" },
+    create: { key: "stripe_webhook_diag", value: "" },
+    update: { value: "" },
+  }).then(() => db.setting.update({
+    where: { key: "stripe_webhook_diag" },
+    data: {
+      value: JSON.stringify({
+        at: new Date().toISOString(),
+        subId: sub.id, subStatus: sub.status, customerId, userId, priceId,
+        rawPrice: sub.items.data[0]?.price,
+      }),
+    },
+  })).catch(() => {});
+  if (!userId) return;
   const membershipDb = db as never as MembershipDb;
 
   // Map Stripe status to our SubscriptionStatus enum
