@@ -151,36 +151,50 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     !!existingMembership &&
     existingMembership.currentPeriodEnd?.getTime() !== currentPeriodEnd.getTime();
 
-  await membershipDb.userMembership.upsert({
-    where: { userId } as unknown as Record<string, unknown>,
-    create: {
-      userId,
-      priceId,
-      source: "STRIPE",
-      stripeSubscriptionId: sub.id,
-      stripeCustomerId: customerId,
-      status,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      trialEnd,
-    } as unknown as Record<string, unknown>,
-    update: {
-      // A real Stripe subscription always supersedes whatever was there
-      // before (e.g. a free gift membership) — without this, upserting
-      // over an existing GIFT_CODE row would leave source untouched, since
-      // Prisma's update only writes fields you actually specify.
-      priceId,
-      source: "STRIPE",
-      stripeSubscriptionId: sub.id,
-      stripeCustomerId: customerId,
-      status,
-      currentPeriodEnd,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      trialEnd,
-      updatedAt: new Date(),
-      ...(periodChanged ? { renewal30ReminderSentAt: null, renewal7ReminderSentAt: null } : {}),
-    } as unknown as Record<string, unknown>,
-  });
+  try {
+    await membershipDb.userMembership.upsert({
+      where: { userId } as unknown as Record<string, unknown>,
+      create: {
+        userId,
+        priceId,
+        source: "STRIPE",
+        stripeSubscriptionId: sub.id,
+        stripeCustomerId: customerId,
+        status,
+        currentPeriodEnd,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+        trialEnd,
+      } as unknown as Record<string, unknown>,
+      update: {
+        // A real Stripe subscription always supersedes whatever was there
+        // before (e.g. a free gift membership) — without this, upserting
+        // over an existing GIFT_CODE row would leave source untouched, since
+        // Prisma's update only writes fields you actually specify.
+        priceId,
+        source: "STRIPE",
+        stripeSubscriptionId: sub.id,
+        stripeCustomerId: customerId,
+        status,
+        currentPeriodEnd,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+        trialEnd,
+        updatedAt: new Date(),
+        ...(periodChanged ? { renewal30ReminderSentAt: null, renewal7ReminderSentAt: null } : {}),
+      } as unknown as Record<string, unknown>,
+    });
+    await db.setting.upsert({
+      where: { key: "stripe_sub_upsert_result" },
+      create: { key: "stripe_sub_upsert_result", value: "OK" },
+      update: { value: "OK" },
+    }).catch(() => {});
+  } catch (upsertErr) {
+    await db.setting.upsert({
+      where: { key: "stripe_sub_upsert_result" },
+      create: { key: "stripe_sub_upsert_result", value: String(upsertErr) },
+      update: { value: String(upsertErr) },
+    }).catch(() => {});
+    throw upsertErr;
+  }
 
   // Grant role if active or trialing
   if (status === "ACTIVE" || status === "TRIALING") {
