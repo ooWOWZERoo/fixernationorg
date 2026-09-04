@@ -97,20 +97,6 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
   const priceId = sub.items.data[0]?.price?.metadata?.priceId;
-  await db.setting.upsert({
-    where: { key: "stripe_webhook_diag" },
-    create: { key: "stripe_webhook_diag", value: "" },
-    update: { value: "" },
-  }).then(() => db.setting.update({
-    where: { key: "stripe_webhook_diag" },
-    data: {
-      value: JSON.stringify({
-        at: new Date().toISOString(),
-        subId: sub.id, subStatus: sub.status, customerId, userId, priceId,
-        rawPrice: sub.items.data[0]?.price,
-      }),
-    },
-  })).catch(() => {});
   if (!userId) return;
   const membershipDb = db as never as MembershipDb;
 
@@ -234,19 +220,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: message });
   }
 
-
-  // Temporary: record every event type actually received, regardless of
-  // whether it's handled below, to diagnose which events the test-mode
-  // webhook endpoint is actually configured to send.
-  await db.setting.upsert({
-    where: { key: "stripe_webhook_events_seen" },
-    create: { key: "stripe_webhook_events_seen", value: event.type },
-    update: {},
-  }).catch(() => {});
-  await db.$executeRawUnsafe(
-    `UPDATE "Setting" SET value = value || ',' || $1 WHERE key = 'stripe_webhook_events_seen'`,
-    event.type
-  ).catch(() => {});
 
   switch (event.type) {
     // ── Onboarding / SP+BA payment ────────────────────────────────────────────
