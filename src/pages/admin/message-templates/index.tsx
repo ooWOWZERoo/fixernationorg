@@ -29,6 +29,14 @@ const KEY_LABELS: Record<string, string> = {
   "application.withdrawn":              "Application withdrawn",
   "application.expiration_reminder":    "Expiration reminder (14 / 7 day)",
   "activation.welcome":                 "Activation welcome",
+  "membership.purchase_thankyou":       "Membership: purchase thank-you",
+  "membership.renewal_reminder_30":     "Membership: renewal reminder (30 day)",
+  "membership.renewal_reminder_7":      "Membership: renewal reminder (7 day)",
+  "membership.gift_expiring_30":        "Membership: gift expiring (30 day)",
+  "membership.gift_expiring_7":         "Membership: gift expiring (7 day)",
+  "membership.payment_failed":          "Membership: payment failed",
+  "membership.renewal_receipt":         "Membership: renewal receipt",
+  "membership.canceled":                "Membership: canceled",
 };
 
 const ORDERED_KEYS = Object.keys(KEY_LABELS);

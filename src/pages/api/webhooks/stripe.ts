@@ -2,6 +2,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
+import { sendEmail } from "@/lib/email";
+import { loadTemplate } from "@/lib/template-engine";
+import {
+  buildMembershipThankYouEmail,
+  buildRenewalReceiptEmail,
+  buildPaymentFailedEmail,
+  buildMembershipCanceledEmail,
+} from "@/lib/emails/membership";
+
+const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
 export const config = {
   api: {
@@ -33,6 +43,52 @@ async function userIdFromCustomer(customerId: string): Promise<string | null> {
     select: { id: true },
   });
   return user?.id ?? null;
+}
+
+function formatRenewalDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+async function getPlanNameForPriceId(priceId: string | null | undefined): Promise<string> {
+  if (!priceId) return "Fixer Nation";
+  const price = await db.price.findUnique({ where: { id: priceId }, include: { product: true } });
+  return price?.product.name ?? "Fixer Nation";
+}
+
+// Looks up the user's email/name plus their current plan name (via the
+// UserMembership → Price → Product chain) for events that only carry a userId.
+async function getUserAndPlan(
+  userId: string
+): Promise<{ email: string; name: string | null; planName: string } | null> {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+  if (!user?.email) return null;
+  const membershipDb = db as never as MembershipDb;
+  const membership = await membershipDb.userMembership.findFirst({
+    where: { userId } as unknown as Record<string, unknown>,
+  });
+  const planName = await getPlanNameForPriceId(membership?.priceId);
+  return { email: user.email, name: user.name, planName };
+}
+
+async function sendMembershipThankYouEmail(userId: string, priceId: string) {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+  if (!user?.email) return;
+  const planName = await getPlanNameForPriceId(priceId);
+  const firstName = (user.name ?? "").split(" ")[0] || "there";
+  const billingUrl = `${BASE_URL}/account/billing`;
+
+  const email =
+    (await loadTemplate("membership.purchase_thankyou", {
+      first_name: firstName,
+      plan_name: planName,
+      billing_url: billingUrl,
+    })) ?? buildMembershipThankYouEmail(user.name, planName, billingUrl);
+
+  await sendEmail({ to: user.email, ...email });
 }
 
 async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
@@ -73,6 +129,14 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     return;
   }
 
+  // Determine ahead of time whether this upsert will create a brand-new
+  // membership row — that's the only case where the purchase thank-you
+  // email should fire, regardless of which Stripe event triggered this call.
+  const existingMembership = await membershipDb.userMembership.findFirst({
+    where: { userId } as unknown as Record<string, unknown>,
+  });
+  const isNewMembership = !existingMembership;
+
   await membershipDb.userMembership.upsert({
     where: { userId } as unknown as Record<string, unknown>,
     create: {
@@ -101,6 +165,14 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     const price = await db.price.findUnique({ where: { id: priceId }, select: { membershipRole: true } });
     if (price?.membershipRole) {
       await db.user.update({ where: { id: userId }, data: { role: price.membershipRole } });
+    }
+  }
+
+  if (isNewMembership) {
+    try {
+      await sendMembershipThankYouEmail(userId, priceId);
+    } catch (err) {
+      console.error("[stripe-webhook] purchase thank-you email failed:", err);
     }
   }
 }
@@ -201,6 +273,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       // Downgrade to CONSUMER
       await db.user.update({ where: { id: userId }, data: { role: "CONSUMER" } });
+
+      try {
+        const info = await getUserAndPlan(userId);
+        if (info) {
+          const firstName = (info.name ?? "").split(" ")[0] || "there";
+          const upgradeUrl = `${BASE_URL}/join`;
+          const email =
+            (await loadTemplate("membership.canceled", {
+              first_name: firstName,
+              plan_name: info.planName,
+              upgrade_url: upgradeUrl,
+            })) ?? buildMembershipCanceledEmail(info.name, info.planName, upgradeUrl);
+          await sendEmail({ to: info.email, ...email });
+        }
+      } catch (err) {
+        console.error("[stripe-webhook] cancellation email failed:", err);
+      }
       break;
     }
 
@@ -213,6 +302,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Refresh subscription state on successful renewal
       const sub = await stripe.subscriptions.retrieve(subId);
       await handleSubscriptionUpsert(sub);
+
+      // Only a true renewal cycle gets a receipt email — the first invoice
+      // on a new subscription (billing_reason "subscription_create") is
+      // already covered by the purchase thank-you email above.
+      if (inv.billing_reason === "subscription_cycle") {
+        try {
+          const customerId = typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
+          const userId = customerId ? await userIdFromCustomer(customerId) : null;
+          if (userId) {
+            const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+            if (user?.email) {
+              const priceId = sub.items.data[0]?.price?.metadata?.priceId;
+              const planName = await getPlanNameForPriceId(priceId);
+              const firstName = (user.name ?? "").split(" ")[0] || "there";
+              const periodEnd = new Date(
+                (sub as unknown as { current_period_end: number }).current_period_end * 1000
+              );
+              const amount = formatCents(inv.amount_paid ?? 0);
+              const renewalDate = formatRenewalDate(periodEnd);
+              const billingUrl = `${BASE_URL}/account/billing`;
+              const email =
+                (await loadTemplate("membership.renewal_receipt", {
+                  first_name: firstName,
+                  plan_name: planName,
+                  amount,
+                  renewal_date: renewalDate,
+                  billing_url: billingUrl,
+                })) ?? buildRenewalReceiptEmail(user.name, planName, amount, renewalDate, billingUrl);
+              await sendEmail({ to: user.email, ...email });
+            }
+          }
+        } catch (err) {
+          console.error("[stripe-webhook] renewal receipt email failed:", err);
+        }
+      }
       break;
     }
 
@@ -228,6 +352,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { userId } as unknown as Record<string, unknown>,
         data: { status: "PAST_DUE", updatedAt: new Date() } as unknown as Record<string, unknown>,
       });
+
+      try {
+        const info = await getUserAndPlan(userId);
+        if (info) {
+          const firstName = (info.name ?? "").split(" ")[0] || "there";
+          const billingUrl = `${BASE_URL}/account/billing`;
+          const email =
+            (await loadTemplate("membership.payment_failed", {
+              first_name: firstName,
+              plan_name: info.planName,
+              billing_url: billingUrl,
+            })) ?? buildPaymentFailedEmail(info.name, info.planName, billingUrl);
+          await sendEmail({ to: info.email, ...email });
+        }
+      } catch (err) {
+        console.error("[stripe-webhook] payment-failed email failed:", err);
+      }
       break;
     }
 
