@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -64,6 +65,7 @@ interface ActivationSummary {
 interface EmailHealth {
   failureCount24h: number;
   lastFailure: { to: string; errorMessage: string; occurredAt: string } | null;
+  showBanner: boolean;
 }
 
 interface Props {
@@ -100,6 +102,23 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
   activation,
   emailHealth,
 }) => {
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+
+  const handleDismissEmailBanner = async () => {
+    setDismissing(true);
+    try {
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "email_failure_banner_dismissed_at", value: new Date().toISOString() }),
+      });
+      setEmailBannerDismissed(true);
+    } finally {
+      setDismissing(false);
+    }
+  };
+
   const statCards = [
     { label: "Total Users", value: stats.totalUsers },
     { label: "Active Members", value: stats.activeMembers },
@@ -137,11 +156,11 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
         <p className="mt-1 text-sm text-slate-500">Fixer Nation overview.</p>
       </div>
 
-      {emailHealth.failureCount24h > 0 && (
+      {emailHealth.showBanner && !emailBannerDismissed && (
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-5">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-bold text-red-800">
                 Outgoing email is failing — {emailHealth.failureCount24h} failed send
                 {emailHealth.failureCount24h !== 1 ? "s" : ""} in the last 24 hours
@@ -157,6 +176,14 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
                 </p>
               )}
             </div>
+            <button
+              type="button"
+              onClick={handleDismissEmailBanner}
+              disabled={dismissing}
+              className="shrink-0 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              {dismissing ? "Dismissing…" : "Dismiss"}
+            </button>
           </div>
         </div>
       )}
@@ -382,6 +409,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       ambassadorsWithTerritory,
       failureCount24h,
       lastFailure,
+      emailBannerDismissedSetting,
     ] = await Promise.all([
       db.user.count(),
       // Active Members now reflects real UserMembership status (paid or gift),
@@ -434,7 +462,14 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         orderBy: { occurredAt: "desc" },
         select: { to: true, errorMessage: true, occurredAt: true },
       }),
+      db.setting.findUnique({ where: { key: "email_failure_banner_dismissed_at" } }),
     ]);
+
+    // Dismissing hides the banner, but only until a NEW failure happens —
+    // if one arrives after the dismiss timestamp, the banner reappears
+    // automatically rather than staying silenced through a real recurrence.
+    const dismissedAt = emailBannerDismissedSetting ? new Date(emailBannerDismissedSetting.value) : null;
+    const showEmailBanner = failureCount24h > 0 && (!dismissedAt || (lastFailure && lastFailure.occurredAt > dismissedAt));
 
     const countFor = (statuses: string[], type?: string) =>
       appCounts
@@ -491,6 +526,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         emailHealth: {
           failureCount24h,
           lastFailure: lastFailure ? JSON.parse(JSON.stringify(lastFailure)) : null,
+          showBanner: showEmailBanner,
         },
       },
     };
@@ -508,7 +544,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         funnel: emptyFunnel,
         conversion: { totalSubmitted: 0, totalAccepted: 0, totalPaid: 0, totalActive: 0, avgDaysToReview: null },
         activation: { activeProviders: 0, activeAmbassadors: 0, providersWithAffiliate: 0, ambassadorsWithAffiliate: 0, ambassadorsWithTerritory: 0, totalActiveAffiliates: 0 },
-        emailHealth: { failureCount24h: 0, lastFailure: null },
+        emailHealth: { failureCount24h: 0, lastFailure: null, showBanner: false },
       },
     };
   }
