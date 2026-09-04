@@ -155,50 +155,36 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     !!existingMembership &&
     existingMembership.currentPeriodEnd?.getTime() !== currentPeriodEnd.getTime();
 
-  try {
-    await membershipDb.userMembership.upsert({
-      where: { userId } as unknown as Record<string, unknown>,
-      create: {
-        userId,
-        priceId,
-        source: "STRIPE",
-        stripeSubscriptionId: sub.id,
-        stripeCustomerId: customerId,
-        status,
-        currentPeriodEnd,
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-        trialEnd,
-      } as unknown as Record<string, unknown>,
-      update: {
-        // A real Stripe subscription always supersedes whatever was there
-        // before (e.g. a free gift membership) — without this, upserting
-        // over an existing GIFT_CODE row would leave source untouched, since
-        // Prisma's update only writes fields you actually specify.
-        priceId,
-        source: "STRIPE",
-        stripeSubscriptionId: sub.id,
-        stripeCustomerId: customerId,
-        status,
-        currentPeriodEnd,
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-        trialEnd,
-        updatedAt: new Date(),
-        ...(periodChanged ? { renewal30ReminderSentAt: null, renewal7ReminderSentAt: null } : {}),
-      } as unknown as Record<string, unknown>,
-    });
-    await db.setting.upsert({
-      where: { key: "stripe_sub_upsert_result" },
-      create: { key: "stripe_sub_upsert_result", value: "OK" },
-      update: { value: "OK" },
-    }).catch(() => {});
-  } catch (upsertErr) {
-    await db.setting.upsert({
-      where: { key: "stripe_sub_upsert_result" },
-      create: { key: "stripe_sub_upsert_result", value: String(upsertErr) },
-      update: { value: String(upsertErr) },
-    }).catch(() => {});
-    throw upsertErr;
-  }
+  await membershipDb.userMembership.upsert({
+    where: { userId } as unknown as Record<string, unknown>,
+    create: {
+      userId,
+      priceId,
+      source: "STRIPE",
+      stripeSubscriptionId: sub.id,
+      stripeCustomerId: customerId,
+      status,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      trialEnd,
+    } as unknown as Record<string, unknown>,
+    update: {
+      // A real Stripe subscription always supersedes whatever was there
+      // before (e.g. a free gift membership) — without this, upserting
+      // over an existing GIFT_CODE row would leave source untouched, since
+      // Prisma's update only writes fields you actually specify.
+      priceId,
+      source: "STRIPE",
+      stripeSubscriptionId: sub.id,
+      stripeCustomerId: customerId,
+      status,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      trialEnd,
+      updatedAt: new Date(),
+      ...(periodChanged ? { renewal30ReminderSentAt: null, renewal7ReminderSentAt: null } : {}),
+    } as unknown as Record<string, unknown>,
+  });
 
   // Grant role if active or trialing
   if (status === "ACTIVE" || status === "TRIALING") {
@@ -356,9 +342,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               const priceId = sub.items.data[0]?.price?.metadata?.priceId;
               const planName = await getPlanNameForPriceId(priceId);
               const firstName = (user.name ?? "").split(" ")[0] || "there";
-              const periodEnd = new Date(
-                (sub as unknown as { current_period_end: number }).current_period_end * 1000
-              );
+              // Same field-location fix as handleSubscriptionUpsert — see
+              // comment there for why the top-level field is undefined now.
+              const rawSubForReceipt = sub as unknown as {
+                current_period_end?: number;
+                items: { data: Array<{ current_period_end?: number }> };
+              };
+              const periodEndSeconds = rawSubForReceipt.current_period_end ?? rawSubForReceipt.items.data[0]?.current_period_end;
+              const periodEnd = new Date((periodEndSeconds ?? 0) * 1000);
               const amount = formatCents(inv.amount_paid ?? 0);
               const renewalDate = formatRenewalDate(periodEnd);
               const billingUrl = `${BASE_URL}/account/billing`;
