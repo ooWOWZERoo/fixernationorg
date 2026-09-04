@@ -42,6 +42,18 @@ async function addNote(page: Page, body: string) {
   await expect(page.getByText(body)).toBeVisible();
 }
 
+// Hits the same live /api/admin/contacts?q= endpoint the merge modal uses,
+// so a test can assert on exactly what the modal would see before acting on
+// it. This suite's isolation from real production contacts depends entirely
+// on the query strings staying fully-qualified and unique (STAMP-tagged) —
+// there's no server-side scoping to a "test" subset. This helper exists so
+// that invariant is checked explicitly rather than assumed.
+async function searchContactsFor(page: Page, q: string): Promise<{ id: string; email: string }[]> {
+  const res = await page.request.get(`/api/admin/contacts?q=${encodeURIComponent(q)}`);
+  const { contacts } = await res.json();
+  return contacts;
+}
+
 test("merging a contact moves its tags (deduped) and notes, deletes the source, and logs merge history", async ({ page }) => {
   test.setTimeout(60000);
 
@@ -56,6 +68,17 @@ test("merging a contact moves its tags (deduped) and notes, deletes the source, 
 
   await page.getByRole("button", { name: "Merge" }).click();
   await page.getByPlaceholder("Search by name or email…").fill(SOURCE_EMAIL);
+
+  // Guard rail: this modal's search hits the live /api/admin/contacts?q=
+  // endpoint against real production data, scoped to safety here only by
+  // the fact that SOURCE_EMAIL happens to be a fully-qualified unique
+  // string. Assert that invariant explicitly via the same API the modal
+  // uses, so a future edit that loosens the search term fails loud here
+  // instead of silently risking a real contact ending up in the results.
+  await expect(searchContactsFor(page, SOURCE_EMAIL)).resolves.toEqual([
+    expect.objectContaining({ email: SOURCE_EMAIL }),
+  ]);
+
   await page.getByRole("button", { name: new RegExp(SOURCE_EMAIL) }).click();
   await expect(page.getByText(`Absorb: QA MergeSource${STAMP}`)).toBeVisible();
 
@@ -78,9 +101,7 @@ test("merging a contact moves its tags (deduped) and notes, deletes the source, 
   }, { timeout: 10000 }).toBe(SOURCE_EMAIL);
   const history = await getLatestContactMergeHistory(survivorId);
 
-  const searchRes = await page.request.get(`/api/admin/contacts?q=${encodeURIComponent(SOURCE_EMAIL)}`);
-  const { contacts } = await searchRes.json();
-  expect(contacts).toHaveLength(0);
+  expect(await searchContactsFor(page, SOURCE_EMAIL)).toHaveLength(0);
 
   const sourceDetailRes = await page.request.get(`/admin/contacts/${history?.absorbedId}`);
   expect(sourceDetailRes.status()).toBe(404);
@@ -89,9 +110,12 @@ test("merging a contact moves its tags (deduped) and notes, deletes the source, 
 test("a contact cannot be merged into itself", async ({ page }) => {
   test.setTimeout(20000);
 
-  const res = await page.request.get(`/api/admin/contacts?q=${encodeURIComponent(SURVIVOR_EMAIL)}`);
-  const { contacts } = await res.json();
-  const survivorId = contacts[0].id as string;
+  // Guard rail: don't trust "first result" blindly — assert the search is
+  // scoped to exactly this run's own fixture before acting on its id, same
+  // as the guard in the test above.
+  const contacts = await searchContactsFor(page, SURVIVOR_EMAIL);
+  expect(contacts).toEqual([expect.objectContaining({ email: SURVIVOR_EMAIL })]);
+  const survivorId = contacts[0].id;
 
   const mergeRes = await page.request.post(`/api/admin/contacts/${survivorId}/merge`, {
     data: { sourceId: survivorId },
