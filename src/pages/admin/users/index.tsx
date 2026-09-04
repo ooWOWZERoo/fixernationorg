@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
@@ -63,8 +63,43 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
   const [users, setUsers] = useState(initialUsers);
   const [saving, setSaving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
+  const [passwordPanelFor, setPasswordPanelFor] = useState<string | null>(null);
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [settingPassword, setSettingPassword] = useState<string | null>(null);
+  const [passwordFeedback, setPasswordFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
 
   const iAmSuperAdmin = myAdminRole === "SUPER_ADMIN";
+
+  async function submitPassword(userId: string) {
+    if (passwordDraft.length < 8) {
+      setPasswordFeedback({ id: userId, ok: false, msg: "At least 8 characters" });
+      return;
+    }
+    setSettingPassword(userId);
+    setPasswordFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/set-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordDraft }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPasswordFeedback({ id: userId, ok: false, msg: data.error ?? "Failed" });
+      } else {
+        setPasswordFeedback({ id: userId, ok: true, msg: "Password set" });
+        setPasswordDraft("");
+        setTimeout(() => {
+          setPasswordFeedback(null);
+          setPasswordPanelFor(null);
+        }, 2000);
+      }
+    } catch {
+      setPasswordFeedback({ id: userId, ok: false, msg: "Network error" });
+    } finally {
+      setSettingPassword(null);
+    }
+  }
 
   async function updateField(userId: string, field: "role" | "adminRole", value: string) {
     setSaving(userId);
@@ -116,6 +151,7 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                   {iAmSuperAdmin && <span className="ml-1.5 text-[10px] font-normal normal-case text-amber-dark">(Super Admin only)</span>}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Joined</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -124,10 +160,14 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                 const targetIsSuperAdmin = user.adminRole === "SUPER_ADMIN";
                 const canEditMembership = !isMe && !(targetIsSuperAdmin && !iAmSuperAdmin);
                 const canEditAdmin = iAmSuperAdmin && !isMe;
+                const canSetPassword = !isMe && !(targetIsSuperAdmin && !iAmSuperAdmin);
                 const fb = feedback?.id === user.id ? feedback : null;
+                const pwFb = passwordFeedback?.id === user.id ? passwordFeedback : null;
+                const panelOpen = passwordPanelFor === user.id;
 
                 return (
-                  <tr key={user.id} className="hover:bg-slate-50">
+                  <Fragment key={user.id}>
+                  <tr className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div>
@@ -202,7 +242,60 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
+
+                    <td className="px-4 py-3">
+                      {canSetPassword && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordDraft("");
+                            setPasswordFeedback(null);
+                            setPasswordPanelFor(panelOpen ? null : user.id);
+                          }}
+                          className="text-xs font-medium text-navy hover:underline"
+                        >
+                          {panelOpen ? "Cancel" : "Set password"}
+                        </button>
+                      )}
+                    </td>
                   </tr>
+                  {panelOpen && (
+                    <tr className="bg-slate-50">
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            New password for <span className="font-medium text-slate-700">{user.email}</span>:
+                          </span>
+                          <input
+                            type="text"
+                            value={passwordDraft}
+                            onChange={(e) => setPasswordDraft(e.target.value)}
+                            placeholder="At least 8 characters"
+                            autoComplete="new-password"
+                            disabled={settingPassword === user.id}
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs focus:border-navy focus:outline-none disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => submitPassword(user.id)}
+                            disabled={settingPassword === user.id}
+                            className="rounded-md bg-navy px-3 py-1.5 text-xs font-medium text-white hover:bg-navy/90 disabled:opacity-50"
+                          >
+                            {settingPassword === user.id ? "Saving…" : "Save password"}
+                          </button>
+                          {pwFb && (
+                            <span className={`text-xs ${pwFb.ok ? "text-green-600" : "text-red-500"}`}>
+                              {pwFb.msg}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-xs text-slate-400">
+                          Shown here so you can read it and hand it to the account holder directly (e.g. by phone) — it is not emailed anywhere by this action.
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
