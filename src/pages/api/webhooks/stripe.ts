@@ -97,6 +97,11 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
   const priceId = sub.items.data[0]?.price?.metadata?.priceId;
+  await db.setting.upsert({
+    where: { key: "stripe_sub_upsert_diag" },
+    create: { key: "stripe_sub_upsert_diag", value: JSON.stringify({ customerId, userId, priceId, subStatus: sub.status, rawPrice: sub.items.data[0]?.price }) },
+    update: { value: JSON.stringify({ customerId, userId, priceId, subStatus: sub.status, rawPrice: sub.items.data[0]?.price }) },
+  }).catch(() => {});
   if (!userId) return;
   const membershipDb = db as never as MembershipDb;
 
