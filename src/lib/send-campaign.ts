@@ -54,6 +54,33 @@ type EmailContent = { subject: string; fromName: string; fromEmail: string; html
 // where this one left off, chaining until the audience is exhausted.
 const TIME_BUDGET_MS = Number(process.env.SEND_TIME_BUDGET_MS ?? 45_000);
 const BATCH = 20;
+const DEFAULT_HOURLY_SEND_CAP = 60;
+
+// The hosting account's outgoing-mail rate limit is a single shared budget
+// across everything the account sends (all campaigns, all channels) — not
+// per-campaign. Editable at runtime via the existing generic Setting
+// key/value editor at /admin/settings (key: "smtp_hourly_send_cap"), same
+// pattern as the morning_boost_direct_send_enabled kill switch, so it can be
+// tuned without a redeploy if the host's actual cap turns out to be
+// different from our current best guess.
+async function getHourlySendCap(): Promise<number> {
+  const row = await db.setting.findUnique({ where: { key: "smtp_hourly_send_cap" } });
+  const parsed = row ? Number.parseInt(row.value, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HOURLY_SEND_CAP;
+}
+
+// Deliberately global (no campaignId filter) — the host's cap is shared
+// account-wide, so two campaigns sending in the same hour must share one
+// budget. Counts both SENT and BOUNCED because a bounced/failed send still
+// consumed an SMTP connection attempt against the host's limit.
+async function countSendsInLastHour(): Promise<number> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  return db.campaignSend.count({
+    where: {
+      OR: [{ sentAt: { gte: oneHourAgo } }, { bouncedAt: { gte: oneHourAgo } }],
+    },
+  });
+}
 
 // Marking a failed send as BOUNCED (not leaving it QUEUED) matters more than
 // it looks: the continuation loop below re-queries "status: QUEUED" every
@@ -65,17 +92,31 @@ async function sendQueuedEmailBatches(
   fallbackContent: EmailContent,
   variantById: Map<string, EmailContent>,
   deadline: number,
-): Promise<{ done: boolean; sent: number; failed: number }> {
+): Promise<{ done: boolean; sent: number; failed: number; hourlyCapReached: boolean }> {
   let sent = 0;
   let failed = 0;
 
+  const cap = await getHourlySendCap();
+  // Seeded once from the DB, then tracked incrementally by adding every
+  // attempt made during this invocation — re-querying countSendsInLastHour()
+  // on every loop iteration would work too, but this avoids an extra DB
+  // round-trip per batch and can't drift stale since every attempt this
+  // invocation makes is accounted for as it happens.
+  let usedThisHour = await countSendsInLastHour();
+
   while (Date.now() < deadline) {
+    const remaining = cap - usedThisHour;
+    if (remaining <= 0) {
+      return { done: false, sent, failed, hourlyCapReached: true };
+    }
+    const batchSize = Math.min(BATCH, remaining);
+
     const queued = await db.campaignSend.findMany({
       where: { campaignId, status: "QUEUED" },
-      take: BATCH,
+      take: batchSize,
       include: { contact: { select: { email: true, firstName: true } } },
     });
-    if (queued.length === 0) return { done: true, sent, failed };
+    if (queued.length === 0) return { done: true, sent, failed, hourlyCapReached: false };
 
     await Promise.allSettled(
       queued.map(async (row) => {
@@ -91,8 +132,9 @@ async function sendQueuedEmailBatches(
         }
       })
     );
+    usedThisHour += queued.length;
   }
-  return { done: false, sent, failed };
+  return { done: false, sent, failed, hourlyCapReached: false };
 }
 
 // Fire-and-forget: intentionally not awaited, so the current invocation can
@@ -109,9 +151,9 @@ function triggerContinuation(campaignId: string) {
 // campaign that's already SENDING is exactly the point of a continuation
 // (as opposed to an external duplicate "Send now" trigger, which that guard
 // still correctly blocks).
-export async function continueCampaignSend(campaignId: string): Promise<{ done: boolean; sent: number; failed: number }> {
+export async function continueCampaignSend(campaignId: string): Promise<{ done: boolean; sent: number; failed: number; hourlyCapReached: boolean }> {
   const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
-  if (!campaign || campaign.status !== "SENDING") return { done: true, sent: 0, failed: 0 };
+  if (!campaign || campaign.status !== "SENDING") return { done: true, sent: 0, failed: 0, hourlyCapReached: false };
 
   const variantById = new Map<string, EmailContent>();
   if (campaign.isAbTest) {
@@ -126,9 +168,16 @@ export async function continueCampaignSend(campaignId: string): Promise<{ done: 
   if (result.done) {
     await db.campaign.update({ where: { id: campaignId }, data: { status: "SENT", sentAt: new Date() } });
     computeCampaignMetric(campaignId).catch(() => {});
-  } else {
+  } else if (!result.hourlyCapReached) {
+    // Time budget was hit but there's still hourly headroom — keep chaining
+    // immediately, same as before this sprint.
     triggerContinuation(campaignId);
   }
+  // If the hourly cap was hit: do nothing further. The campaign stays
+  // SENDING with its remaining QUEUED rows untouched; re-triggering
+  // immediately would just slam the same exhausted hour again. The
+  // campaign-send-hourly-resume cron job picks it back up once the hour
+  // rolls over (or sooner, if other sends free up headroom).
   return result;
 }
 
@@ -175,7 +224,7 @@ export type SendCampaignResult =
   | { status: "no_recipients" }
   | { status: "no_push_subscriptions" }
   | { status: "ab_test_misconfigured"; error: string }
-  | { status: "sending_in_progress"; sent: number; failed: number }
+  | { status: "sending_in_progress"; sent: number; failed: number; pausedForHourlyCap: boolean }
   | { status: "sent"; sent: number; failed: number };
 
 // Re-validates guards internally rather than assuming a caller pre-checked —
@@ -418,8 +467,8 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
-      triggerContinuation(id);
-      return { status: "sending_in_progress", sent, failed };
+      if (!result.hourlyCapReached) triggerContinuation(id);
+      return { status: "sending_in_progress", sent, failed, pausedForHourlyCap: result.hourlyCapReached };
     }
   } else {
     // ── Standard (non-A/B) send ──────────────────────────────────────────
@@ -433,8 +482,8 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
-      triggerContinuation(id);
-      return { status: "sending_in_progress", sent, failed };
+      if (!result.hourlyCapReached) triggerContinuation(id);
+      return { status: "sending_in_progress", sent, failed, pausedForHourlyCap: result.hourlyCapReached };
     }
   }
 

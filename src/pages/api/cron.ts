@@ -743,6 +743,35 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
   };
 }
 
+// Picks back up any campaign left SENDING after sendQueuedEmailBatches
+// paused it for the hourly send-rate cap (see send-campaign.ts) — those
+// campaigns deliberately do NOT self-trigger a continuation hop, so
+// something external has to nudge them again once headroom is available.
+// The cap-checking logic lives entirely inside sendQueuedEmailBatches, so
+// this job is just a scan-and-resume: it doesn't need to know the cap or
+// the current hourly count itself, and correctly no-ops (stays paused) if
+// the budget is still exhausted when it runs.
+async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
+  const paused = await db.campaign.findMany({
+    where: { status: "SENDING", sends: { some: { status: "QUEUED" } } },
+    select: { id: true },
+  });
+
+  if (paused.length === 0) return { message: "No paused campaigns with queued sends" };
+
+  let resumed = 0;
+  for (const c of paused) {
+    try {
+      await continueCampaignSend(c.id);
+      resumed++;
+    } catch (err) {
+      console.error(`[campaign-send-hourly-resume] campaign ${c.id} failed:`, err);
+    }
+  }
+
+  return { message: `Attempted resume on ${resumed} of ${paused.length} paused campaign${paused.length !== 1 ? "s" : ""}` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "morning-boost": runMorningBoost,
@@ -756,6 +785,7 @@ const JOBS: Record<string, JobHandler> = {
   "expired-token-cleanup": runExpiredTokenCleanup,
   "membership-gift-retroactive-backfill": runMembershipGiftRetroactiveBackfill,
   "membership-renewal-reminders": runMembershipRenewalReminders,
+  "campaign-send-hourly-resume": runCampaignSendHourlyResume,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
