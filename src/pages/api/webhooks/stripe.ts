@@ -93,7 +93,7 @@ async function sendMembershipThankYouEmail(userId: string, priceId: string) {
   await sendEmail({ to: user.email, ...email });
 }
 
-async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
+export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
   const priceId = sub.items.data[0]?.price?.metadata?.priceId;
