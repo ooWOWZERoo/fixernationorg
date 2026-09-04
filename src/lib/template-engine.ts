@@ -58,6 +58,19 @@ export interface RenderedEmail {
   text: string;
 }
 
+// The eyebrow banner used to always read "{role} Application" regardless of
+// which template category was rendering — fine for application.* templates,
+// but wrong for anything else (e.g. a membership receipt showing "Fixer
+// Nation Application" as its header). Derive it from the key's category
+// prefix instead.
+function eyebrowForKey(key: string, vars: Record<string, string>): string {
+  const category = key.split(".")[0];
+  if (category === "application") return `${vars.role ?? "Fixer Nation"} Application`;
+  if (category === "membership") return "Membership";
+  if (category === "activation") return "Welcome";
+  return "Fixer Nation";
+}
+
 export async function loadTemplate(
   key: string,
   vars: Record<string, string>
@@ -68,8 +81,7 @@ export async function loadTemplate(
 
     const subject = substitute(tmpl.subject, vars);
     const text = substitute(tmpl.body, vars);
-    const role = vars.role ?? "Fixer Nation";
-    const html = wrapShell(textToHtml(text), `${role} Application`);
+    const html = wrapShell(textToHtml(text), eyebrowForKey(key, vars));
 
     return { subject, html, text };
   } catch {
