@@ -126,7 +126,7 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     if (!existing) return;
     await membershipDb.userMembership.updateMany({
       where: { userId } as unknown as Record<string, unknown>,
-      data: { status, currentPeriodEnd, cancelAtPeriodEnd: sub.cancel_at_period_end, trialEnd, updatedAt: new Date() } as unknown as Record<string, unknown>,
+      data: { source: "STRIPE", status, currentPeriodEnd, cancelAtPeriodEnd: sub.cancel_at_period_end, trialEnd, updatedAt: new Date() } as unknown as Record<string, unknown>,
     });
     return;
   }
@@ -152,6 +152,7 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     create: {
       userId,
       priceId,
+      source: "STRIPE",
       stripeSubscriptionId: sub.id,
       stripeCustomerId: customerId,
       status,
@@ -160,6 +161,12 @@ async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
       trialEnd,
     } as unknown as Record<string, unknown>,
     update: {
+      // A real Stripe subscription always supersedes whatever was there
+      // before (e.g. a free gift membership) — without this, upserting
+      // over an existing GIFT_CODE row would leave source untouched, since
+      // Prisma's update only writes fields you actually specify.
+      priceId,
+      source: "STRIPE",
       stripeSubscriptionId: sub.id,
       stripeCustomerId: customerId,
       status,
