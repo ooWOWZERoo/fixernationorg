@@ -57,6 +57,7 @@ async function runMorningBoost(): Promise<{ message: string }> {
       slug: true,
       excerpt: true,
       imageUrl: true,
+      videoUrl: true,
     },
   });
 
@@ -218,7 +219,7 @@ async function runCampaignRecurringDispatch(): Promise<{ message: string }> {
         const { startOfDay, endOfDay } = utcDayWindow(now);
         const entry = await db.morningBoost.findFirst({
           where: { publishedAt: { gte: startOfDay, lt: endOfDay } },
-          select: { id: true, title: true, body: true, authorName: true, publishedAt: true, slug: true, excerpt: true, imageUrl: true },
+          select: { id: true, title: true, body: true, authorName: true, publishedAt: true, slug: true, excerpt: true, imageUrl: true, videoUrl: true },
         });
 
         if (!entry || !entry.publishedAt || entry.id === template.lastMorningBoostId) {

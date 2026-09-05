@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const entry = await db.morningBoost.findFirst({
       where: { publishedAt: { gte: startOfDay, lt: endOfDay } },
-      select: { id: true, title: true, body: true, authorName: true, publishedAt: true, slug: true, excerpt: true, imageUrl: true },
+      select: { id: true, title: true, body: true, authorName: true, publishedAt: true, slug: true, excerpt: true, imageUrl: true, videoUrl: true },
     });
 
     if (!entry || !entry.publishedAt) {

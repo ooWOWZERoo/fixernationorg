@@ -10,6 +10,7 @@ interface Entry {
   slug: string;
   excerpt?: string | null;
   imageUrl?: string | null;
+  videoUrl?: string | null;
 }
 
 export function buildMorningBoostEmail(
@@ -25,6 +26,7 @@ export function buildMorningBoostEmail(
 
   const readUrl = `${BASE_URL}/morning-boost/${entry.slug}`;
   const unsubscribeUrl = `${BASE_URL}/account`;
+  const ctaLabel = entry.videoUrl ? "Watch on Fixer Nation" : "Read on Fixer Nation";
 
   const greeting = recipientName ? `Good morning, ${recipientName.split(" ")[0]}.` : "Good morning.";
 
@@ -75,7 +77,7 @@ export function buildMorningBoostEmail(
           <!-- CTA -->
           <tr>
             <td style="background-color:#ffffff;padding:8px 32px 32px 32px;">
-              <a href="${readUrl}" style="display:inline-block;background-color:${BRAND_NAVY};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:10px;">Read on Fixer Nation →</a>
+              <a href="${readUrl}" style="display:inline-block;background-color:${BRAND_NAVY};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:10px;">${ctaLabel} →</a>
             </td>
           </tr>
 
@@ -111,7 +113,7 @@ ${"-".repeat(50)}
 
 ${entry.body}
 
-Read on Fixer Nation: ${readUrl}
+${ctaLabel}: ${readUrl}
 
 ---
 Manage email preferences: ${unsubscribeUrl}
