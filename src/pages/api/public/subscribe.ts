@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { setConsent } from "@/lib/contacts";
 
 const schema = z.object({
   email: z.string().email(),
@@ -34,7 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { email, firstName, lastName, topic, topicId, topicSlug, source } = parsed.data;
-  const now = new Date();
 
   // Upsert contact — name fields only set on create; never overwrite an existing contact's name
   const contact = await db.contact.upsert({
@@ -79,11 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // System consent (enum topic)
   if (topic) {
-    await db.contactConsent.upsert({
-      where: { contactId_topic: { contactId: contact.id, topic } },
-      create: { contactId: contact.id, topic, optedIn: true, optedInAt: now, source: source ?? "subscribe" },
-      update: { optedIn: true, optedInAt: now, optedOutAt: null, source: source ?? "subscribe" },
-    });
+    await setConsent(contact.id, topic, true, source ?? "subscribe");
     results.consent = true;
   }
 
@@ -107,11 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Default: if neither topic nor topicId given, opt into general NEWSLETTERS consent
   if (!topic && !resolvedTopicId) {
-    await db.contactConsent.upsert({
-      where: { contactId_topic: { contactId: contact.id, topic: "NEWSLETTERS" } },
-      create: { contactId: contact.id, topic: "NEWSLETTERS", optedIn: true, optedInAt: now, source: source ?? "subscribe" },
-      update: { optedIn: true, optedInAt: now, optedOutAt: null, source: source ?? "subscribe" },
-    });
+    await setConsent(contact.id, "NEWSLETTERS", true, source ?? "subscribe");
     results.consent = true;
   }
 

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { type ContactConsentTopic } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { syncMorningBoostList } from "@/lib/contacts";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const IGNORE_LABELS = ["ask the fixer"];
@@ -180,6 +181,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       skipDuplicates: true,
     });
     consentAdded = consentResult.count;
+
+    // Keep the "Morning Boost" ContactList mirroring consent for every
+    // touched contact, not just the rows this createMany actually
+    // inserted (skipDuplicates silently no-ops on ones that already
+    // existed, so re-deriving from current state covers both cases).
+    const morningBoostContactIds = [
+      ...new Set(consentData.filter((c) => c.topic === "MORNING_BOOST").map((c) => c.contactId)),
+    ];
+    await syncMorningBoostList(morningBoostContactIds);
   }
 
   // 5. Labels → ContactLists + memberships

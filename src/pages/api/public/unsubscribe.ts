@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
 import { verifyUnsubToken } from "@/lib/unsub-token";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { setConsent } from "@/lib/contacts";
 
 export { makeUnsubToken } from "@/lib/unsub-token";
 
@@ -29,29 +30,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const contact = await db.contact.findUnique({ where: { id: contactId } });
   if (!contact) return res.status(404).json({ error: "Contact not found" });
 
-  const now = new Date();
-
-  await db.contactConsent.upsert({
-    where: {
-      contactId_topic: {
-        contactId,
-        topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES",
-      },
-    },
-    create: {
-      contactId,
-      topic: topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES",
-      optedIn: false,
-      optedOutAt: now,
-      source: "unsubscribe-link",
-    },
-    update: { optedIn: false, optedOutAt: now, source: "unsubscribe-link" },
-  });
+  await setConsent(
+    contactId,
+    topic as "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES",
+    false,
+    "unsubscribe-link"
+  );
 
   // Cancel any queued sends for this contact so they don't go out after unsubscribing
   await db.campaignSend.updateMany({
     where: { contactId, status: "QUEUED" },
-    data: { status: "UNSUBSCRIBED", unsubAt: now },
+    data: { status: "UNSUBSCRIBED", unsubAt: new Date() },
   });
 
   if (req.method === "GET") {

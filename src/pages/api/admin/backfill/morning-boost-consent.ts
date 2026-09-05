@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { syncMorningBoostList } from "@/lib/contacts";
 
 // One-time backfill: create Contact + MORNING_BOOST ContactConsent for every verified
 // user that doesn't already have a linked Contact. Safe to run multiple times.
@@ -34,6 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let linked = 0;
   let consentCreated = 0;
   let skipped = 0;
+  const touchedContactIds: string[] = [];
 
   for (const user of users) {
     let contactId: string | null = null;
@@ -95,7 +97,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       consentCreated++;
     }
+    touchedContactIds.push(contactId);
   }
+
+  await syncMorningBoostList(touchedContactIds);
 
   return res.status(200).json({
     usersProcessed: users.length,

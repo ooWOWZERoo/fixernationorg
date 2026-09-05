@@ -1,5 +1,41 @@
 import { db } from "@/lib/db";
-import type { ContactConsentTopic } from "@prisma/client";
+import type { ContactConsent, ContactConsentTopic } from "@prisma/client";
+
+const MORNING_BOOST_LIST_NAME = "Morning Boost";
+
+// Keeps the "Morning Boost" ContactList (the one admins manage by hand at
+// /admin/lists) mirroring MORNING_BOOST consent -- opted in adds a contact,
+// opted out removes them. Re-derives from the actual current consent rows
+// rather than trusting the caller's intent, so it's correct to call after
+// any write path (single upsert or a bulk import) regardless of whether
+// that specific row was just created, updated, or already existed.
+export async function syncMorningBoostList(contactIds: string[]): Promise<void> {
+  if (contactIds.length === 0) return;
+
+  const list = await db.contactList.findFirst({
+    where: { name: MORNING_BOOST_LIST_NAME, ownerType: "FN_ADMIN" },
+    select: { id: true },
+  });
+  if (!list) return; // list doesn't exist (e.g. deleted) -- nothing to sync
+
+  const consents = await db.contactConsent.findMany({
+    where: { contactId: { in: contactIds }, topic: "MORNING_BOOST" },
+    select: { contactId: true, optedIn: true },
+  });
+
+  const toAdd = consents.filter((c) => c.optedIn).map((c) => c.contactId);
+  const toRemove = consents.filter((c) => !c.optedIn).map((c) => c.contactId);
+
+  if (toAdd.length > 0) {
+    await db.contactListMember.createMany({
+      data: toAdd.map((contactId) => ({ listId: list.id, contactId })),
+      skipDuplicates: true,
+    });
+  }
+  if (toRemove.length > 0) {
+    await db.contactListMember.deleteMany({ where: { listId: list.id, contactId: { in: toRemove } } });
+  }
+}
 
 // Shared find-or-create so every enrollment path (registration verification,
 // provider/ambassador invite claim, self-service settings) links to the same
@@ -39,9 +75,9 @@ export async function setConsent(
   topic: ContactConsentTopic,
   optedIn: boolean,
   source: string
-): Promise<void> {
+): Promise<ContactConsent> {
   const now = new Date();
-  await db.contactConsent.upsert({
+  const consent = await db.contactConsent.upsert({
     where: { contactId_topic: { contactId, topic } },
     create: {
       contactId,
@@ -58,4 +94,10 @@ export async function setConsent(
       source,
     },
   });
+
+  if (topic === "MORNING_BOOST") {
+    await syncMorningBoostList([contactId]);
+  }
+
+  return consent;
 }

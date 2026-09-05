@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enrollInJourneys } from "@/lib/automation";
+import { setConsent } from "@/lib/contacts";
 
 type ActDb = {
   contactActivity: { create: (a: unknown) => Promise<unknown> };
@@ -163,24 +164,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (action === "set-consent") {
       const parsed = consentSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-      const now = new Date();
-      const consent = await db.contactConsent.upsert({
-        where: { contactId_topic: { contactId: id, topic: parsed.data.topic } },
-        create: {
-          contactId: id,
-          topic: parsed.data.topic,
-          optedIn: parsed.data.optedIn,
-          optedInAt: parsed.data.optedIn ? now : null,
-          optedOutAt: parsed.data.optedIn ? null : now,
-          source: "admin",
-        },
-        update: {
-          optedIn: parsed.data.optedIn,
-          optedInAt: parsed.data.optedIn ? now : undefined,
-          optedOutAt: parsed.data.optedIn ? null : now,
-          source: "admin",
-        },
-      });
+      const consent = await setConsent(id, parsed.data.topic, parsed.data.optedIn, "admin");
       const label = parsed.data.topic.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
       writeActivity(id, "CONSENT_UPDATED", `${label}: ${parsed.data.optedIn ? "opted in" : "opted out"}`, { topic: parsed.data.topic, optedIn: parsed.data.optedIn });
       return res.status(200).json(consent);
