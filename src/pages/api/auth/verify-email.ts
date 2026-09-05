@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { buildWelcomeEmail } from "@/lib/emails/welcome";
+import { ensureContactForUser, setConsent } from "@/lib/contacts";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -28,6 +29,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     select: { email: true, name: true },
   });
   await db.verificationToken.delete({ where: { token } });
+
+  // New consumers join Morning Boost automatically once their email is
+  // confirmed real -- deliberately not done at registration, since the new
+  // recurring-campaign audience resolver has no emailVerified check and
+  // would otherwise feed unverified/typo'd addresses into real sends.
+  try {
+    const contactId = await ensureContactForUser(userId, user.email, user.name, "signup");
+    await setConsent(contactId, "MORNING_BOOST", true, "signup");
+  } catch (err) {
+    console.error("[verify-email] Morning Boost auto-enroll failed:", err);
+  }
 
   // Welcome email — fire and forget
   try {

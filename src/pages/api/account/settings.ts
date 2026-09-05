@@ -4,6 +4,12 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ensureContactForUser, setConsent } from "@/lib/contacts";
+
+// PUSH_NOTIFICATIONS deliberately excluded -- unused today, and the site
+// already has a real, working push toggle (PushNotificationToggle) backed
+// by an actual browser subscription, not this consent topic.
+const SELF_SERVICE_TOPICS = ["MORNING_BOOST", "CAMPAIGNS", "NEWSLETTERS", "PRODUCT_UPDATES"] as const;
 
 const PutSchema = z.union([
   z.object({
@@ -17,7 +23,8 @@ const PutSchema = z.union([
   }),
   z.object({
     action: z.literal("emailPrefs"),
-    morningBoostEmails: z.boolean(),
+    topic: z.enum(SELF_SERVICE_TOPICS),
+    optedIn: z.boolean(),
   }),
 ]);
 
@@ -60,67 +67,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (parsed.data.action === "emailPrefs") {
-    const optedIn = parsed.data.morningBoostEmails;
-    const now = new Date();
+    const { topic, optedIn } = parsed.data;
 
-    // Keep legacy boolean in sync for the cron fallback path
-    await db.user.update({
-      where: { id: userId },
-      data: { morningBoostEmails: optedIn },
-    });
-
-    // Find or create a Contact linked to this user
-    const userRecord = await db.user.findUnique({
-      where: { id: userId },
-      select: { email: true, name: true, crmContact: { select: { id: true } } },
-    });
-
-    let contactId = userRecord?.crmContact?.id ?? null;
-
-    if (!contactId && userRecord?.email) {
-      // Check if a subscriber Contact with this email exists (no userId yet)
-      const emailContact = await db.contact.findUnique({
-        where: { email: userRecord.email },
-        select: { id: true, userId: true },
-      });
-
-      if (emailContact && !emailContact.userId) {
-        // Link the existing subscriber Contact to this account
-        await db.contact.update({ where: { id: emailContact.id }, data: { userId } });
-        contactId = emailContact.id;
-      } else if (!emailContact) {
-        const nameParts = (userRecord.name ?? "").trim().split(/\s+/);
-        const contact = await db.contact.create({
-          data: {
-            email: userRecord.email,
-            firstName: nameParts[0] || null,
-            lastName: nameParts.slice(1).join(" ") || null,
-            userId,
-            source: "account_settings",
-          },
-        });
-        contactId = contact.id;
-      }
+    if (topic === "MORNING_BOOST") {
+      // Keep legacy boolean in sync for the cron fallback path
+      await db.user.update({ where: { id: userId }, data: { morningBoostEmails: optedIn } });
     }
 
-    if (contactId) {
-      await db.contactConsent.upsert({
-        where: { contactId_topic: { contactId, topic: "MORNING_BOOST" } },
-        create: {
-          contactId,
-          topic: "MORNING_BOOST",
-          optedIn,
-          optedInAt: optedIn ? now : null,
-          optedOutAt: optedIn ? null : now,
-          source: "account_settings",
-        },
-        update: {
-          optedIn,
-          optedInAt: optedIn ? now : undefined,
-          optedOutAt: optedIn ? null : now,
-          source: "account_settings",
-        },
-      });
+    const userRecord = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    if (userRecord?.email) {
+      const contactId = await ensureContactForUser(userId, userRecord.email, userRecord.name, "account_settings");
+      await setConsent(contactId, topic, optedIn, "account_settings");
     }
 
     return res.json({ ok: true });

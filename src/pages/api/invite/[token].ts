@@ -7,6 +7,16 @@ import { recordEvent } from "@/lib/application-events";
 import { enrollInJourneys } from "@/lib/automation";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { provisionAffiliate } from "@/lib/affiliate";
+import { ensureContactForUser, setConsent } from "@/lib/contacts";
+
+async function enrollMorningBoost(userId: string, email: string, name: string | null) {
+  try {
+    const contactId = await ensureContactForUser(userId, email, name, "signup");
+    await setConsent(contactId, "MORNING_BOOST", true, "signup");
+  } catch (err) {
+    console.error("[invite] Morning Boost auto-enroll failed:", err);
+  }
+}
 
 const postSchema = z.object({
   name: z.string().min(2).max(100),
@@ -101,6 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (newRole) {
         ops.push(db.user.update({ where: { id: existing.id }, data: { role: newRole } }));
+        ops.push(enrollMorningBoost(existing.id, application.email, application.name));
 
         if (newRole === "AMBASSADOR") {
           ops.push(
@@ -164,6 +175,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userId: user.id,
       role: newRole,
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
+
+    if (newRole === "PROVIDER" || newRole === "AMBASSADOR") {
+      enrollMorningBoost(user.id, application.email, name.trim());
+    }
 
     // Ambassador-specific setup
     if (newRole === "AMBASSADOR") {

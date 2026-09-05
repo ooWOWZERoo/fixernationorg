@@ -38,18 +38,21 @@ test("toggle Morning Boost email preference -> persists after reload", async ({ 
 
   await signInAsTestMfa(page);
   await page.goto("/account");
-  const checkbox = page.getByRole("checkbox");
+  // The email-preferences card has one checkbox per topic now (Morning
+  // Boost, Promos & offers, Newsletter, Product updates) -- target this
+  // one by its label text rather than assuming it's the page's only one.
+  const checkbox = page.getByRole("checkbox", { name: /Morning Boost/i });
   await expect(checkbox).toBeChecked();
 
   await checkbox.uncheck();
   await expect(page.getByText("Saved.")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Morning Boost/i })).not.toBeChecked();
 
-  await page.getByRole("checkbox").check();
+  await page.getByRole("checkbox", { name: /Morning Boost/i }).check();
   await expect(page.getByText("Saved.")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("checkbox")).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Morning Boost/i })).toBeChecked();
 });
 
 test("change password -> new password signs in -> reverted to original", async ({ page, browser }) => {
