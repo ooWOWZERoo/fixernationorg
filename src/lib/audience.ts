@@ -26,7 +26,7 @@ export interface AudienceDefinition {
 
 export interface SuppressionEntry {
   contactId: string;
-  reason: "opted_out" | "bounced" | "unsubscribed";
+  reason: "opted_out" | "bounced" | "unsubscribed" | "test_contact";
 }
 
 export interface AudiencePreview {
@@ -194,6 +194,26 @@ export async function resolveAudience(def: AudienceDefinition): Promise<{
           reason: status === "BOUNCED" ? "bounced" : "unsubscribed",
         });
       }
+    }
+  }
+
+  // 3c. Suppress: QA/e2e test fixture contacts (never real recipients, regardless
+  // of their consent/list/tag state — e2e specs create real Contact rows with
+  // these patterns and a leftover one caused a real production bounce storm)
+  if (included.size > 0) {
+    const testContacts = await db.contact.findMany({
+      where: {
+        id: { in: [...included] },
+        OR: [
+          { email: { endsWith: "@example.com" } },
+          { AND: [{ email: { startsWith: "qa-" } }, { email: { endsWith: "@fixernation.org" } }] },
+        ],
+      },
+      select: { id: true },
+    });
+    for (const { id } of testContacts) {
+      included.delete(id);
+      suppressed.push({ contactId: id, reason: "test_contact" });
     }
   }
 
