@@ -6,6 +6,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { TEST_CONTACT_EMAIL_OR } from "@/lib/testContacts";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -43,26 +44,29 @@ interface Props {
   pageSize: number;
   q: string;
   attrFilter: string;
+  showTest: boolean;
 }
 
-const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, pageSize, q: initialQ, attrFilter: initialAttr }) => {
+const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, pageSize, q: initialQ, attrFilter: initialAttr, showTest: initialShowTest }) => {
   const router = useRouter();
   const [q, setQ] = useState(initialQ);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setQ(initialQ); }, [initialQ]);
 
-  function navigate(updates: { q?: string; attr?: string; page?: number }) {
+  function navigate(updates: { q?: string; attr?: string; page?: number; showTest?: boolean }) {
     const current = {
       q: initialQ,
       attr: initialAttr,
       page: 1,
+      showTest: initialShowTest,
       ...updates,
     };
     const params = new URLSearchParams();
     if (current.q) params.set("q", current.q);
     if (current.attr) params.set("attr", current.attr);
     if (current.page > 1) params.set("page", String(current.page));
+    if (current.showTest) params.set("showTest", "1");
     const qs = params.toString();
     router.push(`/admin/contacts${qs ? `?${qs}` : ""}`, undefined, { shallow: false });
   }
@@ -130,6 +134,15 @@ const AdminContactsPage: NextPageWithLayout<Props> = ({ contacts, total, page, p
             <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ")}</option>
           ))}
         </select>
+        <label className="flex items-center gap-2 rounded-xl border border-navy/15 px-4 py-2 text-sm text-ink-soft">
+          <input
+            type="checkbox"
+            checked={initialShowTest}
+            onChange={(e) => navigate({ showTest: e.target.checked, page: 1 })}
+            className="rounded border-navy/30"
+          />
+          Show test/QA contacts
+        </label>
       </div>
 
       {contacts.length === 0 ? (
@@ -235,6 +248,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
   const attrFilter = typeof ctx.query.attr === "string" ? ctx.query.attr : "";
+  const showTest = ctx.query.showTest === "1";
   const page = Math.max(1, parseInt(typeof ctx.query.page === "string" ? ctx.query.page : "1", 10) || 1);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -248,6 +262,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ],
     } : {}),
     ...(attrFilter ? { attribution: { source: attrFilter } } : {}),
+    ...(showTest ? {} : { NOT: { OR: TEST_CONTACT_EMAIL_OR } }),
   };
 
   const [total, contacts] = await Promise.all([
@@ -291,6 +306,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       pageSize: PAGE_SIZE,
       q,
       attrFilter,
+      showTest,
     },
   };
 };

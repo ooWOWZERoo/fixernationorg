@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { TEST_CONTACT_EMAIL_OR } from "@/lib/testContacts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,13 +203,7 @@ export async function resolveAudience(def: AudienceDefinition): Promise<{
   // these patterns and a leftover one caused a real production bounce storm)
   if (included.size > 0) {
     const testContacts = await db.contact.findMany({
-      where: {
-        id: { in: [...included] },
-        OR: [
-          { email: { endsWith: "@example.com" } },
-          { AND: [{ email: { startsWith: "qa-" } }, { email: { endsWith: "@fixernation.org" } }] },
-        ],
-      },
+      where: { id: { in: [...included] }, OR: TEST_CONTACT_EMAIL_OR },
       select: { id: true },
     });
     for (const { id } of testContacts) {

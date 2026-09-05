@@ -4,6 +4,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isTestEmail } from "@/lib/testContacts";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -69,8 +70,10 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
   const [settingPassword, setSettingPassword] = useState<string | null>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
+  const [showTest, setShowTest] = useState(false);
 
   const iAmSuperAdmin = myAdminRole === "SUPER_ADMIN";
+  const visibleUsers = showTest ? users : users.filter((u) => !isTestEmail(u.email));
 
   async function verifyEmail(userId: string) {
     setVerifyingEmail(userId);
@@ -152,20 +155,31 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Users</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {users.length} registered user{users.length !== 1 ? "s" : ""}.{" "}
+            {visibleUsers.length} registered user{visibleUsers.length !== 1 ? "s" : ""}.{" "}
             {iAmSuperAdmin && (
               <span className="text-slate-400">Membership and staff access can be edited independently.</span>
             )}
           </p>
         </div>
-        {iAmSuperAdmin && (
-          <Link
-            href="/admin/team"
-            className="whitespace-nowrap text-sm font-semibold text-navy hover:underline"
-          >
-            Invite a new admin →
-          </Link>
-        )}
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showTest}
+              onChange={(e) => setShowTest(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Show test/QA accounts
+          </label>
+          {iAmSuperAdmin && (
+            <Link
+              href="/admin/team"
+              className="whitespace-nowrap text-sm font-semibold text-navy hover:underline"
+            >
+              Invite a new admin →
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -186,7 +200,7 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((user) => {
+              {visibleUsers.map((user) => {
                 const isMe = user.id === myId;
                 const targetIsSuperAdmin = user.adminRole === "SUPER_ADMIN";
                 const canEditMembership = !isMe && !(targetIsSuperAdmin && !iAmSuperAdmin);
