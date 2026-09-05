@@ -30,12 +30,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const where: Record<string, unknown> = {};
     if (q) {
-      where.OR = [
-        { email: { contains: q as string, mode: "insensitive" } },
-        { firstName: { contains: q as string, mode: "insensitive" } },
-        { lastName: { contains: q as string, mode: "insensitive" } },
-        { company: { contains: q as string, mode: "insensitive" } },
-      ];
+      // Split on whitespace so a full name like "John Doe" matches a contact
+      // whose firstName/lastName are separate columns (each token must hit
+      // some field, so "John Doe" needs firstName~"John" AND lastName~"Doe").
+      const tokens = (q as string).trim().split(/\s+/).filter(Boolean);
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { email: { contains: token, mode: "insensitive" } },
+          { firstName: { contains: token, mode: "insensitive" } },
+          { lastName: { contains: token, mode: "insensitive" } },
+          { company: { contains: token, mode: "insensitive" } },
+        ],
+      }));
     }
     if (tag) {
       where.tags = { some: { tag: tag as string } };

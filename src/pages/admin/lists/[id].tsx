@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface Member { contactId: string; email: string; firstName: string | null; lastName: string | null }
+interface SearchResult { id: string; email: string; firstName: string | null; lastName: string | null }
 interface Props {
   list: { id: string; name: string; description: string | null; ownerType: string };
   members: Member[];
@@ -17,9 +18,12 @@ interface Props {
 const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initialMembers }) => {
   const router = useRouter();
   const [members, setMembers] = useState(initialMembers);
-  const [addEmail, setAddEmail] = useState("");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const memberIds = new Set(members.map((m) => m.contactId));
 
   const [editingHeader, setEditingHeader] = useState(false);
   const [editName, setEditName] = useState(list.name);
@@ -44,16 +48,27 @@ const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initial
     } finally { setSaving(false); }
   }
 
-  async function addByEmail(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    const handle = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/admin/contacts?q=${encodeURIComponent(query.trim())}`);
+        const { contacts } = await res.json();
+        setResults(contacts ?? []);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  async function addContact(match: SearchResult) {
     setSaving(true);
     setError(null);
     try {
-      const findRes = await fetch(`/api/admin/contacts?q=${encodeURIComponent(addEmail)}`);
-      const { contacts } = await findRes.json();
-      const match = contacts?.find((c: { email: string }) => c.email.toLowerCase() === addEmail.toLowerCase());
-      if (!match) { setError("No contact found with that email. Create the contact first."); return; }
-
       const res = await fetch(`/api/admin/lists/${list.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -61,7 +76,8 @@ const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initial
       });
       if (!res.ok) throw new Error("Failed to add");
       setMembers((m) => [...m, { contactId: match.id, email: match.email, firstName: match.firstName, lastName: match.lastName }]);
-      setAddEmail("");
+      setQuery("");
+      setResults([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally { setSaving(false); }
@@ -143,20 +159,45 @@ const AdminListDetailPage: NextPageWithLayout<Props> = ({ list, members: initial
 
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
-      {/* Add by email */}
-      <form onSubmit={addByEmail} className="mb-5 flex gap-3">
+      {/* Add by name or email */}
+      <div className="relative mb-5 max-w-sm">
         <input
-          type="email"
-          placeholder="Add contact by email…"
-          value={addEmail}
-          onChange={(e) => setAddEmail(e.target.value)}
-          className="flex-1 max-w-sm rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
+          type="text"
+          placeholder="Search by name or email…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
         />
-        <button type="submit" disabled={saving || !addEmail}
-          className="rounded-xl bg-navy px-4 py-2 text-sm font-bold text-white hover:bg-navy-dark disabled:opacity-60">
-          Add
-        </button>
-      </form>
+        {query.trim() && (
+          <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-navy/15 bg-white shadow-lg">
+            {searching ? (
+              <p className="px-4 py-3 text-sm text-ink-soft">Searching…</p>
+            ) : results.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-ink-soft">No contacts found.</p>
+            ) : (
+              results.map((r) => {
+                const alreadyMember = memberIds.has(r.id);
+                const name = r.firstName || r.lastName ? `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() : null;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={saving || alreadyMember}
+                    onClick={() => addContact(r)}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-cream-panel/60 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span>
+                      <span className="font-semibold text-navy">{name ?? r.email}</span>
+                      {name && <span className="ml-2 text-xs text-ink-soft">{r.email}</span>}
+                    </span>
+                    {alreadyMember && <span className="text-xs text-ink-soft">Already added</span>}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
 
       {members.length === 0 ? (
         <div className="rounded-2xl border border-navy/8 bg-white p-12 text-center">
