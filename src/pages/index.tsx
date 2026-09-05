@@ -2,7 +2,10 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import type { GetServerSideProps } from "next";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { DailyPositivityBoost, type DailyPositivityBoostProps } from "@/components/home/DailyPositivityBoost";
+import { getTodaysPositivityBoost } from "@/lib/positivityBoost";
 import type { NextPageWithLayout } from "@/types/next";
 
 const CHECK_CARDS = [
@@ -56,7 +59,11 @@ const BENEFITS = [
   },
 ];
 
-const HomePage: NextPageWithLayout = () => {
+interface Props {
+  positivityBoost: DailyPositivityBoostProps;
+}
+
+const HomePage: NextPageWithLayout<Props> = ({ positivityBoost }) => {
   const [subFirstName, setSubFirstName] = useState("");
   const [subEmail, setSubEmail] = useState("");
   const [subState, setSubState] = useState<"idle" | "submitting" | "done" | "error">("idle");
@@ -135,6 +142,13 @@ const HomePage: NextPageWithLayout = () => {
               priority
             />
           </div>
+        </div>
+      </section>
+
+      {/* 1.5 Daily Positivity Boost */}
+      <section className="px-6 py-16 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <DailyPositivityBoost {...positivityBoost} />
         </div>
       </section>
 
@@ -352,3 +366,9 @@ const HomePage: NextPageWithLayout = () => {
 
 HomePage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 export default HomePage;
+
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const positivityBoost = await getTodaysPositivityBoost();
+  ctx.res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+  return { props: { positivityBoost } };
+};

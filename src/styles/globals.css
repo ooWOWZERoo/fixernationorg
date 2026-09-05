@@ -91,3 +91,26 @@
     @apply font-semibold text-navy underline underline-offset-2 hover:text-navy-dark;
   }
 }
+
+/* Daily Positivity Boost entrance fade -- the first scroll-entrance
+   animation anywhere in this codebase, kept isolated here (rather than
+   folded into an existing @apply utility) so it's easy to find and reuse
+   if a second animated section is ever added. */
+[data-boost-reveal] {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+[data-boost-reveal][data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-boost-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

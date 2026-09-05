@@ -2437,3 +2437,56 @@ model RecommendationFeedback {
   action           RecommendationAction
   createdAt        DateTime             @default(now())
 }
+
+// ─── Your Daily Positivity Boost ─────────────────────────────────────────────
+
+enum PositivityBoostStatus {
+  DRAFT
+  APPROVED
+  ACTIVE
+  INACTIVE
+  REJECTED
+}
+
+enum PositivityValidationStatus {
+  PENDING
+  PASSED
+  FAILED
+}
+
+model PositivityBoost {
+  id               String                     @id @default(cuid())
+  content          String                     @unique @db.Text
+  category         String
+  status           PositivityBoostStatus      @default(DRAFT)
+  validationStatus PositivityValidationStatus @default(PENDING)
+  validationNotes  String?                    @db.Text
+  isFallback       Boolean                    @default(false)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  approvedAt       DateTime?
+  approvedBy       String?
+  lastDisplayedAt  DateTime?
+  displayCount     Int                        @default(0)
+
+  assignments PositivityBoostAssignment[]
+
+  @@index([status, validationStatus])
+  @@index([category])
+  @@index([lastDisplayedAt])
+}
+
+// One row per calendar day, forever -- the authoritative display history.
+// @@unique([displayDate]) is the atomic daily-claim idiom also used by
+// RecurrenceRun: the selector creates this row first, and treats a unique-
+// constraint violation as "another request already claimed today."
+model PositivityBoostAssignment {
+  id                 String          @id @default(cuid())
+  positivityBoostId  String
+  positivityBoost    PositivityBoost @relation(fields: [positivityBoostId], references: [id])
+  displayDate        DateTime        @db.Date
+  createdAt          DateTime        @default(now())
+
+  @@unique([displayDate])
+  @@index([positivityBoostId])
+}
