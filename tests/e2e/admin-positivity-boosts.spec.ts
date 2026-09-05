@@ -15,7 +15,7 @@ test("admin creates, approves, activates, and deletes a message", async ({ page 
   await signInAsTestAdmin(page);
   await page.goto("/admin/positivity-boosts/new");
 
-  await page.getByLabel("Message").fill(CONTENT);
+  await page.getByLabel("Message", { exact: true }).fill(CONTENT);
   await page.getByRole("button", { name: "Run validation" }).click();
   await expect(page.getByText("Positivity Validation: Passed")).toBeVisible();
 
@@ -55,7 +55,7 @@ test("content that fails validation cannot be activated", async ({ page }) => {
   await signInAsTestAdmin(page);
   await page.goto("/admin/positivity-boosts/new");
 
-  await page.getByLabel("Message").fill(BAD_CONTENT);
+  await page.getByLabel("Message", { exact: true }).fill(BAD_CONTENT);
   await page.getByRole("button", { name: "Run validation" }).click();
   await expect(page.getByText("Not Eligible for Public Display")).toBeVisible();
 
