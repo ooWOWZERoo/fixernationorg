@@ -1,9 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
 import { forceCampaignStuckSending, forceCampaignOverdueScheduled } from "./helpers/db";
+import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
 const STAMP = Date.now();
-const CONTACT_EMAIL = `qa-campaign-contact-${STAMP}@example.com`;
+// Not @example.com -- that domain is permanently suppressed as a
+// "test_contact" from every resolved audience (see src/lib/audience.ts),
+// and this contact needs to actually receive the test campaign send below.
+const CONTACT_EMAIL = `qa-campaign-contact-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`;
 const TAG = `qa-campaign-${STAMP}`;
 const CAMPAIGN_NAME = `QA e2e admin campaign ${STAMP}`;
 const SUBJECT = "QA e2e admin campaign subject";
@@ -52,8 +56,8 @@ test("preview-audience API correctly unions two separate list rules", async ({ p
     await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
     return page.url().split("/").pop() as string;
   }
-  const contactA = await createContact(`qa-preview-a-${STAMP}@example.com`, `PreviewA${STAMP}`);
-  const contactB = await createContact(`qa-preview-b-${STAMP}@example.com`, `PreviewB${STAMP}`);
+  const contactA = await createContact(`qa-preview-a-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `PreviewA${STAMP}`);
+  const contactB = await createContact(`qa-preview-b-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `PreviewB${STAMP}`);
 
   async function createListWithMember(name: string, contactId: string) {
     const res = await page.request.post("/api/admin/lists", { data: { name } });
@@ -97,7 +101,7 @@ test("wizard's Preview audience size button shows the real count, not 0", async 
     await expect(page).toHaveURL(/\/admin\/contacts\/(?!new$)[a-z0-9]+$/);
     return page.url().split("/").pop() as string;
   }
-  await createContact(`qa-preview-single-${STAMP}@example.com`, `PreviewSingle${STAMP}`);
+  await createContact(`qa-preview-single-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `PreviewSingle${STAMP}`);
   const TAG = `qa-preview-single-${STAMP}`;
   await page.getByPlaceholder("Add tag…").fill(TAG);
   await page.getByRole("button", { name: "Add tag" }).click();
@@ -188,8 +192,8 @@ test("create contact + tag -> build campaign -> send -> verify", async ({ page }
   await expect(page.getByText("draft", { exact: true })).toBeVisible();
 
   // Send now — the admin send path always finalizes the campaign as SENT
-  // server-side (unlike the provider campaign flow), even if the test
-  // contact's @example.com address can't actually accept mail.
+  // server-side (unlike the provider campaign flow), even though the test
+  // contact's fixture-domain address can't actually accept mail.
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Send now" }).click();
   await expect(page.getByText(/^Sent to \d+ contact/)).toBeVisible({ timeout: 30000 });

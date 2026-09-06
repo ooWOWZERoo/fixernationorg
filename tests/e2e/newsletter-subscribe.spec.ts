@@ -22,6 +22,17 @@ test("subscribe from the homepage -> contact created with list membership and ne
 
   await signInAsTestAdmin(page);
   await page.goto("/admin/contacts");
+  // QA-pattern contacts are hidden by default -- reveal them before
+  // searching, and wait for that navigation to land first (each control
+  // here re-navigates from a closure over the *previous* render's props,
+  // so filling search before this settles could resubmit with a stale
+  // showTest=false and hide the row again). This checkbox is server-driven
+  // (checked={initialShowTest} from getServerSideProps, not local state), so
+  // its DOM checked state snaps back to unchecked while the router.push
+  // navigation is in flight -- click it and wait on the URL instead of
+  // asserting the checkbox's own transient checked state.
+  await page.getByLabel("Show test/QA contacts").click();
+  await expect(page).toHaveURL(/showTest=1/);
   await page.getByPlaceholder("Search by name, email, or company…").fill(EMAIL);
   // Search is debounced (400ms) and re-navigates the page — wait for that
   // navigation to settle before interacting, or the click races the re-render.
@@ -49,6 +60,11 @@ test("re-subscribing the same email does not create a duplicate contact", async 
 
   await signInAsTestAdmin(page);
   await page.goto("/admin/contacts");
+  // QA-pattern contacts are hidden by default -- reveal them before
+  // searching, and wait for that navigation to land first (see the first
+  // test case above for why this is a click+URL-wait, not a .check()).
+  await page.getByLabel("Show test/QA contacts").click();
+  await expect(page).toHaveURL(/showTest=1/);
   await page.getByPlaceholder("Search by name, email, or company…").fill(EMAIL);
   await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(EMAIL)}`));
   await expect(page.locator("tbody tr").filter({ hasText: EMAIL })).toHaveCount(1);

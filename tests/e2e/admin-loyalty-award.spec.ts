@@ -12,6 +12,9 @@ test("admin awards points to a member -> reflected in admin table and member's h
 
   await signInAsTestAdmin(page);
   await page.goto("/admin/loyalty");
+  // QA-pattern members are hidden by default (see the "Show test/QA"
+  // toggle) -- reveal them before searching for the test member.
+  await page.getByLabel("Show test/QA").check();
   await page.getByPlaceholder("Search by name or email").fill(process.env.TEST_MEMBER_EMAIL!);
   await page.getByRole("button", { name: "Search" }).click();
 

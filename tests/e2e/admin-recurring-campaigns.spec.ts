@@ -7,6 +7,7 @@ import {
   countChildCampaigns,
   getCampaignById,
 } from "./helpers/db";
+import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
 const STAMP = Date.now();
 
@@ -94,7 +95,7 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
   await createMorningBoostEntryToday(`QA e2e boost ${STAMP}`, `qa-e2e-boost-${STAMP}`);
 
   const tag = `qa-recurring-dispatch-${STAMP}`;
-  await createContactWithTag(page, `qa-recurring-dispatch-${STAMP}@example.com`, `RecurringDispatch${STAMP}`, tag);
+  await createContactWithTag(page, `qa-recurring-dispatch-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `RecurringDispatch${STAMP}`, tag);
   const templateId = await createTemplateViaApi(page, `QA e2e dispatch template ${STAMP}`, "MORNING_BOOST", tag);
 
   await dispatch(page);
@@ -129,7 +130,7 @@ test("duplicate-content guard skips a template whose lastMorningBoostId already 
   const entry = await createMorningBoostEntryToday(`QA e2e boost dup ${STAMP}`, `qa-e2e-boost-dup-${STAMP}`);
 
   const tag = `qa-recurring-dupguard-${STAMP}`;
-  await createContactWithTag(page, `qa-recurring-dupguard-${STAMP}@example.com`, `RecurringDupGuard${STAMP}`, tag);
+  await createContactWithTag(page, `qa-recurring-dupguard-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `RecurringDupGuard${STAMP}`, tag);
   const templateId = await createTemplateViaApi(page, `QA e2e duplicate-guard template ${STAMP}`, "MORNING_BOOST", tag);
   await forceCampaignLastMorningBoostId(templateId, entry.id);
 
@@ -182,7 +183,7 @@ test("regression: sendCampaignNow now correctly sends a one-time SCHEDULED campa
   // campaign using rule-based audienceRules instead.
   test.setTimeout(30000);
 
-  const contactEmail = `qa-recurring-regression-${STAMP}@example.com`;
+  const contactEmail = `qa-recurring-regression-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`;
   await page.goto("/admin/contacts/new");
   await page.locator('input[type="email"]').first().fill(contactEmail);
   await page.locator('input[type="text"]').nth(0).fill("QA");

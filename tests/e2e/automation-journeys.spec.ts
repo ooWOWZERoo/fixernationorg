@@ -2,9 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
 
 // Journeys have no delete UI (by design — deletion is API-only and blocked
-// while enrollments are active), so each run creates a new journey. That's
-// an accepted, unavoidable accumulation, consistent with other admin-side
-// test data in this suite.
+// while enrollments are active), so each run creates a new journey. No
+// longer left to accumulate, though: global-teardown.ts deletes any
+// QA-named journey created during the run directly via Prisma, bypassing
+// the missing delete UI.
 const JOURNEY_NAME = `QA e2e journey ${Date.now()}`;
 
 test.beforeEach(async ({ page }) => {
@@ -94,8 +95,11 @@ test("create journey -> add a step -> configure it -> toggle active -> check enr
 
   await reloadUntilHidden(page, "click to edit");
 
-  // Confirm it shows correctly in the journey list too.
+  // Confirm it shows correctly in the journey list too. QA-named journeys
+  // are hidden by default on this page (see /admin/automations's
+  // "Show test/QA" toggle) -- check it to reveal this run's own journey.
   await page.goto("/admin/automations");
+  await page.getByLabel("Show test/QA").check();
   const row = page.locator("tbody tr").filter({ hasText: JOURNEY_NAME });
   await expect(row).toBeVisible();
   await expect(row.getByText("Application accepted")).toBeVisible();

@@ -6,6 +6,9 @@ test("admin can set a member's password via /admin/users set-password panel", as
 
   await signInAsTestAdmin(page);
   await page.goto("/admin/users");
+  // QA-pattern accounts are hidden by default -- reveal them so the scan
+  // below can find a qa-* row to target.
+  await page.getByLabel("Show test/QA accounts").check();
 
   // Find a QA test account row that's not the admin's own account and not a super admin
   // Look for qa-provider or qa-ambassador or similar test accounts
@@ -80,6 +83,7 @@ test("admin can set a member's password via /admin/users set-password panel", as
   // Reload the page and confirm the panel is closed/reset
   await page.reload();
   await page.waitForLoadState("networkidle");
+  await page.getByLabel("Show test/QA accounts").check();
 
   // Find the target row again by email
   const reloadedTargetRow = page.locator("tbody tr").filter({ hasText: targetEmail }).first();

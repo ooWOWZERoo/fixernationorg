@@ -27,6 +27,9 @@ test("admin changes a member's role -> persists; own row and staff access stay l
 
   await signInAsTestAdmin(page);
   await page.goto("/admin/users");
+  // QA-pattern users are hidden by default -- reveal them before locating
+  // the target row (client-side filter, so this settles synchronously).
+  await page.getByLabel("Show test/QA accounts").check();
 
   const targetRow = page.locator("tbody tr").filter({ hasText: TARGET_EMAIL });
   await expect(targetRow).toBeVisible();
@@ -41,6 +44,7 @@ test("admin changes a member's role -> persists; own row and staff access stay l
   await expect(targetRow.getByText("Saved", { exact: true })).toBeVisible();
 
   await page.reload();
+  await page.getByLabel("Show test/QA accounts").check();
   const targetRowAfterReload = page.locator("tbody tr").filter({ hasText: TARGET_EMAIL });
   await expect(targetRowAfterReload.locator("select").first()).toHaveValue("MEMBER");
 
@@ -75,6 +79,7 @@ test("super admin CAN change another user's staff access -> persists", async ({ 
 
   await signInAsTestSuperAdmin(page);
   await page.goto("/admin/users");
+  await page.getByLabel("Show test/QA accounts").check();
 
   const targetRow = page.locator("tbody tr").filter({ hasText: SUPER_TARGET_EMAIL });
   await expect(targetRow).toBeVisible();
@@ -88,6 +93,7 @@ test("super admin CAN change another user's staff access -> persists", async ({ 
   await expect(targetRow.getByText("Saved", { exact: true })).toBeVisible();
 
   await page.reload();
+  await page.getByLabel("Show test/QA accounts").check();
   const targetRowAfterReload = page.locator("tbody tr").filter({ hasText: SUPER_TARGET_EMAIL });
   await expect(targetRowAfterReload.locator("select").nth(1)).toHaveValue("ADMIN");
 });

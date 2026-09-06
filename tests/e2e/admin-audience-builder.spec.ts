@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
+import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
 // Exercises src/lib/audience.ts's actual combination logic (AND/OR over
 // include rules, exclude subtraction, consent-opt-out suppression) via the
@@ -23,7 +24,11 @@ test.describe.configure({ mode: "serial" });
 
 async function createTaggedContact(page: Page, label: string, tags: string[]) {
   await page.goto("/admin/contacts/new");
-  await page.locator('input[type="email"]').first().fill(`qa-aud-${label}-${STAMP}@example.com`);
+  // Uses a non-suppressed domain (not @example.com) -- these fixtures need
+  // to actually resolve into the audience to test the AND/OR/exclude logic,
+  // and @example.com is now permanently suppressed as a "test_contact"
+  // (see src/lib/audience.ts) regardless of tags or consent state.
+  await page.locator('input[type="email"]').first().fill(`qa-aud-${label}-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`);
   await page.locator('input[type="text"]').nth(0).fill("QA");
   await page.locator('input[type="text"]').nth(1).fill(`Audience${label}`);
   await page.getByRole("button", { name: "Create contact" }).click();
