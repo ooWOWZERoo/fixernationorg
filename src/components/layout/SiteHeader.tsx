@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { signOut, useSession } from "next-auth/react";
 import { useSiteLogoUrl } from "@/hooks/useSiteLogoUrl";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const NAV_LINKS = [
   { href: "/", label: "Home", dropdown: [
@@ -130,6 +131,7 @@ export function SiteHeader() {
 
         {/* Auth CTAs + hamburger */}
         <div className="flex items-center gap-3">
+          {session && <NotificationBell />}
           {session ? (
             <div className="relative hidden lg:block">
               <button

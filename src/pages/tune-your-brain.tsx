@@ -8,6 +8,9 @@ import { db } from "@/lib/db"
 import { SiteLayout } from "@/components/layout/SiteLayout"
 import { AccountNav } from "@/components/account/AccountNav"
 import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
+import { BadgeFrame } from "@/components/tuneBrain/BadgeFrame"
+import { getMemberCalendarDate } from "@/lib/tuneBrainDate"
+import { DAILY_GOAL_KEY, WEEKLY_GOAL_KEY, PERSONAL_REFRAME_BUILDER_KEY, GOAL_LABELS, mondayOf } from "@/lib/tuneBrain/goals"
 
 interface SessionOption {
   id: string
@@ -27,13 +30,38 @@ interface CompleteResult {
   explanation: string | null
 }
 
+interface BadgeVM {
+  id: string
+  key: string
+  name: string
+  description: string
+  tier: string | null
+  iconKey: string
+}
+
+interface EarnedBadgeVM extends BadgeVM {
+  earnedAt: string
+}
+
+interface GoalVM {
+  id: string
+  period: string
+  key: string
+  target: number
+  progress: number
+  status: string
+}
+
 interface Props {
   hasTimezone: boolean
+  earnedBadges: EarnedBadgeVM[]
+  lockedBadges: BadgeVM[]
+  goals: GoalVM[]
 }
 
 const GAME_KEY = "POSITIVE_REFRAME"
 
-const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone }) => {
+const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadges, lockedBadges, goals }) => {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [contentItem, setContentItem] = useState<SessionContentItem | null>(null)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
@@ -196,6 +224,56 @@ const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone }) => {
               </p>
             )}
           </div>
+
+          {/* My Goals */}
+          <div className="mt-8 rounded-2xl border border-navy/8 bg-white p-6">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-4">My Goals</h2>
+            {goals.length === 0 ? (
+              <p className="text-sm text-ink-soft">Play a round to set your first goals.</p>
+            ) : (
+              <div className="space-y-3">
+                {goals.map((goal) => {
+                  const pct = Math.min(100, Math.round((goal.progress / goal.target) * 100))
+                  const completed = goal.status === "COMPLETED"
+                  return (
+                    <div key={goal.id}>
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-navy">
+                          {GOAL_LABELS[goal.key] ?? goal.key}
+                        </span>
+                        <span className={`text-xs font-bold ${completed ? "text-green-600" : "text-ink-soft"}`}>
+                          {completed ? "Completed" : `${goal.progress}/${goal.target}`}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-cream-panel">
+                        <div
+                          className={`h-2 rounded-full ${completed ? "bg-green-500" : "bg-amber"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* My Badges */}
+          <div className="mt-8 rounded-2xl border border-navy/8 bg-white p-6">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-4">My Badges</h2>
+            {earnedBadges.length === 0 && lockedBadges.length === 0 ? (
+              <p className="text-sm text-ink-soft">Badges will show up here as you play.</p>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {earnedBadges.map((badge) => (
+                  <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state="earned" />
+                ))}
+                {lockedBadges.map((badge) => (
+                  <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state="locked" />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </>
@@ -208,10 +286,64 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions)
   if (!session) return { redirect: { destination: "/signin?callbackUrl=/tune-your-brain", permanent: false } }
 
-  const user = await db.user.findUnique({ where: { id: session.user.id } })
-  const timezone = (user as unknown as { timezone: string | null } | null)?.timezone
+  const userId = session.user.id
+  const user = await db.user.findUnique({ where: { id: userId } })
+  const timezone = user?.timezone ?? null
 
-  return { props: { hasTimezone: !!timezone } }
+  const today = getMemberCalendarDate(new Date(), timezone)
+  const monday = mondayOf(today)
+
+  const [earnedRows, allBadgeRows, goalRows] = await Promise.all([
+    db.tbUserBadge.findMany({ where: { userId }, include: { badge: true }, orderBy: { earnedAt: "asc" } }),
+    db.tbBadge.findMany({
+      where: { isActive: true, OR: [{ gameKey: "POSITIVE_REFRAME" }, { gameKey: null }] },
+      orderBy: { sortOrder: "asc" },
+    }),
+    db.tbGoal.findMany({
+      where: {
+        userId,
+        OR: [
+          { key: DAILY_GOAL_KEY, periodStart: today },
+          { key: WEEKLY_GOAL_KEY, periodStart: monday },
+          { key: PERSONAL_REFRAME_BUILDER_KEY },
+        ],
+      },
+    }),
+  ])
+
+  const earnedBadgeIds = new Set(earnedRows.map((r) => r.badgeId))
+
+  const earnedBadges = earnedRows.map((r) => ({
+    id: r.badge.id,
+    key: r.badge.key,
+    name: r.badge.name,
+    description: r.badge.description,
+    tier: r.badge.tier,
+    iconKey: r.badge.iconKey,
+    earnedAt: r.earnedAt,
+  }))
+
+  const lockedBadges = allBadgeRows
+    .filter((b) => !earnedBadgeIds.has(b.id))
+    .map((b) => ({
+      id: b.id,
+      key: b.key,
+      name: b.name,
+      description: b.description,
+      tier: b.tier,
+      iconKey: b.iconKey,
+    }))
+
+  return {
+    props: JSON.parse(
+      JSON.stringify({
+        hasTimezone: !!timezone,
+        earnedBadges,
+        lockedBadges,
+        goals: goalRows,
+      })
+    ),
+  }
 }
 
 export default TuneYourBrainPage
