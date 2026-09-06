@@ -34,6 +34,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   username     String?  @unique
+  timezone     String?  // IANA tz name (e.g. "America/Chicago"); captured client-side, nullable, no backfill
 
   accounts Account[]
   sessions Session[]
@@ -74,6 +75,17 @@ model User {
   reflections              ReflectionEntry[]
   memberIssues             MemberIssue[]
   recommendations          Recommendation[]
+
+  // Tune Your Brain (Phase 1 foundation)
+  tbGameSessions           TbGameSession[]
+  tbGameLevels             TbGameLevel[]
+  streaks                  Streak[]
+  tbUserBadges             TbUserBadge[]
+  badgeFeatures            BadgeFeature[]
+  tbGoals                  TbGoal[]
+  notifications            Notification[]
+  tbGratitudeEntries       TbGratitudeEntry[]
+  tbKindnessMissions       TbKindnessMission[]
 
   @@index([email])
   @@index([stripeCustomerId])
@@ -2489,4 +2501,256 @@ model PositivityBoostAssignment {
 
   @@unique([displayDate])
   @@index([positivityBoostId])
+}
+
+// ─── Tune Your Brain (SP-TB-P1 foundation) ───────────────────────────────────
+// All models/enums for the full 7-phase feature are created now so later
+// phases are pure application-code work with no further schema churn. Only
+// TbContentItem/TbContentItemOption/TbGameSession/TbGameLevel are populated
+// in Phase 1 (Positive Reframe); the rest sit unused until Phase 2+.
+
+enum TbGameKey {
+  POSITIVE_REFRAME
+  GRATITUDE_QUEST
+  KINDNESS_QUEST
+  CALM_FOCUS
+  STRENGTH_SPOTTER
+  WELLNESS_CHOICES
+  POSITIVITY_RECALL // reserved, unused until a future phase
+  BUILD_GOOD_DAY    // reserved, unused until a future phase
+}
+
+enum TbContentStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  REJECTED
+}
+
+enum TbLevelTier {
+  STARTER
+  EXPLORER
+  BUILDER
+  CHALLENGER
+  SKILLED
+  ADVANCED
+  CHAMPION
+}
+
+enum TbGoalPeriod {
+  DAILY
+  WEEKLY
+  PERSONAL
+}
+
+enum TbGoalStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+model TbContentItem {
+  id               String                     @id @default(cuid())
+  gameKey          TbGameKey
+  status           TbContentStatus            @default(DRAFT)
+  difficulty       Int?
+  category         String?
+  prompt           String                     @db.Text
+  payload          Json
+  validationStatus PositivityValidationStatus @default(PENDING)
+  validationNotes  String?                    @db.Text
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  createdBy        String?
+  updatedBy        String?
+
+  options  TbContentItemOption[]
+  sessions TbGameSession[]
+
+  @@index([gameKey, status])
+  @@index([gameKey, category])
+}
+
+model TbContentItemOption {
+  id              String        @id @default(cuid())
+  contentItemId   String
+  contentItem     TbContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  order           Int
+  label           String        @db.Text
+  isCorrectOrBest Boolean       @default(false)
+  explanation     String?       @db.Text
+
+  @@unique([contentItemId, order])
+}
+
+model TbGameSession {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey       TbGameKey
+  contentItemId String?
+  contentItem   TbContentItem? @relation(fields: [contentItemId], references: [id])
+  startedAt     DateTime       @default(now())
+  completedAt   DateTime?
+  outcome       Json?
+  pointsAwarded Int            @default(0)
+  xpAwarded     Int            @default(0)
+  createdAt     DateTime       @default(now())
+
+  gratitudeEntry  TbGratitudeEntry?
+  kindnessMission TbKindnessMission?
+
+  @@index([userId, gameKey, completedAt])
+}
+
+model TbGameLevel {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey   TbGameKey
+  xp        Int         @default(0)
+  tier      TbLevelTier @default(STARTER)
+  updatedAt DateTime    @updatedAt
+
+  @@unique([userId, gameKey])
+}
+
+// scope is either a TbGameKey value (per-game streak) or the literal string
+// "GLOBAL" (cross-game streak) -- kept as a plain String rather than a
+// nullable enum so "GLOBAL" doesn't need its own enum member.
+model Streak {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope          String
+  current        Int      @default(0)
+  longest        Int      @default(0)
+  lastActiveDate DateTime @db.Date
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, scope])
+}
+
+model TbBadge {
+  id           String       @id @default(cuid())
+  key          String       @unique
+  gameKey      TbGameKey?
+  name         String
+  description  String       @db.Text
+  tier         TbLevelTier?
+  iconKey      String
+  sortOrder    Int          @default(0)
+  pointsReward Int          @default(0)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  userBadges TbUserBadge[]
+}
+
+model TbUserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId  String
+  badge    TbBadge  @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
+
+model BadgeFeature {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId String
+  order   Int
+
+  @@unique([userId, badgeId])
+  @@index([userId, order])
+}
+
+model TbGoal {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      TbGoalPeriod
+  key         String
+  target      Int
+  progress    Int          @default(0)
+  status      TbGoalStatus @default(ACTIVE)
+  periodStart DateTime     @db.Date
+  periodEnd   DateTime?    @db.Date
+  completedAt DateTime?
+
+  @@index([userId, period, status])
+  @@unique([userId, key, periodStart])
+}
+
+model TbDailyChallenge {
+  id            String    @id @default(cuid())
+  displayDate   DateTime  @db.Date
+  gameKey       TbGameKey
+  contentItemId String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([displayDate])
+}
+
+// Deliberately general-purpose (not TB-prefixed) -- Tune Your Brain is its
+// first consumer, not its only intended one.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String    @db.Text
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model TbAnalyticsEvent {
+  id         String     @id @default(cuid())
+  userId     String?
+  name       String
+  gameKey    TbGameKey?
+  properties Json?
+  createdAt  DateTime   @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId])
+}
+
+// Narrow, privacy-sensitive: private free text, never analytics'd or
+// published. Kept separate from TbGameSession.outcome (Json) so that
+// enforcement is at the schema/query layer, not just convention.
+model TbGratitudeEntry {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String        @unique
+  session   TbGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  category  String
+  body      String        @db.Text
+  createdAt DateTime      @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model TbKindnessMission {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentItemId String
+  acceptedAt    DateTime      @default(now())
+  completedAt   DateTime?
+  moodAfter     Int?
+  sessionId     String        @unique
+  session       TbGameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completedAt])
 }
