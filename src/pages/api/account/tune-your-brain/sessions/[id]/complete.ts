@@ -24,7 +24,7 @@ type TbContentItemOptionRow = {
 type TbCompleteDb = {
   tbGameSession: {
     findUnique: (args: Record<string, unknown>) => Promise<TbGameSessionRow | null>
-    update: (args: Record<string, unknown>) => Promise<unknown>
+    updateMany: (args: Record<string, unknown>) => Promise<{ count: number }>
   }
   tbContentItemOption: {
     findMany: (args: Record<string, unknown>) => Promise<TbContentItemOptionRow[]>
@@ -53,15 +53,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsed = bodySchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
+  // Ownership/content checks are fine as a plain read -- only the
+  // completedAt transition below needs to be atomic.
   const gameSession = await db_.tbGameSession.findUnique({ where: { id } })
   if (!gameSession) return res.status(404).json({ error: "Not found" })
   if (gameSession.userId !== session.user.id) return res.status(403).json({ error: "Forbidden" })
   if (!gameSession.contentItemId) return res.status(400).json({ error: "Session has no content" })
-
-  // Idempotency gate -- reward/state-transition logic is gated on whether
-  // completedAt just transitioned from null, never on request count or row
-  // existence alone. A second completion attempt is rejected outright.
-  if (gameSession.completedAt) return res.status(409).json({ error: "Session already completed" })
 
   const options = await db_.tbContentItemOption.findMany({
     where: { contentItemId: gameSession.contentItemId },
@@ -75,14 +72,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const wasCorrect = chosen.isCorrectOrBest
   const bestOption = options.find((o) => o.isCorrectOrBest)
 
-  await db_.tbGameSession.update({
-    where: { id },
+  // Idempotency gate -- the write itself is the atomic check-and-set, scoped
+  // on completedAt: null so two concurrent requests can't both pass a
+  // read-then-write race. Only the request that actually flips the row from
+  // null -> set proceeds to award XP; a second concurrent/retried request
+  // gets count 0 and is rejected outright, never double-awarding.
+  const updated = await db_.tbGameSession.updateMany({
+    where: { id, completedAt: null },
     data: {
       completedAt: new Date(),
       outcome: { optionId: chosen.id, wasCorrect },
       xpAwarded: FLAT_XP_PER_SESSION,
     },
   })
+  if (updated.count === 0) return res.status(409).json({ error: "Session already completed" })
 
   await db_.tbGameLevel.upsert({
     where: { userId_gameKey: { userId: session.user.id, gameKey: gameSession.gameKey } },
