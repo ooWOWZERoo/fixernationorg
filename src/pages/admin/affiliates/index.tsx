@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { useState } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { isTestEmail } from "@/lib/testContacts";
 import type { NextPageWithLayout } from "@/types/next";
 
 type AffiliateRow = {
@@ -47,16 +49,29 @@ const STATUS_LABEL: Record<string, string> = {
   CLOSED: "Closed",
 };
 
-const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates }) => {
+const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates: allAffiliates }) => {
+  const [showTest, setShowTest] = useState(false);
+  const affiliates = showTest ? allAffiliates : allAffiliates.filter((a) => !isTestEmail(a.user.email));
   const byStatus = (s: string) => affiliates.filter((a) => a.status === s).length;
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Affiliates</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {affiliates.length} total &middot; {byStatus("ACTIVE")} active &middot; {byStatus("PENDING")} pending setup
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Affiliates</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {affiliates.length} total &middot; {byStatus("ACTIVE")} active &middot; {byStatus("PENDING")} pending setup
+          </p>
+        </div>
+        <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-500">
+          <input
+            type="checkbox"
+            checked={showTest}
+            onChange={(e) => setShowTest(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Show test/QA
+        </label>
       </div>
 
       {affiliates.length === 0 ? (

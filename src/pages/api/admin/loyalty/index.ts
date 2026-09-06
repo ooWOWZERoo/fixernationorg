@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { awardPoints } from "@/lib/loyalty";
+import { TEST_CONTACT_EMAIL_OR } from "@/lib/testContacts";
 
 const AwardSchema = z.object({
   userId: z.string().min(1),
@@ -20,16 +21,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const showTest = req.query.showTest === "1";
     const PAGE_SIZE = 50;
 
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { email: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where: Record<string, unknown> = {
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+        ],
+      } : {}),
+      ...(showTest ? {} : { NOT: { OR: TEST_CONTACT_EMAIL_OR } }),
+    };
 
     const [users, total] = await Promise.all([
       db.user.findMany({

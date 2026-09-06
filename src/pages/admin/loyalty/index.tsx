@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { TEST_CONTACT_EMAIL_OR } from "@/lib/testContacts";
 import type { NextPageWithLayout } from "@/types/next";
 
 const ROLE_BADGE: Record<string, string> = {
@@ -31,11 +32,13 @@ interface Props {
   page: number;
   search: string;
   grandTotal: number;
+  showTest: boolean;
 }
 
-const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, total, pages, page, search: initialSearch, grandTotal }) => {
+const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, total, pages, page, search: initialSearch, grandTotal, showTest: initialShowTest }) => {
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState(initialSearch);
+  const [showTest, setShowTest] = useState(initialShowTest);
   const [currentPage, setCurrentPage] = useState(page);
   const [totalUsers, setTotalUsers] = useState(total);
   const [totalPages, setTotalPages] = useState(pages);
@@ -46,10 +49,11 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
   const [awardSaving, setAwardSaving] = useState(false);
   const [awardMsg, setAwardMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const fetchUsers = useCallback(async (q: string, p: number) => {
+  const fetchUsers = useCallback(async (q: string, p: number, showTestValue: boolean) => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(p) });
     if (q) params.set("search", q);
+    if (showTestValue) params.set("showTest", "1");
     const res = await fetch(`/api/admin/loyalty?${params}`);
     const data = await res.json();
     setUsers(data.users);
@@ -61,7 +65,12 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    fetchUsers(search, 1);
+    fetchUsers(search, 1, showTest);
+  }
+
+  function handleShowTestChange(checked: boolean) {
+    setShowTest(checked);
+    fetchUsers(search, 1, checked);
   }
 
   async function handleAward(e: React.FormEvent, userId: string) {
@@ -109,7 +118,7 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="mb-6 flex gap-2">
+      <form onSubmit={handleSearch} className="mb-6 flex flex-wrap gap-2">
         <input
           type="search"
           value={search}
@@ -123,6 +132,15 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
         >
           Search
         </button>
+        <label className="flex items-center gap-2 rounded-lg border border-navy/20 px-4 py-2 text-sm text-ink-soft">
+          <input
+            type="checkbox"
+            checked={showTest}
+            onChange={(e) => handleShowTestChange(e.target.checked)}
+            className="rounded border-navy/30"
+          />
+          Show test/QA
+        </label>
       </form>
 
       {loading ? (
@@ -230,7 +248,7 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
       {totalPages > 1 && (
         <div className="mt-4 flex items-center gap-2">
           <button
-            onClick={() => fetchUsers(search, currentPage - 1)}
+            onClick={() => fetchUsers(search, currentPage - 1, showTest)}
             disabled={currentPage <= 1 || loading}
             className="rounded-lg border border-navy/20 px-3 py-1.5 text-sm font-semibold text-navy hover:bg-navy/5 disabled:opacity-40"
           >
@@ -238,7 +256,7 @@ const AdminLoyaltyPage: NextPageWithLayout<Props> = ({ users: initialUsers, tota
           </button>
           <span className="text-sm text-ink-soft">Page {currentPage} of {totalPages}</span>
           <button
-            onClick={() => fetchUsers(search, currentPage + 1)}
+            onClick={() => fetchUsers(search, currentPage + 1, showTest)}
             disabled={currentPage >= totalPages || loading}
             className="rounded-lg border border-navy/20 px-3 py-1.5 text-sm font-semibold text-navy hover:bg-navy/5 disabled:opacity-40"
           >
@@ -260,16 +278,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const search = typeof context.query.search === "string" ? context.query.search.trim() : "";
   const page = Math.max(1, parseInt(context.query.page as string) || 1);
+  const showTest = context.query.showTest === "1";
   const PAGE_SIZE = 50;
 
-  const where = search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { email: { contains: search, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+  const where: Record<string, unknown> = {
+    ...(search ? {
+      OR: [
+        { name: { contains: search, mode: "insensitive" as const } },
+        { email: { contains: search, mode: "insensitive" as const } },
+      ],
+    } : {}),
+    ...(showTest ? {} : { NOT: { OR: TEST_CONTACT_EMAIL_OR } }),
+  };
 
   const [users, total, grandTotalResult] = await Promise.all([
     db.user.findMany({
@@ -280,7 +300,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       select: { id: true, name: true, email: true, role: true, createdAt: true },
     }),
     db.user.count({ where }),
-    db.loyaltyPoint.aggregate({ _sum: { points: true } }),
+    db.loyaltyPoint.aggregate({
+      _sum: { points: true },
+      where: showTest ? {} : { user: { NOT: { OR: TEST_CONTACT_EMAIL_OR } } },
+    }),
   ]);
 
   const userIds = users.map((u) => u.id);
@@ -314,6 +337,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       pages: Math.ceil(total / PAGE_SIZE),
       search,
       grandTotal: grandTotalResult._sum.points ?? 0,
+      showTest,
     },
   };
 };

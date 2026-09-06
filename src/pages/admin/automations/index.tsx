@@ -105,8 +105,12 @@ interface Props {
   journeys: JourneyRow[];
 }
 
+const isQaJourneyName = (name: string) => /qa/i.test(name);
+
 const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
-  const [journeys, setJourneys] = useState(initial);
+  const [allJourneys, setJourneys] = useState(initial);
+  const [showTest, setShowTest] = useState(false);
+  const journeys = showTest ? allJourneys : allJourneys.filter((j) => !isQaJourneyName(j.name));
   const [showNew, setShowNew] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [newName, setNewName] = useState("");
@@ -198,7 +202,16 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
             {journeys.length} journey{journeys.length !== 1 ? "s" : ""} configured
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <label className="mr-2 flex items-center gap-2 whitespace-nowrap text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showTest}
+              onChange={(e) => setShowTest(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Show test/QA
+          </label>
           <button
             onClick={() => { setShowTemplates(true); setShowNew(false); }}
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
