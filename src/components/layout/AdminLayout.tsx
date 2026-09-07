@@ -39,6 +39,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/resources", label: "Resources" },
       { href: "/admin/morning-boost", label: "Morning Boost" },
       { href: "/admin/positivity-boosts", label: "Positivity Boost" },
+      { href: "/admin/tune-your-brain/content", label: "Tune Your Brain" },
       { href: "/admin/questions", label: "Ask The Fixer" },
     ],
   },
