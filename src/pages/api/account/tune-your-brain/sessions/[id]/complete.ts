@@ -9,7 +9,8 @@ import { getMemberCalendarDate } from "@/lib/tuneBrainDate"
 import { xpToTier, tierRank, LEVEL_UP_POINTS, TIER_LABELS } from "@/lib/tuneBrain/progression"
 import { advanceStreak } from "@/lib/tuneBrain/streaks"
 import { evaluateBadgesForSession } from "@/lib/tuneBrain/badges"
-import { ensureGoalsAndUpdateProgress, GOAL_LABELS } from "@/lib/tuneBrain/goals"
+import { ensureGoalsAndUpdateProgress } from "@/lib/tuneBrain/goals"
+import { GOAL_LABELS } from "@/lib/tuneBrain/goalConstants"
 import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
 
 // Flat XP for every phase so far -- full leveling/tier-threshold logic

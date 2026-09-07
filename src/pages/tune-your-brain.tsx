@@ -10,7 +10,7 @@ import { AccountNav } from "@/components/account/AccountNav"
 import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
 import { BadgeFrame } from "@/components/tuneBrain/BadgeFrame"
 import { getMemberCalendarDate } from "@/lib/tuneBrainDate"
-import { DAILY_GOAL_KEY, WEEKLY_GOAL_KEY, PERSONAL_REFRAME_BUILDER_KEY, GOAL_LABELS, mondayOf } from "@/lib/tuneBrain/goals"
+import { DAILY_GOAL_KEY, WEEKLY_GOAL_KEY, PERSONAL_REFRAME_BUILDER_KEY, GOAL_LABELS, mondayOf } from "@/lib/tuneBrain/goalConstants"
 
 interface SessionOption {
   id: string

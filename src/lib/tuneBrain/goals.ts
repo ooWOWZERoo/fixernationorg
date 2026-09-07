@@ -1,30 +1,13 @@
 import { db } from "@/lib/db"
 import type { TbGoal, TbGameKey, TbLevelTier, TbGoalPeriod } from "@prisma/client"
 import { tierRank } from "@/lib/tuneBrain/progression"
-
-const DAY_MS = 24 * 60 * 60 * 1000
-
-export const DAILY_GOAL_KEY = "daily_any_session"
-export const WEEKLY_GOAL_KEY = "weekly_3_sessions"
-export const PERSONAL_REFRAME_BUILDER_KEY = "personal_reframe_builder"
-
-export const GOAL_LABELS: Record<string, string> = {
-  [DAILY_GOAL_KEY]: "Complete a Tune Your Brain session today",
-  [WEEKLY_GOAL_KEY]: "Complete 3 Tune Your Brain sessions this week",
-  [PERSONAL_REFRAME_BUILDER_KEY]: "Reach Builder tier in Positive Reframe",
-}
+import { DAY_MS, DAILY_GOAL_KEY, WEEKLY_GOAL_KEY, PERSONAL_REFRAME_BUILDER_KEY, mondayOf } from "@/lib/tuneBrain/goalConstants"
 
 // Flat bonus scaled by period -- modest and consistent, per the points
 // design decision (Community Points stay rare/meaningful; rarity of
 // period-completions is itself the rate limit, no anti-farming logic
 // needed).
 const GOAL_BONUS_POINTS: Record<TbGoalPeriod, number> = { DAILY: 5, WEEKLY: 15, PERSONAL: 25 }
-
-export function mondayOf(date: Date): Date {
-  const dow = date.getUTCDay() // 0=Sun..6=Sat
-  const daysSinceMonday = (dow + 6) % 7
-  return new Date(date.getTime() - daysSinceMonday * DAY_MS)
-}
 
 export interface CompletedGoal {
   goal: TbGoal
