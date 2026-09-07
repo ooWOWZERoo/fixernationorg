@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
@@ -38,14 +38,45 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Toast independent of scroll position — the old "Saved." banner rendered
+  // at the top of the form while Save is at the bottom, so an admin who
+  // scrolled down to save never saw it.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (router.query.created === "1") {
+      setToast("Entry created.");
+      // Strip the query param so a page refresh doesn't re-show the toast.
+      router.replace(`/admin/morning-boost/${entry.id}`, undefined, { shallow: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSaveError(null);
-    setSaved(false);
+
+    // Browser-local -> UTC conversion for the timezone-naive datetime-local
+    // value. The discrete-args Date constructor interprets its inputs as
+    // the browser's local time (matching what the admin actually typed),
+    // and toISOString() turns that into an unambiguous UTC instant, so the
+    // server's `new Date(publishedAt)` always parses the intended moment.
+    const publishedAtIso = (() => {
+      if (!form.publishedAt) return null;
+      const [datePart, timePart] = form.publishedAt.split("T");
+      const [year, month, day] = datePart.split("-").map(Number);
+      const [hour, minute] = timePart.split(":").map(Number);
+      return new Date(year, month - 1, day, hour, minute).toISOString();
+    })();
 
     const payload = {
       title: form.title.trim(),
@@ -55,7 +86,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
       imageUrl: form.imageUrl.trim() || null,
       videoUrl: form.videoUrl.trim() || null,
       authorName: form.authorName.trim() || "Anthony J. Placito",
-      publishedAt: form.publishedAt || null,
+      publishedAt: publishedAtIso,
     };
 
     try {
@@ -68,8 +99,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
       if (!res.ok) {
         setSaveError(data.error ?? "Something went wrong.");
       } else {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        setToast("Saved.");
       }
     } catch {
       setSaveError("Network error. Please try again.");
@@ -83,6 +113,44 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
     setDeleting(true);
     await fetch(`/api/admin/morning-boost/${entry.id}`, { method: "DELETE" });
     await router.push("/admin/morning-boost");
+  };
+
+  const handleDuplicate = async () => {
+    setDuplicating(true);
+    try {
+      const res = await fetch("/api/admin/morning-boost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${form.title.trim()} (Copy)`,
+          slug: `${form.slug.trim()}-copy-${Date.now().toString(36)}`,
+          excerpt: form.excerpt.trim() || undefined,
+          body: form.body.trim(),
+          imageUrl: form.imageUrl.trim() || undefined,
+          videoUrl: form.videoUrl.trim() || undefined,
+          authorName: form.authorName.trim() || "Anthony J. Placito",
+          publishedAt: null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveError(data.error ?? "Something went wrong duplicating this entry.");
+        setDuplicating(false);
+        return;
+      }
+      await router.push(`/admin/morning-boost/${data.id}?created=1`);
+    } catch {
+      setSaveError("Network error. Please try again.");
+      setDuplicating(false);
+    }
+  };
+
+  const handleCopyExcerptToBody = () => {
+    const escaped = form.excerpt
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    setForm((f) => ({ ...f, body: `<p>${escaped}</p>` }));
   };
 
   return (
@@ -104,22 +172,28 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
               </span>
             )}
           </div>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="text-sm font-medium text-red-500 hover:text-red-700 disabled:opacity-50"
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleDuplicate}
+              disabled={duplicating}
+              className="text-sm font-medium text-slate-600 hover:text-navy disabled:opacity-50"
+            >
+              {duplicating ? "Duplicating…" : "Duplicate"}
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-sm font-medium text-red-500 hover:text-red-700 disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSave} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
         {saveError && (
           <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>
-        )}
-        {saved && (
-          <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">Saved.</div>
         )}
 
         <div>
@@ -149,9 +223,19 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="excerpt">
-            Excerpt <span className="font-normal text-slate-400">(optional)</span>
-          </label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="excerpt">
+              Excerpt <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={handleCopyExcerptToBody}
+              disabled={!form.excerpt.trim()}
+              className="text-xs font-medium text-navy hover:underline disabled:pointer-events-none disabled:text-slate-300"
+            >
+              Copy excerpt into body
+            </button>
+          </div>
           <textarea
             id="excerpt"
             value={form.excerpt}
@@ -214,6 +298,13 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
           </button>
         </div>
       </form>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg bg-slate-900 px-4 py-3 text-sm text-white shadow-lg">
+          {toast}
+          <button onClick={() => setToast(null)} className="text-white/60 hover:text-white">✕</button>
+        </div>
+      )}
     </div>
   );
 };

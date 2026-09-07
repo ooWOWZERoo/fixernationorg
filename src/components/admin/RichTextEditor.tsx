@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -48,6 +49,17 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
     },
     immediatelyRender: false,
   });
+
+  // useEditor only reads `value` once, at construction. Without this, an
+  // external write to `value` (e.g. a "Copy excerpt into body" button)
+  // updates state but never reaches the live editor instance. Only fires
+  // on genuine external writes — after every keystroke, value === the
+  // editor's own HTML already, so this is a no-op during normal typing.
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value);
+    }
+  }, [value, editor]);
 
   if (!editor) return null;
 

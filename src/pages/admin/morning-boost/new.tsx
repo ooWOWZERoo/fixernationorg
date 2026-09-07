@@ -48,6 +48,19 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
     setSaving(true);
     setError(null);
 
+    // Browser-local -> UTC conversion for the timezone-naive datetime-local
+    // value. The discrete-args Date constructor interprets its inputs as
+    // the browser's local time (matching what the admin actually typed),
+    // and toISOString() turns that into an unambiguous UTC instant, so the
+    // server's `new Date(publishedAt)` always parses the intended moment.
+    const publishedAtIso = (() => {
+      if (!form.publishedAt) return null;
+      const [datePart, timePart] = form.publishedAt.split("T");
+      const [year, month, day] = datePart.split("-").map(Number);
+      const [hour, minute] = timePart.split(":").map(Number);
+      return new Date(year, month - 1, day, hour, minute).toISOString();
+    })();
+
     const payload = {
       title: form.title.trim(),
       slug: form.slug.trim(),
@@ -56,7 +69,7 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
       imageUrl: form.imageUrl.trim() || undefined,
       videoUrl: form.videoUrl.trim() || undefined,
       authorName: form.authorName.trim() || "Anthony J. Placito",
-      publishedAt: form.publishedAt || null,
+      publishedAt: publishedAtIso,
     };
 
     try {
@@ -71,7 +84,7 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
         setSaving(false);
         return;
       }
-      await router.push(`/admin/morning-boost/${data.id}`);
+      await router.push(`/admin/morning-boost/${data.id}?created=1`);
     } catch {
       setError("Network error. Please try again.");
       setSaving(false);
@@ -119,9 +132,25 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="excerpt">
-            Excerpt <span className="font-normal text-slate-400">(optional)</span>
-          </label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-sm font-medium text-slate-700" htmlFor="excerpt">
+              Excerpt <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const escaped = form.excerpt
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;");
+                setForm((f) => ({ ...f, body: `<p>${escaped}</p>` }));
+              }}
+              disabled={!form.excerpt.trim()}
+              className="text-xs font-medium text-navy hover:underline disabled:pointer-events-none disabled:text-slate-300"
+            >
+              Copy excerpt into body
+            </button>
+          </div>
           <textarea
             id="excerpt"
             value={form.excerpt}

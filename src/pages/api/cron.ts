@@ -42,8 +42,7 @@ async function runMorningBoost(): Promise<{ message: string }> {
   }
 
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  const { startOfDay, endOfDay } = utcDayWindow(now);
 
   const entry = await db.morningBoost.findFirst({
     where: {
