@@ -1,7 +1,7 @@
 import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Head from "next/head"
-import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -9,26 +9,9 @@ import { SiteLayout } from "@/components/layout/SiteLayout"
 import { AccountNav } from "@/components/account/AccountNav"
 import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
 import { BadgeFrame } from "@/components/tuneBrain/BadgeFrame"
+import { TimezoneCapture } from "@/components/tuneBrain/TimezoneCapture"
 import { getMemberCalendarDate } from "@/lib/tuneBrainDate"
 import { DAILY_GOAL_KEY, WEEKLY_GOAL_KEY, PERSONAL_REFRAME_BUILDER_KEY, GOAL_LABELS, mondayOf } from "@/lib/tuneBrain/goalConstants"
-
-interface SessionOption {
-  id: string
-  label: string
-}
-
-interface SessionContentItem {
-  id: string
-  prompt: string
-  difficulty: number | null
-  category: string | null
-  options: SessionOption[]
-}
-
-interface CompleteResult {
-  wasCorrect: boolean
-  explanation: string | null
-}
 
 interface BadgeVM {
   id: string
@@ -52,99 +35,39 @@ interface GoalVM {
   status: string
 }
 
+interface GameCardVM {
+  gameKey: string
+  tier: string | null
+  currentStreak: number
+}
+
 interface Props {
   hasTimezone: boolean
   earnedBadges: EarnedBadgeVM[]
   lockedBadges: BadgeVM[]
   goals: GoalVM[]
+  gameCards: GameCardVM[]
 }
 
-const GAME_KEY = "POSITIVE_REFRAME"
+const TIER_LABELS: Record<string, string> = {
+  STARTER: "Starter",
+  EXPLORER: "Explorer",
+  BUILDER: "Builder",
+  CHALLENGER: "Challenger",
+  SKILLED: "Skilled",
+  ADVANCED: "Advanced",
+  CHAMPION: "Champion",
+}
 
-const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadges, lockedBadges, goals }) => {
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [contentItem, setContentItem] = useState<SessionContentItem | null>(null)
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
-  const [result, setResult] = useState<CompleteResult | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const startSession = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setResult(null)
-    setSelectedOptionId(null)
-    setContentItem(null)
-    try {
-      const res = await fetch("/api/account/tune-your-brain/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameKey: GAME_KEY }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Couldn't load a scenario.")
-      setSessionId(data.sessionId)
-      setContentItem(data.contentItem)
-    } catch {
-      setError("Couldn't load that. Try again in a minute.")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Fire-and-forget, best-effort timezone capture -- never block rendering
-  // on it, and only send it once (getServerSideProps already tells us if
-  // the member has a stored timezone).
-  useEffect(() => {
-    if (hasTimezone) return
-    try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-      if (timezone) {
-        fetch("/api/account/timezone", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timezone }),
-        }).catch(() => {})
-      }
-    } catch {
-      // Best-effort only.
-    }
-  }, [hasTimezone])
-
-  useEffect(() => {
-    startSession()
-  }, [startSession])
-
-  async function handleSelect(optionId: string) {
-    if (!sessionId || submitting || result) return
-    setSelectedOptionId(optionId)
-    setSubmitting(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/account/tune-your-brain/sessions/${sessionId}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ optionId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Something went wrong")
-      setResult({ wasCorrect: data.wasCorrect, explanation: data.explanation })
-    } catch {
-      setError("That didn't save. Try again.")
-      setSelectedOptionId(null)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const gameDef = TB_GAME_REGISTRY[GAME_KEY]
+const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadges, lockedBadges, goals, gameCards }) => {
+  const cardByGameKey = new Map(gameCards.map((c) => [c.gameKey, c]))
 
   return (
     <>
       <Head>
         <title>Tune Your Brain — Fixer Nation</title>
       </Head>
+      <TimezoneCapture hasTimezone={hasTimezone} />
       <section className="px-6 py-8 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <AccountNav />
@@ -154,82 +77,38 @@ const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadge
             <h1 className="text-2xl font-extrabold text-navy">Tune Your Brain</h1>
           </div>
           <p className="text-sm text-ink-soft mb-6">
-            A quick way to practice meeting everyday setbacks with a clear head instead of a harsh one.
+            A handful of quick games to help you practice a steadier, more positive way of meeting the day.
           </p>
 
-          {error && (
-            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
-              {error}
-            </div>
-          )}
-
-          <div className="rounded-2xl border border-navy/8 bg-white p-6">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-3">
-              {gameDef.label}
-            </h2>
-
-            {loading ? (
-              <p className="text-sm text-ink-soft">Pulling up a scenario…</p>
-            ) : contentItem ? (
-              <>
-                <p className="text-base font-semibold text-navy mb-5">{contentItem.prompt}</p>
-
-                <div className="space-y-2">
-                  {contentItem.options.map((opt) => {
-                    const isSelected = selectedOptionId === opt.id
-                    const showFeedback = !!result && isSelected
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        disabled={!!result || submitting}
-                        onClick={() => handleSelect(opt.id)}
-                        className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-all ${
-                          showFeedback
-                            ? result?.wasCorrect
-                              ? "border-green-400 bg-green-50"
-                              : "border-amber bg-amber/10"
-                            : isSelected
-                              ? "border-amber bg-amber/10"
-                              : "border-navy/10 hover:border-amber/50 hover:bg-cream-panel"
-                        } ${result && !isSelected ? "opacity-50" : ""}`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {result && (
-                  <div className="mt-5 rounded-xl bg-cream-panel border border-navy/8 p-4">
-                    <p className="text-sm font-bold text-navy mb-1">
-                      {result.wasCorrect ? "That's a solid reframe." : "Here's another way to look at it:"}
-                    </p>
-                    {result.explanation && (
-                      <p className="text-sm text-ink-soft">{result.explanation}</p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={startSession}
-                      className="mt-4 rounded-xl bg-amber px-5 py-2 text-sm font-bold text-navy-dark hover:bg-amber-dark transition-colors"
-                    >
-                      Play again
-                    </button>
+          {/* Game picker */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Object.values(TB_GAME_REGISTRY).map((game) => {
+              const card = cardByGameKey.get(game.key)
+              return (
+                <Link
+                  key={game.key}
+                  href={`/tune-your-brain/${game.routeSlug}`}
+                  className="rounded-2xl border border-navy/8 bg-white p-5 no-underline transition-colors hover:border-amber/50 hover:bg-cream-panel"
+                >
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-xl" aria-hidden="true">{game.emoji}</span>
+                    <span className="text-base font-bold text-navy">{game.label}</span>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-ink-soft">
-                Nothing to play right now. Check back soon.
-              </p>
-            )}
+                  <p className="text-sm text-ink-soft mb-2">{game.shortDescription}</p>
+                  <div className="flex items-center gap-3 text-xs font-semibold text-amber-dark">
+                    {card?.tier && <span>{TIER_LABELS[card.tier] ?? card.tier}</span>}
+                    {!!card?.currentStreak && card.currentStreak > 1 && <span>🔥 {card.currentStreak}-day streak</span>}
+                  </div>
+                </Link>
+              )
+            })}
           </div>
 
           {/* My Goals */}
           <div className="mt-8 rounded-2xl border border-navy/8 bg-white p-6">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-4">My Goals</h2>
             {goals.length === 0 ? (
-              <p className="text-sm text-ink-soft">Play a round to set your first goals.</p>
+              <p className="text-sm text-ink-soft">Play a round of any game to set your first goals.</p>
             ) : (
               <div className="space-y-3">
                 {goals.map((goal) => {
@@ -280,7 +159,7 @@ const TuneYourBrainPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadge
   )
 }
 
-TuneYourBrainPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>
+TuneYourBrainHubPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions)
@@ -293,12 +172,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const today = getMemberCalendarDate(new Date(), timezone)
   const monday = mondayOf(today)
 
-  const [earnedRows, allBadgeRows, goalRows] = await Promise.all([
+  const [earnedRows, allBadgeRows, goalRows, levelRows, streakRows] = await Promise.all([
     db.tbUserBadge.findMany({ where: { userId }, include: { badge: true }, orderBy: { earnedAt: "asc" } }),
-    db.tbBadge.findMany({
-      where: { isActive: true, OR: [{ gameKey: "POSITIVE_REFRAME" }, { gameKey: null }] },
-      orderBy: { sortOrder: "asc" },
-    }),
+    // The hub shows badges across every game (not just one), so this is a
+    // plain "every active badge" query -- no gameKey filter.
+    db.tbBadge.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     db.tbGoal.findMany({
       where: {
         userId,
@@ -309,6 +187,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
         ],
       },
     }),
+    db.tbGameLevel.findMany({ where: { userId } }),
+    db.streak.findMany({ where: { userId } }),
   ])
 
   const earnedBadgeIds = new Set(earnedRows.map((r) => r.badgeId))
@@ -334,6 +214,15 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       iconKey: b.iconKey,
     }))
 
+  const levelByGame = new Map(levelRows.map((l) => [l.gameKey as string, l]))
+  const streakByGame = new Map(streakRows.map((s) => [s.scope, s]))
+
+  const gameCards = Object.keys(TB_GAME_REGISTRY).map((gameKey) => ({
+    gameKey,
+    tier: levelByGame.get(gameKey)?.tier ?? null,
+    currentStreak: streakByGame.get(gameKey)?.current ?? 0,
+  }))
+
   return {
     props: JSON.parse(
       JSON.stringify({
@@ -341,9 +230,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
         earnedBadges,
         lockedBadges,
         goals: goalRows,
+        gameCards,
       })
     ),
   }
 }
 
-export default TuneYourBrainPage
+export default TuneYourBrainHubPage

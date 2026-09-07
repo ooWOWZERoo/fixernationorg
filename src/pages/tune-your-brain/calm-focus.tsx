@@ -1,0 +1,60 @@
+import type { NextPageWithLayout } from "@/types/next"
+import type { GetServerSideProps } from "next"
+import Head from "next/head"
+import Link from "next/link"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { db } from "@/lib/db"
+import { SiteLayout } from "@/components/layout/SiteLayout"
+import { AccountNav } from "@/components/account/AccountNav"
+import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
+import { CalmFocusPlayer } from "@/components/tuneBrain/CalmFocusPlayer"
+import { TimezoneCapture } from "@/components/tuneBrain/TimezoneCapture"
+
+const GAME_KEY = "CALM_FOCUS"
+
+interface Props {
+  hasTimezone: boolean
+}
+
+const CalmFocusPage: NextPageWithLayout<Props> = ({ hasTimezone }) => {
+  const gameDef = TB_GAME_REGISTRY[GAME_KEY]
+
+  return (
+    <>
+      <Head>
+        <title>{gameDef.label} — Tune Your Brain — Fixer Nation</title>
+      </Head>
+      <TimezoneCapture hasTimezone={hasTimezone} />
+      <section className="px-6 py-8 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          <AccountNav />
+
+          <Link href="/tune-your-brain" className="mb-4 inline-block text-sm font-semibold text-ink-soft hover:text-navy">
+            ← Tune Your Brain
+          </Link>
+
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-2xl" aria-hidden="true">{gameDef.emoji}</span>
+            <h1 className="text-2xl font-extrabold text-navy">{gameDef.label}</h1>
+          </div>
+          <p className="text-sm text-ink-soft mb-6">{gameDef.shortDescription}</p>
+
+          <CalmFocusPlayer gameKey={GAME_KEY} />
+        </div>
+      </section>
+    </>
+  )
+}
+
+CalmFocusPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>
+
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions)
+  if (!session) return { redirect: { destination: "/signin?callbackUrl=/tune-your-brain/calm-focus", permanent: false } }
+
+  const user = await db.user.findUnique({ where: { id: session.user.id } })
+  return { props: { hasTimezone: !!user?.timezone } }
+}
+
+export default CalmFocusPage

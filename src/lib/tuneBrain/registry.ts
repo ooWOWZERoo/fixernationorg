@@ -4,16 +4,25 @@
 // Adding a 7th game means one new enum value + one registry entry; it does
 // not touch the reward/badge/goal/reset engines.
 //
-// Phase 1: only POSITIVE_REFRAME has a real, working play experience. The
-// other 5 core games get accurate metadata now so this registry is a
-// complete reference for later phases -- no UI components exist for them
-// yet.
+// Phase 3: all 6 core games now have a real, working play experience. The
+// UI side keys off `kind` (the shape of the gameplay loop), never off a
+// specific gameKey -- a per-kind player component in
+// src/components/tuneBrain handles every game that shares that kind.
+//
+// This file is imported directly by the tune-your-brain client pages, so it
+// must stay free of any `db`/Prisma-touching import (see goalConstants.ts
+// for the lesson that made this rule explicit).
+
+export type TbGameKind = "SCENARIO" | "FREE_TEXT" | "MISSION" | "CALM_FOCUS"
 
 export interface TbGameDefinition {
   key: string // a TbGameKey value
   label: string
   shortDescription: string
   iconKey: string
+  emoji: string
+  routeSlug: string
+  kind: TbGameKind
   supportsDifficulty: boolean
   reducedMotionSafe: boolean
 }
@@ -24,6 +33,9 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Positive Reframe",
     shortDescription: "Practice meeting everyday setbacks with a clearer, steadier mindset.",
     iconKey: "reframe",
+    emoji: "🔄",
+    routeSlug: "positive-reframe",
+    kind: "SCENARIO",
     supportsDifficulty: true,
     reducedMotionSafe: true,
   },
@@ -32,6 +44,9 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Gratitude Quest",
     shortDescription: "A quick daily prompt to notice something good and jot it down.",
     iconKey: "gratitude",
+    emoji: "🌟",
+    routeSlug: "gratitude-quest",
+    kind: "FREE_TEXT",
     supportsDifficulty: false,
     reducedMotionSafe: true,
   },
@@ -40,6 +55,9 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Kindness Quest",
     shortDescription: "Take on a small kindness mission, then check in on how it felt.",
     iconKey: "kindness",
+    emoji: "🤝",
+    routeSlug: "kindness-quest",
+    kind: "MISSION",
     supportsDifficulty: false,
     reducedMotionSafe: true,
   },
@@ -48,6 +66,9 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Calm & Focus",
     shortDescription: "A short breathing or focus exercise to reset between tasks.",
     iconKey: "calm",
+    emoji: "🌬️",
+    routeSlug: "calm-focus",
+    kind: "CALM_FOCUS",
     supportsDifficulty: false,
     reducedMotionSafe: false,
   },
@@ -56,6 +77,9 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Strength Spotter",
     shortDescription: "Spot the personal strength behind a short everyday scenario.",
     iconKey: "strength",
+    emoji: "🔎",
+    routeSlug: "strength-spotter",
+    kind: "SCENARIO",
     supportsDifficulty: true,
     reducedMotionSafe: true,
   },
@@ -64,7 +88,21 @@ export const TB_GAME_REGISTRY: Record<string, TbGameDefinition> = {
     label: "Wellness Choices",
     shortDescription: "Pick the healthier option in a handful of everyday choices.",
     iconKey: "wellness",
+    emoji: "🥗",
+    routeSlug: "wellness-choices",
+    kind: "SCENARIO",
     supportsDifficulty: true,
     reducedMotionSafe: true,
   },
+}
+
+// The 6 playable core games, in registry order -- excludes the 2 reserved
+// bonus-game enum values (POSITIVITY_RECALL, BUILD_GOOD_DAY) which have no
+// registry entry and stay unused until a later phase.
+export const CORE_GAME_KEYS = Object.keys(TB_GAME_REGISTRY)
+export const CORE_GAME_COUNT = CORE_GAME_KEYS.length
+
+export function gameKeyForSlug(slug: string): string | null {
+  const entry = Object.values(TB_GAME_REGISTRY).find((g) => g.routeSlug === slug)
+  return entry?.key ?? null
 }

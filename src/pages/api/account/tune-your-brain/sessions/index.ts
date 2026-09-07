@@ -3,33 +3,23 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import type { TbGameKey } from "@prisma/client"
+import { TB_GAME_REGISTRY } from "@/lib/tuneBrain/registry"
 
-// Simple recency exclusion for Phase 1 -- excludes content the user has seen
-// in their last few sessions for this game. The full 90-day-exclusion
-// sophistication from positivityBoost.ts is a later refinement.
+// Simple recency exclusion -- excludes content the user has seen in their
+// last few sessions for this game. The full 90-day-exclusion sophistication
+// from positivityBoost.ts is a later refinement.
 const RECENT_EXCLUSION_COUNT = 5
 
-type TbContentItemRow = {
-  id: string
-  prompt: string
-  difficulty: number | null
-  category: string | null
-  options: Array<{ id: string; order: number; label: string }>
-}
-
-type TbSessionsDb = {
-  tbContentItem: {
-    findMany: (args: Record<string, unknown>) => Promise<TbContentItemRow[]>
-  }
-  tbGameSession: {
-    findMany: (args: Record<string, unknown>) => Promise<Array<{ contentItemId: string | null }>>
-    create: (args: Record<string, unknown>) => Promise<{ id: string }>
-  }
-}
-const db_ = db as never as TbSessionsDb
-
+// Every registry key is a valid, playable core game -- generalized from
+// Phase 1's single z.literal("POSITIVE_REFRAME"), which was the
+// Positive-Reframe-specific hardcoding this phase's extensibility goal
+// required fixing. `category` is optional and lets a game with multiple
+// distinct modes (Calm & Focus's "breathing" vs "notice") ask for a
+// specific one instead of a random pick across all its content.
 const bodySchema = z.object({
-  gameKey: z.literal("POSITIVE_REFRAME"),
+  gameKey: z.enum(Object.keys(TB_GAME_REGISTRY) as [string, ...string[]]),
+  category: z.string().min(1).optional(),
 })
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,10 +34,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsed = bodySchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
-  const { gameKey } = parsed.data
+  // The zod enum is built from Object.keys() (plain strings), so this cast
+  // is validated by construction -- every registry key is a real
+  // TbGameKey value, and z.enum already rejected anything else above.
+  const gameKey = parsed.data.gameKey as TbGameKey
+  const category = parsed.data.category
   const userId = session.user.id
 
-  const recentSessions = await db_.tbGameSession.findMany({
+  const recentSessions = await db.tbGameSession.findMany({
     where: { userId, gameKey },
     orderBy: { createdAt: "desc" },
     take: RECENT_EXCLUSION_COUNT,
@@ -57,20 +51,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .map((s) => s.contentItemId)
     .filter((id): id is string => !!id)
 
-  let candidates = await db_.tbContentItem.findMany({
-    where: {
-      gameKey,
-      status: "ACTIVE",
-      validationStatus: "PASSED",
-      ...(recentIds.length > 0 ? { id: { notIn: recentIds } } : {}),
-    },
+  const baseWhere = {
+    gameKey,
+    status: "ACTIVE" as const,
+    validationStatus: "PASSED" as const,
+    ...(category ? { category } : {}),
+  }
+
+  let candidates = await db.tbContentItem.findMany({
+    where: { ...baseWhere, ...(recentIds.length > 0 ? { id: { notIn: recentIds } } : {}) },
     include: { options: { orderBy: { order: "asc" } } },
   })
 
   if (candidates.length === 0) {
-    // Recency-exclusion pool exhausted -- fall back to the full eligible pool.
-    candidates = await db_.tbContentItem.findMany({
-      where: { gameKey, status: "ACTIVE", validationStatus: "PASSED" },
+    // Recency-exclusion pool exhausted (or a thin-content game like Calm &
+    // Focus has fewer rows than the exclusion window) -- fall back to the
+    // full eligible pool for this gameKey/category.
+    candidates = await db.tbContentItem.findMany({
+      where: baseWhere,
       include: { options: { orderBy: { order: "asc" } } },
     })
   }
@@ -81,9 +79,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const chosen = candidates[Math.floor(Math.random() * candidates.length)]
 
-  const gameSession = await db_.tbGameSession.create({
+  const gameSession = await db.tbGameSession.create({
     data: { userId, gameKey, contentItemId: chosen.id },
   })
+
+  // Kindness Quest's "accept" step is the session-start itself -- creating
+  // the TbKindnessMission row here (acceptedAt now, completedAt null) is
+  // the one game-specific side effect this generic route needs; the
+  // completion side of that game is handled entirely by its own dedicated
+  // mark-done route, not this one.
+  if (gameKey === "KINDNESS_QUEST") {
+    await db.tbKindnessMission.create({
+      data: { userId, contentItemId: chosen.id, sessionId: gameSession.id },
+    })
+  }
 
   // Never return isCorrectOrBest/explanation before completion -- that's
   // server-authoritative and evaluated only in the complete endpoint.
@@ -94,6 +103,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       prompt: chosen.prompt,
       difficulty: chosen.difficulty,
       category: chosen.category,
+      payload: chosen.payload,
       options: chosen.options.map((o) => ({ id: o.id, label: o.label })),
     },
   })
