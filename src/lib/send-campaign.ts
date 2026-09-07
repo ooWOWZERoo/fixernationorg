@@ -123,7 +123,7 @@ async function sendQueuedEmailBatches(
         try {
           const content = row.variantId ? (variantById.get(row.variantId) ?? fallbackContent) : fallbackContent;
           const { subject, html, text } = buildCampaignEmail(content, row.contactId, row.contact.firstName, row.id);
-          await sendEmail({ to: row.contact.email, subject, html, text });
+          await sendEmail({ to: row.contact.email, subject, html, text, from: `${content.fromName} <${content.fromEmail}>` });
           await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
           sent++;
         } catch {

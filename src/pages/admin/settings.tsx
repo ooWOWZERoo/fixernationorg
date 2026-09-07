@@ -14,7 +14,7 @@ interface SettingRow {
 
 interface Props {
   settings: SettingRow[];
-  userRole: string;
+  adminRole: string;
   currentLogoUrl: string | null;
 }
 
@@ -28,7 +28,7 @@ type BackfillResult = {
 
 const AdminSettingsPage: NextPageWithLayout<Props> = ({
   settings: initialSettings,
-  userRole,
+  adminRole,
   currentLogoUrl,
 }) => {
   const [settings, setSettings] = useState(initialSettings);
@@ -232,7 +232,7 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
               Site logo shown in the website header and admin sidebar.
             </p>
             <p className="mt-0.5 text-xs text-slate-400">Accepts JPEG, PNG, WebP, or SVG. Max 2 MB.</p>
-            {userRole === "SUPER_ADMIN" ? (
+            {adminRole === "SUPER_ADMIN" ? (
               <div className="mt-3 flex items-center gap-3">
                 <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
                   Choose file
@@ -447,7 +447,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   return {
     props: {
       settings: JSON.parse(JSON.stringify(settings)),
-      userRole: session.user.role,
+      adminRole: session.user.adminRole,
       currentLogoUrl: logoSetting?.value || null,
     },
   };

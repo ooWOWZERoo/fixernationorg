@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { useSiteLogoUrl } from "@/hooks/useSiteLogoUrl";
 
-const FOOTER_LINKS = {
+type FooterLink = { href: string; label: string; external?: boolean };
+
+const FOOTER_LINKS: Record<string, FooterLink[]> = {
   Books: [
     { href: "/books", label: "Short Story Series" },
     { href: "/books", label: "Library" },
@@ -11,6 +13,7 @@ const FOOTER_LINKS = {
     { href: "/morning-boost", label: "Morning Boost" },
     { href: "/resources", label: "Member Library" },
     { href: "/ask-the-fixer", label: "Ask The Fixer" },
+    { href: "https://fixernationeducation.com", label: "Explore Fixer Nation Education", external: true },
   ],
   Community: [
     { href: "/network", label: "Community" },
@@ -73,12 +76,23 @@ export function SiteFooter() {
               <ul className="space-y-2">
                 {links.map((link, i) => (
                   <li key={i}>
-                    <Link
-                      href={link.href}
-                      className="text-[13.5px] text-white/75 no-underline transition-colors hover:text-amber"
-                    >
-                      {link.label}
-                    </Link>
+                    {link.external ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13.5px] text-white/75 no-underline transition-colors hover:text-amber"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-[13.5px] text-white/75 no-underline transition-colors hover:text-amber"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

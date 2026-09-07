@@ -113,6 +113,7 @@ async function runMorningBoost(): Promise<{ message: string }> {
             subject: email.subject,
             html: email.html,
             text: email.text,
+            from: process.env.MORNING_BOOST_FROM ?? "Fixer Nation <morningboost@fixernation.org>",
           });
           sent++;
         } catch {
