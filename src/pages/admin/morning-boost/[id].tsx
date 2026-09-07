@@ -51,6 +51,25 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Next.js reuses this same page component instance when navigating from
+  // one entry's edit page to another (e.g. Duplicate's redirect) — it does
+  // NOT remount, so `form` must be explicitly resynced whenever the entry
+  // underneath us actually changes, or the inputs keep showing stale data
+  // from the previous entry even though `entry` itself has updated.
+  useEffect(() => {
+    setForm({
+      title: entry.title,
+      slug: entry.slug,
+      excerpt: entry.excerpt ?? "",
+      body: entry.body,
+      imageUrl: entry.imageUrl ?? "",
+      videoUrl: entry.videoUrl ?? "",
+      authorName: entry.authorName,
+      publishedAt: toDatetimeLocal(entry.publishedAt as unknown as string | null),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.id]);
+
   useEffect(() => {
     if (router.query.created === "1") {
       setToast("Entry created.");
@@ -58,7 +77,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
       router.replace(`/admin/morning-boost/${entry.id}`, undefined, { shallow: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [entry.id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

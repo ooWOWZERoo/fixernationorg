@@ -57,7 +57,10 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
   // editor's own HTML already, so this is a no-op during normal typing.
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value);
+      // emitUpdate: false — we already have the new value from our own
+      // `value` prop; no need for Tiptap to echo it back via onUpdate,
+      // which would otherwise trigger one redundant extra render.
+      editor.commands.setContent(value, { emitUpdate: false });
     }
   }, [value, editor]);
 
