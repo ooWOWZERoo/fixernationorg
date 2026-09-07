@@ -94,7 +94,7 @@ export function ScenarioGamePlayer({
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-6">
       {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
@@ -105,7 +105,7 @@ export function ScenarioGamePlayer({
         <>
           <p className="text-base font-semibold text-navy mb-5">{contentItem.prompt}</p>
 
-          <div className="space-y-2">
+          <div className="space-y-2" role="group" aria-label="Answer options">
             {contentItem.options.map((opt) => {
               const isSelected = selectedOptionId === opt.id
               const showFeedback = !!result && isSelected
@@ -126,13 +126,18 @@ export function ScenarioGamePlayer({
                   } ${result && !isSelected ? "opacity-50" : ""}`}
                 >
                   {opt.label}
+                  {showFeedback && (
+                    <span className="ml-2 font-semibold">
+                      · {result?.wasCorrect ? "Nice pick" : "Not this one"}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
 
           {result && (
-            <div className="mt-5 rounded-xl bg-cream-panel border border-navy/8 p-4">
+            <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-cream-panel border border-navy/8 p-4">
               <p className="text-sm font-bold text-navy mb-1">
                 {result.wasCorrect ? correctLabel : incorrectLabel}
               </p>

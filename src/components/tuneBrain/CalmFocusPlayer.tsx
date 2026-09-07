@@ -163,13 +163,13 @@ export function CalmFocusPlayer({ gameKey }: CalmFocusPlayerProps) {
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-6">
       {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
 
       {finished ? (
-        <div className="rounded-xl bg-cream-panel border border-navy/8 p-4">
+        <div role="status" aria-live="polite" className="rounded-xl bg-cream-panel border border-navy/8 p-4">
           <p className="text-sm font-bold text-navy mb-1">Nice reset.</p>
           <p className="text-sm text-ink-soft">However that went for you, taking the moment is what counts.</p>
           <button

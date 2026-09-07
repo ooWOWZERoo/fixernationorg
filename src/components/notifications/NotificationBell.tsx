@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 
@@ -32,6 +32,7 @@ export function NotificationBell() {
   const [loaded, setLoaded] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [items, setItems] = useState<NotificationItem[]>([])
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   const fetchUnread = useCallback(() => {
     fetch("/api/account/notifications/unread-count")
@@ -79,29 +80,58 @@ export function NotificationBell() {
     fetch("/api/account/notifications/mark-all-read", { method: "POST" }).catch(() => {})
   }
 
+  function closeAndRefocus() {
+    setOpen(false)
+    buttonRef.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeAndRefocus()
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [open])
+
   if (!session) return null
+
+  const bellLabel = unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
 
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        aria-label="Notifications"
+        aria-label={bellLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="tb-notification-panel"
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-navy hover:bg-navy/6"
       >
         <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M10 2a6 6 0 00-6 6v2.586l-1.707 1.707A1 1 0 003 14h14a1 1 0 00.707-1.707L16 10.586V8a6 6 0 00-6-6zM8.5 16a1.5 1.5 0 003 0h-3z" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-bold text-navy-dark">
+          <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-bold text-navy-dark">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
+      <span className="sr-only" aria-live="polite">
+        {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` : ""}
+      </span>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-80 overflow-hidden rounded-2xl border border-navy/6 bg-white shadow-[0_24px_50px_-20px_rgba(20,40,56,0.35)]">
+          <div className="fixed inset-0 z-10" onClick={closeAndRefocus} />
+          <div
+            id="tb-notification-panel"
+            role="dialog"
+            aria-label="Notifications"
+            onKeyDown={(e) => { if (e.key === "Escape") closeAndRefocus() }}
+            className="absolute right-0 z-20 mt-1 w-80 overflow-hidden rounded-2xl border border-navy/6 bg-white shadow-[0_24px_50px_-20px_rgba(20,40,56,0.35)]"
+          >
             <div className="flex items-center justify-between border-b border-navy/8 px-4 py-2.5">
               <span className="text-xs font-semibold uppercase tracking-widest text-ink-soft/60">Notifications</span>
               {unreadCount > 0 && (

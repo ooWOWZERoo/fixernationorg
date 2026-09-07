@@ -72,13 +72,13 @@ export function MissionGamePlayer({ gameKey, initialMission }: MissionGamePlayer
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-6">
       {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
 
       {done ? (
-        <div className="rounded-xl bg-cream-panel border border-navy/8 p-4">
+        <div role="status" aria-live="polite" className="rounded-xl bg-cream-panel border border-navy/8 p-4">
           <p className="text-sm font-bold text-navy mb-1">Nice one.</p>
           <p className="text-sm text-ink-soft">That's one more bit of kindness out in the world.</p>
           <button
@@ -96,14 +96,15 @@ export function MissionGamePlayer({ gameKey, initialMission }: MissionGamePlayer
             No rush, and no proof needed -- whenever you've done it, just let us know.
           </p>
 
-          <p className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-2">
+          <p id="tb-mood-label" className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-2">
             How did it feel? (optional)
           </p>
-          <div className="mb-5 flex flex-wrap gap-2">
+          <div className="mb-5 flex flex-wrap gap-2" role="group" aria-labelledby="tb-mood-label">
             {MOOD_OPTIONS.map((mood) => (
               <button
                 key={mood}
                 type="button"
+                aria-pressed={selectedMood === mood}
                 onClick={() => setSelectedMood((m) => (m === mood ? null : mood))}
                 className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                   selectedMood === mood

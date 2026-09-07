@@ -329,19 +329,19 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
           <div className="mt-4 space-y-4">
             {scope === "SINGLE_GAME" && (
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Game</label>
-                <select value={gameKey} onChange={(e) => { setGameKey(e.target.value); resetPanelState(); }} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                <label htmlFor="reset-game" className="mb-1 block text-xs font-semibold uppercase text-slate-500">Game</label>
+                <select id="reset-game" value={gameKey} onChange={(e) => { setGameKey(e.target.value); resetPanelState(); }} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
                   {CORE_GAME_KEYS.map((k) => <option key={k} value={k}>{TB_GAME_REGISTRY[k]?.label ?? k}</option>)}
                 </select>
               </div>
             )}
             {scope === "BADGE" && (
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Badge</label>
+                <label htmlFor="reset-badge" className="mb-1 block text-xs font-semibold uppercase text-slate-500">Badge</label>
                 {badges.length === 0 ? (
                   <p className="text-sm text-slate-500">This member has no badges to remove.</p>
                 ) : (
-                  <select value={badgeId} onChange={(e) => { setBadgeId(e.target.value); resetPanelState(); }} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                  <select id="reset-badge" value={badgeId} onChange={(e) => { setBadgeId(e.target.value); resetPanelState(); }} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
                     {badges.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 )}
@@ -365,7 +365,7 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
               {previewLoading ? "Loading preview..." : "Preview impact"}
             </button>
 
-            {error && <p className="text-sm font-medium text-red-700">{error}</p>}
+            {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
 
             {preview && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -385,24 +385,25 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Reason</label>
-                    <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value as ResetReasonCode)} className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                    <label htmlFor="reset-reason" className="mb-1 block text-xs font-semibold uppercase text-slate-500">Reason</label>
+                    <select id="reset-reason" value={reasonCode} onChange={(e) => setReasonCode(e.target.value as ResetReasonCode)} className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
                       {RESET_REASONS.map((r) => <option key={r} value={r}>{RESET_REASON_LABELS[r]}</option>)}
                     </select>
                   </div>
                   {reasonCode === "OTHER" && (
                     <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">Note (required)</label>
-                      <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
+                      <label htmlFor="reset-note" className="mb-1 block text-xs font-semibold uppercase text-slate-500">Note (required)</label>
+                      <input id="reset-note" type="text" value={note} onChange={(e) => setNote(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm" />
                     </div>
                   )}
                 </div>
 
                 <div className="mt-4">
-                  <label className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+                  <label htmlFor="reset-confirm" className="mb-1 block text-xs font-semibold uppercase text-slate-500">
                     Type {scope === "FULL" ? <code className="rounded bg-slate-100 px-1">{user.email}</code> : <code className="rounded bg-slate-100 px-1">{RESET_CONFIRMATION_WORD}</code>} to confirm
                   </label>
                   <input
+                    id="reset-confirm"
                     type="text"
                     value={confirmText}
                     onChange={(e) => setConfirmText(e.target.value)}
@@ -422,7 +423,7 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
             )}
 
             {successSummary && (
-              <div className="rounded-xl border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-800">
+              <div role="status" aria-live="polite" className="rounded-xl border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-800">
                 {successSummary}
                 <div className="mt-2">
                   <button type="button" onClick={() => window.location.reload()} className="text-xs font-semibold text-green-700 underline">

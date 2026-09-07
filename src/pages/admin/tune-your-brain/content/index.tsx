@@ -77,7 +77,11 @@ const AdminTuneBrainContentPage: NextPageWithLayout<Props> = ({ items: initial }
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
+        <label htmlFor="tb-content-game-filter" className="sr-only">
+          Filter by game
+        </label>
         <select
+          id="tb-content-game-filter"
           value={gameFilter}
           onChange={(e) => setGameFilter(e.target.value)}
           className="rounded-lg border border-navy/15 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30"
@@ -101,7 +105,11 @@ const AdminTuneBrainContentPage: NextPageWithLayout<Props> = ({ items: initial }
             </button>
           ))}
         </div>
+        <label htmlFor="tb-content-search" className="sr-only">
+          Search prompts
+        </label>
         <input
+          id="tb-content-search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search prompts…"

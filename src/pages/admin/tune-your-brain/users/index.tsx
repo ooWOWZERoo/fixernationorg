@@ -57,7 +57,11 @@ const AdminTuneBrainUsersPage: NextPageWithLayout<Props> = ({ users, total, q: i
       </div>
 
       <div className="mb-4">
+        <label htmlFor="tb-member-search" className="sr-only">
+          Search members by name, email, or user ID
+        </label>
         <input
+          id="tb-member-search"
           type="text"
           value={q}
           onChange={(e) => handleSearchChange(e.target.value)}

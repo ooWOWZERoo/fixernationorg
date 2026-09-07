@@ -225,9 +225,9 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
             <p className="mb-4 text-xs text-ink-soft">
               Choose up to {MAX_FEATURED_BADGES} earned badges to show on your public profile and in the member directory. Nothing here is visible to others until you feature it.
             </p>
-            {badgeError && (
-              <p className="mb-3 text-xs font-semibold text-red-700">{badgeError}</p>
-            )}
+            <p role="status" aria-live="polite" className={badgeError ? "mb-3 text-xs font-semibold text-red-700" : "sr-only"}>
+              {badgeError ?? ""}
+            </p>
             {featured.length === 0 ? (
               <p className="text-sm text-ink-soft">No featured badges yet -- feature one from "My Badges" below.</p>
             ) : (
@@ -240,7 +240,7 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
                         type="button"
                         onClick={() => moveBadge(badge.id, -1)}
                         disabled={idx === 0 || badgeBusy === badge.id}
-                        className="rounded border border-navy/15 px-1.5 text-xs text-navy disabled:opacity-30"
+                        className="min-h-[28px] min-w-[28px] rounded border border-navy/15 px-1.5 py-1 text-xs text-navy disabled:opacity-30"
                         aria-label={`Move ${badge.name} earlier`}
                       >
                         ←
@@ -249,7 +249,7 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
                         type="button"
                         onClick={() => unfeatureBadge(badge.id)}
                         disabled={badgeBusy === badge.id}
-                        className="rounded border border-navy/15 px-1.5 text-xs text-ink-soft disabled:opacity-30"
+                        className="min-h-[28px] rounded border border-navy/15 px-1.5 py-1 text-xs text-ink-soft disabled:opacity-30"
                       >
                         Unfeature
                       </button>
@@ -257,7 +257,7 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
                         type="button"
                         onClick={() => moveBadge(badge.id, 1)}
                         disabled={idx === featured.length - 1 || badgeBusy === badge.id}
-                        className="rounded border border-navy/15 px-1.5 text-xs text-navy disabled:opacity-30"
+                        className="min-h-[28px] min-w-[28px] rounded border border-navy/15 px-1.5 py-1 text-xs text-navy disabled:opacity-30"
                         aria-label={`Move ${badge.name} later`}
                       >
                         →
@@ -283,7 +283,8 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
                       type="button"
                       onClick={() => (badge.featured ? unfeatureBadge(badge.id) : featureBadge(badge.id))}
                       disabled={badgeBusy === badge.id || (!badge.featured && featuredCount >= MAX_FEATURED_BADGES)}
-                      className="rounded border border-navy/15 px-2 py-0.5 text-xs font-semibold text-navy disabled:opacity-30"
+                      aria-pressed={badge.featured}
+                      className="min-h-[28px] rounded border border-navy/15 px-2 py-1.5 text-xs font-semibold text-navy disabled:opacity-30"
                     >
                       {badge.featured ? "Unfeature" : "Feature"}
                     </button>

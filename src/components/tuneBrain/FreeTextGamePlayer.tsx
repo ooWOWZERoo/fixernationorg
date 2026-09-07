@@ -80,7 +80,7 @@ export function FreeTextGamePlayer({
   return (
     <div className="rounded-2xl border border-navy/8 bg-white p-6">
       {error && (
-        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
@@ -94,10 +94,10 @@ export function FreeTextGamePlayer({
               {contentItem.category}
             </span>
           )}
-          <p className="text-base font-semibold text-navy mb-4">{contentItem.prompt}</p>
+          <p id="tb-freetext-prompt" className="text-base font-semibold text-navy mb-4">{contentItem.prompt}</p>
 
           {submitted ? (
-            <div className="rounded-xl bg-cream-panel border border-navy/8 p-4">
+            <div role="status" aria-live="polite" className="rounded-xl bg-cream-panel border border-navy/8 p-4">
               <p className="text-sm font-bold text-navy mb-1">Thanks for sharing that.</p>
               <p className="text-sm text-ink-soft">
                 What you wrote stays private -- it's just for you. Noticing it is the whole point.
@@ -113,6 +113,8 @@ export function FreeTextGamePlayer({
           ) : (
             <>
               <textarea
+                id="tb-freetext-response"
+                aria-labelledby="tb-freetext-prompt"
                 value={responseBody}
                 onChange={(e) => setResponseBody(e.target.value)}
                 placeholder={placeholder}
