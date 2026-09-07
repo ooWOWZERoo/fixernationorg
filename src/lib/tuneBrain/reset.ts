@@ -142,10 +142,29 @@ export async function gatherResetData(client: DbLike, params: ResetParams): Prom
     const goals = await client.tbGoal.findMany({ where: { userId }, select: { id: true, key: true, status: true } })
     const streaks = await client.streak.findMany({ where: { userId }, select: { scope: true } })
 
-    const loyaltyRowsToReverse = await client.loyaltyPoint.findMany({
-      where: { userId, reason: { in: TB_ALL_POINT_REASONS } },
-      select: { id: true, points: true, reason: true, resourceId: true },
-    })
+    // FULL is the one scope where a naive "find every positive award row
+    // and reverse it" is wrong: unlike SINGLE_GAME/BADGE/GOAL (which only
+    // ever reverse points tied to specific sessions/badges/goals being
+    // deleted in THIS transaction, so a repeat reset finds nothing left to
+    // match), a second FULL reset on the same member -- weeks later, for an
+    // unrelated reason, or a genuine double-submit -- would re-select the
+    // SAME already-reversed positive rows and reverse them a second time,
+    // since LoyaltyPoint rows are never deleted or mutated. There is no
+    // per-row "already offset" flag to filter on, so the only correct fix
+    // without a schema change is to reverse the member's net OUTSTANDING
+    // balance, not their gross lifetime awards: sum every positive TB award
+    // (by reason) minus every TB reset reversal ever recorded for them
+    // (across ALL scopes/reset events, not just prior FULL resets -- a
+    // reversal is a reversal regardless of which scope produced it). If
+    // that net is <= 0, there is nothing left to reverse and no row is
+    // created at all; this is what makes repeat/mixed-scope resets safe.
+    const [awardedAgg, reversedAgg] = await Promise.all([
+      client.loyaltyPoint.aggregate({ where: { userId, reason: { in: TB_ALL_POINT_REASONS } }, _sum: { points: true } }),
+      client.loyaltyPoint.aggregate({ where: { userId, reason: TB_RESET_POINT_REASON }, _sum: { points: true } }),
+    ])
+    const netOutstanding = (awardedAgg._sum.points ?? 0) + (reversedAgg._sum.points ?? 0) // reversedAgg is <= 0
+    const loyaltyRowsToReverse: LoyaltyRowToReverse[] =
+      netOutstanding > 0 ? [{ id: "net-outstanding", points: netOutstanding, reason: TB_RESET_POINT_REASON, resourceId: null }] : []
 
     return {
       sessionIds,
