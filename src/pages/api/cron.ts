@@ -175,16 +175,14 @@ function utcDayWindow(now: Date): { startOfDay: Date; endOfDay: Date } {
   return { startOfDay, endOfDay };
 }
 
-// Vercel Hobby caps cron jobs at once-per-day, so this runs on the same
-// fixed daily schedule as the job itself (vercel.json: 7am UTC, the same
-// slot the legacy direct Morning Boost sender used) rather than checking
-// each template against its own chosen time — there's only one invocation
-// a day, so every due template fires at that single moment. recurrenceTime
-// is stored (fixed to "07:00" at creation) for a possible future Pro-tier
-// upgrade to per-template times, but isn't used to gate firing here.
+// Runs hourly (vercel.json: "0 * * * *"), gated below to only dispatch a
+// given template during the UTC hour matching its own stored recurrenceTime
+// ("HH:MM", UTC) — each template fires once, at its own admin-chosen time,
+// instead of every template firing together at one fixed daily slot.
 async function runCampaignRecurringDispatch(): Promise<{ message: string }> {
   const now = new Date();
   const scheduledDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const currentHourStr = String(now.getUTCHours()).padStart(2, "0");
 
   const templates = await db.campaign.findMany({
     where: {
@@ -193,6 +191,7 @@ async function runCampaignRecurringDispatch(): Promise<{ message: string }> {
       parentCampaignId: null,
       channelType: "EMAIL",
       isAbTest: false,
+      recurrenceTime: { startsWith: `${currentHourStr}:` },
     },
   });
 

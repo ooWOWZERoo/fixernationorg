@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/cron?job=campaign-scheduler",
-      "schedule": "0 9 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron?job=campaign-recurring-dispatch",
-      "schedule": "0 7 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron?job=automation-tick",
@@ -19,6 +19,14 @@
     {
       "path": "/api/cron?job=expired-token-cleanup",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron?job=campaign-send-hourly-resume",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron?job=campaign-recovery",
+      "schedule": "0 * * * *"
     }
   ]
 }

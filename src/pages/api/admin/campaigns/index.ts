@@ -84,12 +84,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
         status: parsed.data.scheduledAt ? "SCHEDULED" : "DRAFT",
         createdBy: session.user.id,
-        // Vercel Hobby caps cron jobs at once-per-day, so every recurring
-        // campaign fires on the same fixed daily schedule (7am UTC) rather
-        // than an admin-chosen time — see runCampaignRecurringDispatch in
-        // cron.ts. Stored for a possible future per-template-time upgrade,
-        // not actually used to gate firing today.
-        recurrenceTime: parsed.data.isRecurring ? "07:00" : undefined,
+        // runCampaignRecurringDispatch (cron.ts) now polls hourly and fires
+        // each template during the UTC hour matching this value — an
+        // admin-supplied time takes effect for real. Defaults to 7am UTC
+        // (the historical slot) when not explicitly provided.
+        recurrenceTime: parsed.data.isRecurring ? (parsed.data.recurrenceTime ?? "07:00") : undefined,
       },
     });
 
