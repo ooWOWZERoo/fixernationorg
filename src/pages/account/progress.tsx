@@ -180,8 +180,8 @@ const ProgressPage: NextPageWithLayout<Props> = () => {
                   <StatCard label="Active pathways" value={summary.activePathways} />
                   <StatCard label="Active challenges" value={summary.activeChallenges} />
                   <StatCard label="Recognitions received" value={summary.recognitionsCount} />
-                  <StatCard label="Tune Your Brain points" value={summary.tybTotalPoints.toLocaleString()} />
-                  <StatCard label="Tune Your Brain streak" value={summary.tybGlobalStreak > 0 ? `🔥 ${summary.tybGlobalStreak}d` : "—"} />
+                  <StatCard label="Brain Builder points" value={summary.tybTotalPoints.toLocaleString()} />
+                  <StatCard label="Brain Builder streak" value={summary.tybGlobalStreak > 0 ? `🔥 ${summary.tybGlobalStreak}d` : "—"} />
                   <StatCard label="Badges earned" value={summary.tybBadgesCount} />
                   <StatCard label="Games played" value={`${summary.tybGamesPlayed}/${summary.tybGamesTotal}`} />
                 </div>
@@ -191,19 +191,19 @@ const ProgressPage: NextPageWithLayout<Props> = () => {
               {summary && (
                 <div className="mb-8">
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-navy">Tune Your Brain Progress</h2>
+                    <h2 className="text-lg font-bold text-navy">Brain Builder Progress</h2>
                     <Link href="/tune-your-brain" className="text-sm font-semibold text-amber hover:underline">
                       View all →
                     </Link>
                   </div>
                   <div className="rounded-2xl border border-navy/8 bg-white p-5">
                     <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-                      Tune Your Brain Progress: {summary.tybGamesPlayed} of {summary.tybGamesTotal} games explored
+                      Brain Builder Progress: {summary.tybGamesPlayed} of {summary.tybGamesTotal} games explored
                       {summary.tybLongestStreak > 0 && ` · Longest streak: 🔥 ${summary.tybLongestStreak}d`}
                     </p>
                     {summary.tybGames.length === 0 ? (
                       <p className="text-sm text-ink-soft">
-                        Play a round of any Tune Your Brain game to start tracking progress here.
+                        Play a round of any Brain Builder game to start tracking progress here.
                       </p>
                     ) : (
                       <div className="space-y-2">

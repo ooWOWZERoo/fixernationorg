@@ -47,7 +47,7 @@ export function AccountNav() {
           <Link href="/account/checkin" className={cls("/account/checkin")}>Daily Check-In</Link>
           <Link href="/account/reflections" className={cls("/account/reflections")}>Reflections</Link>
           <Link href="/account/progress" className={cls("/account/progress")}>My Progress</Link>
-          <Link href="/tune-your-brain" className={cls("/tune-your-brain")}>🧠 Tune Your Brain</Link>
+          <Link href="/tune-your-brain" className={cls("/tune-your-brain")}>🧠 Brain Builder</Link>
         </div>
       </div>
 

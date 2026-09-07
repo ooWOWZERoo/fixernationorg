@@ -12,8 +12,8 @@ export const WEEKLY_GOAL_KEY = "weekly_3_sessions"
 export const PERSONAL_REFRAME_BUILDER_KEY = "personal_reframe_builder"
 
 export const GOAL_LABELS: Record<string, string> = {
-  [DAILY_GOAL_KEY]: "Complete a Tune Your Brain session today",
-  [WEEKLY_GOAL_KEY]: "Complete 3 Tune Your Brain sessions this week",
+  [DAILY_GOAL_KEY]: "Complete a Brain Builder session today",
+  [WEEKLY_GOAL_KEY]: "Complete 3 Brain Builder sessions this week",
   [PERSONAL_REFRAME_BUILDER_KEY]: "Reach Builder tier in Positive Reframe",
 }
 

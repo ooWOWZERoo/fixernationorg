@@ -48,10 +48,10 @@ const AdminTuneBrainContentPage: NextPageWithLayout<Props> = ({ items: initial }
 
   return (
     <>
-      <Head><title>Tune Your Brain — Admin</title></Head>
+      <Head><title>Brain Builder — Admin</title></Head>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-navy">Tune Your Brain</h1>
+          <h1 className="text-2xl font-extrabold text-navy">Brain Builder</h1>
           <p className="mt-1 text-sm text-ink-soft">{items.length} content item{items.length !== 1 ? "s" : ""} across {CORE_GAME_KEYS.length} games.</p>
         </div>
         <div className="flex items-center gap-2">

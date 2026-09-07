@@ -257,7 +257,7 @@ const HomePage: NextPageWithLayout<Props> = ({ positivityBoost }) => {
       <section className="px-6 py-20 lg:px-8">
         <div className="mx-auto max-w-4xl overflow-hidden rounded-xl bg-white p-8 shadow-[0_4px_32px_-4px_rgba(31,58,84,0.09)] sm:p-12">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="eyebrow">Tune Your Brain</span>
+            <span className="eyebrow">Brain Builder</span>
             <h2 className="mt-3 text-3xl font-extrabold text-navy">
               Small games. Positive habits. A stronger you.
             </h2>

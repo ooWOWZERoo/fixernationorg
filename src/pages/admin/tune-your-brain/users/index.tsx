@@ -45,14 +45,14 @@ const AdminTuneBrainUsersPage: NextPageWithLayout<Props> = ({ users, total, q: i
 
   return (
     <>
-      <Head><title>Member Progress — Tune Your Brain — Admin</title></Head>
+      <Head><title>Member Progress — Brain Builder — Admin</title></Head>
       <div className="mb-6">
         <Link href="/admin/tune-your-brain/content" className="text-sm text-slate-500 no-underline hover:text-navy">
-          ← Tune Your Brain
+          ← Brain Builder
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold text-navy">Member progress &amp; resets</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Look up a member&apos;s Tune Your Brain record, and reset their progress if needed.
+          Look up a member&apos;s Brain Builder record, and reset their progress if needed.
         </p>
       </div>
 

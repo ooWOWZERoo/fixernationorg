@@ -7,6 +7,11 @@ import { recordEvent } from "@/lib/application-events";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+// Sentinel thrown inside the assign transaction so the exclusive-territory
+// conflict can unwind out of db.$transaction and become a 409 response,
+// without db.$transaction's return type absorbing the error case.
+class ExclusiveTerritoryConflictError extends Error {}
+
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   type: z.enum(["GEOGRAPHIC", "INDUSTRY", "ORGANIZATION", "CUSTOM"]).optional(),
@@ -94,32 +99,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: "Territory assignment is only for ambassador applications" });
         }
 
-        if (territory.isExclusive) {
-          const activeCount = await db.territoryAssignment.count({
-            where: { territoryId: id, status: "ACTIVE" },
-          });
-          if (activeCount > 0) {
-            return res.status(409).json({ error: "This territory is exclusive and already has an active assignment." });
-          }
-        }
-
         const resolvedUserId = userId ?? application.userId ?? undefined;
 
-        const assignment = await db.territoryAssignment.create({
-          data: {
-            territoryId: id,
-            userId: resolvedUserId,
-            applicationId,
-            notes: notes?.trim() || null,
-            endDate: endDate ? new Date(endDate) : null,
-            autoRenew,
-            assignedBy: session.user.email ?? session.user.id,
-          },
-          include: {
-            territory: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        });
+        // Wrap the exclusive-territory check and the create in one transaction
+        // so two concurrent "assign" requests can't both pass the count check
+        // before either write lands (the count-then-create sequence was
+        // previously two separate statements with a race window between them).
+        let assignment;
+        try {
+          assignment = await db.$transaction(async (tx) => {
+            if (territory.isExclusive) {
+              const activeCount = await tx.territoryAssignment.count({
+                where: { territoryId: id, status: "ACTIVE" },
+              });
+              if (activeCount > 0) {
+                throw new ExclusiveTerritoryConflictError();
+              }
+            }
+
+            return tx.territoryAssignment.create({
+              data: {
+                territoryId: id,
+                userId: resolvedUserId,
+                applicationId,
+                notes: notes?.trim() || null,
+                endDate: endDate ? new Date(endDate) : null,
+                autoRenew,
+                assignedBy: session.user.email ?? session.user.id,
+              },
+              include: {
+                territory: true,
+                user: { select: { id: true, name: true, email: true } },
+              },
+            });
+          });
+        } catch (err) {
+          if (err instanceof ExclusiveTerritoryConflictError) {
+            return res.status(409).json({ error: "This territory is exclusive and already has an active assignment." });
+          }
+          throw err;
+        }
 
         recordEvent(applicationId, "TERRITORY_ASSIGNED", session.user.email, {
           territoryId: id,

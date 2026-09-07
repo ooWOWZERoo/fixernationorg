@@ -77,7 +77,7 @@ export async function applyGameCompletionRewards(params: {
   // write above has committed, and a failure here must never affect the
   // response or gameplay correctness -- matching enrollInJourneys'/
   // awardPoints' existing convention. ─────────────────────────────────────
-  const gameLabel = TB_GAME_REGISTRY[gameKey]?.label ?? "Tune Your Brain"
+  const gameLabel = TB_GAME_REGISTRY[gameKey]?.label ?? "Brain Builder"
 
   if (leveledUp) {
     const points = LEVEL_UP_POINTS[newTier] ?? 0
@@ -108,7 +108,7 @@ export async function applyGameCompletionRewards(params: {
 
   for (const streakResult of [gameStreak, globalStreak]) {
     if (streakResult.crossedMilestone) {
-      const scopeLabel = streakResult.scope === "GLOBAL" ? "Tune Your Brain" : gameLabel
+      const scopeLabel = streakResult.scope === "GLOBAL" ? "Brain Builder" : gameLabel
       createNotification(
         userId,
         "TUNE_YOUR_BRAIN_STREAK_MILESTONE",

@@ -129,7 +129,7 @@ const AdminTuneBrainContentNew: NextPageWithLayout = () => {
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
         <Link href="/admin/tune-your-brain/content" className="text-sm text-slate-500 no-underline hover:text-navy">
-          ← Tune Your Brain
+          ← Brain Builder
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">New content</h1>
       </div>

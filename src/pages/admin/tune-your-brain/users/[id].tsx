@@ -160,7 +160,7 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
 
   return (
     <>
-      <Head><title>{user.name ?? user.email} — Tune Your Brain — Admin</title></Head>
+      <Head><title>{user.name ?? user.email} — Brain Builder — Admin</title></Head>
 
       <div className="mb-6">
         <Link href="/admin/tune-your-brain/users" className="text-sm text-slate-500 no-underline hover:text-navy">
@@ -200,7 +200,7 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
 
       <div className="mb-8 grid gap-6 md:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Community Points (Tune Your Brain)</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Community Points (Brain Builder)</p>
           <p className="mt-1 text-2xl font-bold text-navy">{tybPoints}</p>
         </div>
         {streaks.map((s) => (
@@ -353,7 +353,7 @@ const AdminTuneBrainUserDetailPage: NextPageWithLayout<Props> = ({
               </p>
             )}
             {scope === "FULL" && (
-              <p className="text-sm font-semibold text-red-700">This wipes every Tune Your Brain record for this member -- all games, all badges, all goals, all streaks.</p>
+              <p className="text-sm font-semibold text-red-700">This wipes every Brain Builder record for this member -- all games, all badges, all goals, all streaks.</p>
             )}
 
             <button

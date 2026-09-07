@@ -37,11 +37,11 @@ const AdminTuneBrainBadgesPage: NextPageWithLayout<Props> = ({ badges }) => {
 
   return (
     <>
-      <Head><title>Badges — Tune Your Brain — Admin</title></Head>
+      <Head><title>Badges — Brain Builder — Admin</title></Head>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/admin/tune-your-brain/content" className="text-sm text-slate-500 no-underline hover:text-navy">
-            ← Tune Your Brain
+            ← Brain Builder
           </Link>
           <h1 className="mt-2 text-2xl font-extrabold text-navy">Badges</h1>
           <p className="mt-1 text-sm text-ink-soft">{badges.length} badge{badges.length !== 1 ? "s" : ""} configured.</p>

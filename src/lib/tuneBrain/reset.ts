@@ -300,7 +300,7 @@ export function neverTouchedSummary(scope: ResetScope): string[] {
   ]
   if (scope === "SINGLE_GAME") {
     return [
-      "Every other Tune Your Brain game's sessions, level, and badges",
+      "Every other Brain Builder game's sessions, level, and badges",
       "The daily and weekly goals (they span all games)",
       ...always,
     ]

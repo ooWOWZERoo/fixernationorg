@@ -23,7 +23,7 @@ const WellnessChoicesPage: NextPageWithLayout<Props> = ({ hasTimezone }) => {
   return (
     <>
       <Head>
-        <title>{gameDef.label} — Tune Your Brain — Fixer Nation</title>
+        <title>{gameDef.label} — Brain Builder — Fixer Nation</title>
       </Head>
       <TimezoneCapture hasTimezone={hasTimezone} />
       <section className="px-6 py-8 lg:px-8">
@@ -31,7 +31,7 @@ const WellnessChoicesPage: NextPageWithLayout<Props> = ({ hasTimezone }) => {
           <AccountNav />
 
           <Link href="/tune-your-brain" className="mb-4 inline-block text-sm font-semibold text-ink-soft hover:text-navy">
-            ← Tune Your Brain
+            ← Brain Builder
           </Link>
 
           <div className="mb-2 flex items-center gap-2">

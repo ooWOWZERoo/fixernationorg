@@ -312,7 +312,7 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
             ) : !tuneUp || tuneUp.isNew ? (
               <>
                 <h2 className="text-xl font-extrabold text-navy sm:text-2xl leading-snug">
-                  Tune Your Brain
+                  Brain Builder
                 </h2>
                 <p className="mt-2 text-sm text-ink-soft">
                   Small games. Positive habits. A stronger you.
@@ -348,7 +348,7 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
 
                 {tuneUp.hasIncompleteDailyGoal && (
                   <p className="mt-3 text-sm text-ink-soft">
-                    You still have today&apos;s Tune Your Brain goal to complete.
+                    You still have today&apos;s Brain Builder goal to complete.
                   </p>
                 )}
 

@@ -176,10 +176,10 @@ const EditTuneBrainContentPage: NextPageWithLayout<Props> = ({ item: initial }) 
 
   return (
     <>
-      <Head><title>Edit content — Tune Your Brain — Admin</title></Head>
+      <Head><title>Edit content — Brain Builder — Admin</title></Head>
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <Link href="/admin/tune-your-brain/content" className="text-sm text-ink-soft hover:text-navy">← Tune Your Brain</Link>
+        <Link href="/admin/tune-your-brain/content" className="text-sm text-ink-soft hover:text-navy">← Brain Builder</Link>
         <span className="text-ink-soft/40">/</span>
         <span className="text-sm text-ink-soft">{gameDef?.label ?? initial.gameKey}</span>
         <span className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_STYLES[status] ?? STATUS_STYLES.DRAFT}`}>

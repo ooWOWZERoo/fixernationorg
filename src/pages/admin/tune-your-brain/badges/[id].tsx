@@ -85,7 +85,7 @@ const EditTuneBrainBadgePage: NextPageWithLayout<Props> = ({ badge: initial }) =
 
   return (
     <>
-      <Head><title>Edit badge — Tune Your Brain — Admin</title></Head>
+      <Head><title>Edit badge — Brain Builder — Admin</title></Head>
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <Link href="/admin/tune-your-brain/badges" className="text-sm text-ink-soft hover:text-navy">← Badges</Link>

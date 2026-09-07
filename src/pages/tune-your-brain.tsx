@@ -142,7 +142,7 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
   return (
     <>
       <Head>
-        <title>Tune Your Brain — Fixer Nation</title>
+        <title>Brain Builder — Fixer Nation</title>
       </Head>
       <TimezoneCapture hasTimezone={hasTimezone} />
       <section className="px-6 py-8 lg:px-8">
@@ -151,7 +151,7 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
 
           <div className="mb-2 flex items-center gap-2">
             <span className="text-2xl" aria-hidden="true">🧠</span>
-            <h1 className="text-2xl font-extrabold text-navy">Tune Your Brain</h1>
+            <h1 className="text-2xl font-extrabold text-navy">Brain Builder</h1>
           </div>
           <p className="text-sm text-ink-soft mb-6">
             A handful of quick games to help you practice a steadier, more positive way of meeting the day.
