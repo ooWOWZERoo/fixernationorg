@@ -149,6 +149,38 @@ export default async function globalTeardown() {
       where: { createdAt: { gte: startedAt }, affiliateId: { in: affiliateIds } },
     })).count;
 
+    // Tune Your Brain (added 2026-09-07, Phase 7) -- same root cause as
+    // giftCodes/promoCodes above: named fixtures accumulate real gameplay
+    // rows every time an e2e spec plays a game as qa-member/qa-admin/etc.
+    // No real production account is ever a qa-* fixture, so unlike the
+    // createdAt-scoped deletes above, it's safe to clear ALL of a named
+    // fixture's TB progression unconditionally rather than only this run's
+    // slice -- there is no legitimate reason for these accounts to carry
+    // real progress forward between runs. TbGameSession's cascade
+    // (onDelete: Cascade on the TbGameSession relation) takes
+    // TbGratitudeEntry/TbKindnessMission with it.
+    counts.tbGameSessions = (await db.tbGameSession.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbGameLevels = (await db.tbGameLevel.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbStreaks = (await db.streak.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbUserBadges = (await db.tbUserBadge.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbBadgeFeatures = (await db.badgeFeature.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbGoals = (await db.tbGoal.deleteMany({
+      where: { userId: { in: namedFixtureIds } },
+    })).count;
+    counts.tbNotifications = (await db.notification.deleteMany({
+      where: { createdAt: { gte: startedAt }, userId: { in: namedFixtureIds } },
+    })).count;
+
     console.log(
       `[global-teardown] cleaned up rows created since ${startedAt.toISOString()}:`,
       JSON.stringify(counts)
