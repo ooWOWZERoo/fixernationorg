@@ -2,6 +2,7 @@ import type { NextPageWithLayout } from "@/types/next"
 import type { GetServerSideProps } from "next"
 import Head from "next/head"
 import Link from "next/link"
+import { useState } from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -24,7 +25,11 @@ interface BadgeVM {
 
 interface EarnedBadgeVM extends BadgeVM {
   earnedAt: string
+  featured: boolean
+  order: number | null
 }
+
+const MAX_FEATURED_BADGES = 6
 
 interface GoalVM {
   id: string
@@ -59,8 +64,80 @@ const TIER_LABELS: Record<string, string> = {
   CHAMPION: "Champion",
 }
 
-const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadges, lockedBadges, goals, gameCards }) => {
+const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBadges: initialEarnedBadges, lockedBadges, goals, gameCards }) => {
   const cardByGameKey = new Map(gameCards.map((c) => [c.gameKey, c]))
+  const [earnedBadges, setEarnedBadges] = useState<EarnedBadgeVM[]>(initialEarnedBadges)
+  const [badgeBusy, setBadgeBusy] = useState<string | null>(null)
+  const [badgeError, setBadgeError] = useState<string | null>(null)
+
+  const featured = earnedBadges
+    .filter((b) => b.featured)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const featuredCount = featured.length
+
+  async function featureBadge(badgeId: string) {
+    if (featuredCount >= MAX_FEATURED_BADGES) {
+      setBadgeError(`You can feature up to ${MAX_FEATURED_BADGES} badges. Unfeature one first.`)
+      return
+    }
+    setBadgeBusy(badgeId)
+    setBadgeError(null)
+    try {
+      const res = await fetch("/api/account/tune-your-brain/badges/feature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ badgeId, order: featuredCount }),
+      })
+      if (res.ok) {
+        setEarnedBadges((prev) =>
+          prev.map((b) => (b.id === badgeId ? { ...b, featured: true, order: featuredCount } : b))
+        )
+      } else {
+        const data = await res.json()
+        setBadgeError(typeof data.error === "string" ? data.error : "Couldn't feature that badge.")
+      }
+    } finally {
+      setBadgeBusy(null)
+    }
+  }
+
+  async function unfeatureBadge(badgeId: string) {
+    setBadgeBusy(badgeId)
+    setBadgeError(null)
+    try {
+      const res = await fetch(`/api/account/tune-your-brain/badges/feature/${badgeId}`, { method: "DELETE" })
+      if (res.ok) {
+        setEarnedBadges((prev) => prev.map((b) => (b.id === badgeId ? { ...b, featured: false, order: null } : b)))
+      }
+    } finally {
+      setBadgeBusy(null)
+    }
+  }
+
+  async function moveBadge(badgeId: string, direction: -1 | 1) {
+    const idx = featured.findIndex((b) => b.id === badgeId)
+    const swapIdx = idx + direction
+    if (idx === -1 || swapIdx < 0 || swapIdx >= featured.length) return
+
+    const reordered = [...featured]
+    ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+    const badgeIds = reordered.map((b) => b.id)
+
+    setBadgeBusy(badgeId)
+    try {
+      const res = await fetch("/api/account/tune-your-brain/badges/feature/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ badgeIds }),
+      })
+      if (res.ok) {
+        const orderById = new Map(badgeIds.map((id, i) => [id, i]))
+        setEarnedBadges((prev) => prev.map((b) => (orderById.has(b.id) ? { ...b, order: orderById.get(b.id)! } : b)))
+      }
+    } finally {
+      setBadgeBusy(null)
+    }
+  }
 
   return (
     <>
@@ -137,6 +214,61 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
             )}
           </div>
 
+          {/* Featured badges -- what shows on the public profile and member directory. Unfeatured badges are simply never shown publicly; featuring IS the visibility control, there's no separate privacy toggle. */}
+          <div className="mt-8 rounded-2xl border border-navy/8 bg-white p-6">
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark">
+                Featured on your public profile
+              </h2>
+              <span className="text-xs font-semibold text-ink-soft">{featuredCount}/{MAX_FEATURED_BADGES}</span>
+            </div>
+            <p className="mb-4 text-xs text-ink-soft">
+              Choose up to {MAX_FEATURED_BADGES} earned badges to show on your public profile and in the member directory. Nothing here is visible to others until you feature it.
+            </p>
+            {badgeError && (
+              <p className="mb-3 text-xs font-semibold text-red-700">{badgeError}</p>
+            )}
+            {featured.length === 0 ? (
+              <p className="text-sm text-ink-soft">No featured badges yet -- feature one from "My Badges" below.</p>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {featured.map((badge, idx) => (
+                  <div key={badge.id} className="flex flex-col items-center gap-1.5">
+                    <BadgeFrame iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state="featured" />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveBadge(badge.id, -1)}
+                        disabled={idx === 0 || badgeBusy === badge.id}
+                        className="rounded border border-navy/15 px-1.5 text-xs text-navy disabled:opacity-30"
+                        aria-label={`Move ${badge.name} earlier`}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => unfeatureBadge(badge.id)}
+                        disabled={badgeBusy === badge.id}
+                        className="rounded border border-navy/15 px-1.5 text-xs text-ink-soft disabled:opacity-30"
+                      >
+                        Unfeature
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveBadge(badge.id, 1)}
+                        disabled={idx === featured.length - 1 || badgeBusy === badge.id}
+                        className="rounded border border-navy/15 px-1.5 text-xs text-navy disabled:opacity-30"
+                        aria-label={`Move ${badge.name} later`}
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* My Badges */}
           <div className="mt-8 rounded-2xl border border-navy/8 bg-white p-6">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-dark mb-4">My Badges</h2>
@@ -145,7 +277,17 @@ const TuneYourBrainHubPage: NextPageWithLayout<Props> = ({ hasTimezone, earnedBa
             ) : (
               <div className="flex flex-wrap gap-4">
                 {earnedBadges.map((badge) => (
-                  <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state="earned" />
+                  <div key={badge.id} className="flex flex-col items-center gap-1.5">
+                    <BadgeFrame iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state={badge.featured ? "featured" : "earned"} />
+                    <button
+                      type="button"
+                      onClick={() => (badge.featured ? unfeatureBadge(badge.id) : featureBadge(badge.id))}
+                      disabled={badgeBusy === badge.id || (!badge.featured && featuredCount >= MAX_FEATURED_BADGES)}
+                      className="rounded border border-navy/15 px-2 py-0.5 text-xs font-semibold text-navy disabled:opacity-30"
+                    >
+                      {badge.featured ? "Unfeature" : "Feature"}
+                    </button>
+                  </div>
                 ))}
                 {lockedBadges.map((badge) => (
                   <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} state="locked" />
@@ -172,7 +314,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const today = getMemberCalendarDate(new Date(), timezone)
   const monday = mondayOf(today)
 
-  const [earnedRows, allBadgeRows, goalRows, levelRows, streakRows] = await Promise.all([
+  const [earnedRows, allBadgeRows, goalRows, levelRows, streakRows, featureRows] = await Promise.all([
     db.tbUserBadge.findMany({ where: { userId }, include: { badge: true }, orderBy: { earnedAt: "asc" } }),
     // The hub shows badges across every game (not just one), so this is a
     // plain "every active badge" query -- no gameKey filter.
@@ -189,9 +331,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     }),
     db.tbGameLevel.findMany({ where: { userId } }),
     db.streak.findMany({ where: { userId } }),
+    db.badgeFeature.findMany({ where: { userId } }),
   ])
 
   const earnedBadgeIds = new Set(earnedRows.map((r) => r.badgeId))
+  const featureByBadgeId = new Map(featureRows.map((f) => [f.badgeId, f.order]))
 
   const earnedBadges = earnedRows.map((r) => ({
     id: r.badge.id,
@@ -201,6 +345,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     tier: r.badge.tier,
     iconKey: r.badge.iconKey,
     earnedAt: r.earnedAt,
+    featured: featureByBadgeId.has(r.badgeId),
+    order: featureByBadgeId.get(r.badgeId) ?? null,
   }))
 
   const lockedBadges = allBadgeRows

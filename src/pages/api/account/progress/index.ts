@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { TB_GAME_REGISTRY, CORE_GAME_KEYS } from "@/lib/tuneBrain/registry"
 
 type MilestoneRow = {
   id: string
@@ -78,6 +79,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     activeChallenges,
     recentCheckIns,
     recognitionsCount,
+    tybPointsResult,
+    tybGlobalStreak,
+    tybBadgesCount,
+    tybLevelRows,
   ] = await Promise.all([
     db.loyaltyPoint.aggregate({ where: { userId }, _sum: { points: true } }),
     db_.memberMilestone.count({ where: { userId } }),
@@ -94,10 +99,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       take: 30,
     }),
     db_.memberRecognition.count({ where: { toUserId: userId } }),
+    // Tune Your Brain -- Community Points are only ever awarded via these
+    // three reason strings (level-up, badge, goal); session completion
+    // itself awards XP only, never points directly (see rewardEngine.ts).
+    db.loyaltyPoint.aggregate({
+      where: { userId, reason: { startsWith: "TUNE_YOUR_BRAIN_" } },
+      _sum: { points: true },
+    }),
+    db.streak.findUnique({ where: { userId_scope: { userId, scope: "GLOBAL" } } }),
+    db.tbUserBadge.count({ where: { userId } }),
+    db.tbGameLevel.findMany({ where: { userId } }),
   ])
 
   const totalPoints = pointsResult._sum.points ?? 0
   const streak = calculateStreak(recentCheckIns)
+
+  const tybGames = tybLevelRows
+    .map((row) => {
+      const game = TB_GAME_REGISTRY[row.gameKey]
+      return game ? { gameKey: String(row.gameKey), label: game.label, emoji: game.emoji, tier: String(row.tier) } : null
+    })
+    .filter((g): g is { gameKey: string; label: string; emoji: string; tier: string } => !!g)
 
   return res.json({
     totalPoints,
@@ -107,5 +129,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     activeChallenges,
     streak,
     recognitionsCount,
+    tybTotalPoints: tybPointsResult._sum.points ?? 0,
+    tybGlobalStreak: tybGlobalStreak?.current ?? 0,
+    tybLongestStreak: tybGlobalStreak?.longest ?? 0,
+    tybBadgesCount,
+    tybGamesPlayed: tybLevelRows.length,
+    tybGamesTotal: CORE_GAME_KEYS.length,
+    tybGames,
   })
 }

@@ -24,6 +24,13 @@ interface Recognition {
   fromUser?: { id: string; name: string | null; image: string | null }
 }
 
+interface TybGameRow {
+  gameKey: string
+  label: string
+  emoji: string
+  tier: string
+}
+
 interface ProgressSummary {
   totalPoints: number
   milestonesCount: number
@@ -32,7 +39,29 @@ interface ProgressSummary {
   activeChallenges: number
   streak: number
   recognitionsCount: number
+  tybTotalPoints: number
+  tybGlobalStreak: number
+  tybLongestStreak: number
+  tybBadgesCount: number
+  tybGamesPlayed: number
+  tybGamesTotal: number
+  tybGames: TybGameRow[]
 }
+
+const TIER_LABELS: Record<string, string> = {
+  STARTER: "Starter",
+  EXPLORER: "Explorer",
+  BUILDER: "Builder",
+  CHALLENGER: "Challenger",
+  SKILLED: "Skilled",
+  ADVANCED: "Advanced",
+  CHAMPION: "Champion",
+}
+
+// Level indicator = rank among the 7 tiers (1-7), never a raw score --
+// keeps this a game-progress indicator, not anything reading as an
+// IQ/cognitive-ability measure.
+const TIER_ORDER = ["STARTER", "EXPLORER", "BUILDER", "CHALLENGER", "SKILLED", "ADVANCED", "CHAMPION"]
 
 interface Props {
   userId: string
@@ -151,6 +180,53 @@ const ProgressPage: NextPageWithLayout<Props> = () => {
                   <StatCard label="Active pathways" value={summary.activePathways} />
                   <StatCard label="Active challenges" value={summary.activeChallenges} />
                   <StatCard label="Recognitions received" value={summary.recognitionsCount} />
+                  <StatCard label="Tune Your Brain points" value={summary.tybTotalPoints.toLocaleString()} />
+                  <StatCard label="Tune Your Brain streak" value={summary.tybGlobalStreak > 0 ? `🔥 ${summary.tybGlobalStreak}d` : "—"} />
+                  <StatCard label="Badges earned" value={summary.tybBadgesCount} />
+                  <StatCard label="Games played" value={`${summary.tybGamesPlayed}/${summary.tybGamesTotal}`} />
+                </div>
+              )}
+
+              {/* Tune Your Brain Progress */}
+              {summary && (
+                <div className="mb-8">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-navy">Tune Your Brain Progress</h2>
+                    <Link href="/tune-your-brain" className="text-sm font-semibold text-amber hover:underline">
+                      View all →
+                    </Link>
+                  </div>
+                  <div className="rounded-2xl border border-navy/8 bg-white p-5">
+                    <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                      Tune Your Brain Progress: {summary.tybGamesPlayed} of {summary.tybGamesTotal} games explored
+                      {summary.tybLongestStreak > 0 && ` · Longest streak: 🔥 ${summary.tybLongestStreak}d`}
+                    </p>
+                    {summary.tybGames.length === 0 ? (
+                      <p className="text-sm text-ink-soft">
+                        Play a round of any Tune Your Brain game to start tracking progress here.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {summary.tybGames.map((g) => {
+                          const rank = TIER_ORDER.indexOf(g.tier) + 1
+                          return (
+                            <div key={g.gameKey} className="flex items-center justify-between rounded-xl bg-cream-panel px-3 py-2">
+                              <span className="flex items-center gap-2 text-sm font-semibold text-navy">
+                                <span aria-hidden="true">{g.emoji}</span>
+                                {g.label}
+                              </span>
+                              <span className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
+                                <span className="rounded-full bg-navy/6 px-2 py-0.5 text-navy">
+                                  {TIER_LABELS[g.tier] ?? g.tier}
+                                </span>
+                                <span>Level {rank}/7</span>
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

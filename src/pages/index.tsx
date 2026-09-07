@@ -253,6 +253,27 @@ const HomePage: NextPageWithLayout<Props> = ({ positivityBoost }) => {
         </div>
       </section>
 
+      {/* 5b. Tune Your Brain promo — member-benefit marketing copy only, no live game or auth-gated content */}
+      <section className="px-6 py-20 lg:px-8">
+        <div className="mx-auto max-w-4xl overflow-hidden rounded-xl bg-white p-8 shadow-[0_4px_32px_-4px_rgba(31,58,84,0.09)] sm:p-12">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="eyebrow">Tune Your Brain</span>
+            <h2 className="mt-3 text-3xl font-extrabold text-navy">
+              Small games. Positive habits. A stronger you.
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+              Quick interactive challenges help you practice gratitude, perspective, focus, kindness, healthy choices and other habits that support everyday well-being.
+            </p>
+            <Link
+              href="/join"
+              className="mt-7 inline-flex items-center justify-center rounded-lg bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_8px_24px_-6px_rgba(242,169,60,0.55)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+            >
+              Join Fixer Nation
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* 6. The Statement — signature section */}
       <section className="bg-forest px-6 py-28 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">

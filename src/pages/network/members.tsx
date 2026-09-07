@@ -8,7 +8,19 @@ import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { NetworkTabBar } from "@/components/network/NetworkTabBar";
+import { BadgeFrame } from "@/components/tuneBrain/BadgeFrame";
 import type { NextPageWithLayout } from "@/types/next";
+
+// Directory cards show at most 3 featured badges (smaller than the profile
+// page's up-to-6) -- compact context per the plan.
+const DIRECTORY_BADGE_LIMIT = 3;
+
+type FeaturedBadge = {
+  id: string;
+  name: string;
+  tier: string | null;
+  iconKey: string;
+};
 
 type MemberCard = {
   id: string;
@@ -17,6 +29,7 @@ type MemberCard = {
   headline: string | null;
   avatarUrl: string | null;
   joinedAt: string;
+  featuredBadges: FeaturedBadge[];
 };
 
 interface Props {
@@ -136,6 +149,14 @@ const NetworkMembersPage: NextPageWithLayout<Props> = ({ members, currentUserId 
                   </p>
                 )}
 
+                {m.featuredBadges.length > 0 && (
+                  <div className="mt-3 flex gap-2">
+                    {m.featuredBadges.map((badge) => (
+                      <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} size="sm" state="featured" />
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-4 flex gap-2">
                   {m.username && (
                     <Link
@@ -194,6 +215,27 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     },
   });
 
+  const userIds = profiles.map((p) => p.userId);
+  const featureRows = userIds.length > 0
+    ? await db.badgeFeature.findMany({ where: { userId: { in: userIds } }, orderBy: { order: "asc" } })
+    : [];
+  const badgeIds = [...new Set(featureRows.map((f) => f.badgeId))];
+  const badgeRows = badgeIds.length > 0
+    ? await db.tbBadge.findMany({ where: { id: { in: badgeIds } } })
+    : [];
+  const badgeById = new Map(badgeRows.map((b) => [b.id, b]));
+
+  const featuredByUserId = new Map<string, FeaturedBadge[]>();
+  for (const f of featureRows) {
+    const badge = badgeById.get(f.badgeId);
+    if (!badge) continue;
+    const list = featuredByUserId.get(f.userId) ?? [];
+    if (list.length < DIRECTORY_BADGE_LIMIT) {
+      list.push({ id: badge.id, name: badge.name, tier: badge.tier, iconKey: badge.iconKey });
+      featuredByUserId.set(f.userId, list);
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const members: MemberCard[] = profiles.map((p: any) => ({
     id: p.user.id,
@@ -202,6 +244,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     headline: p.headline,
     avatarUrl: p.avatarUrl,
     joinedAt: p.user.createdAt.toISOString(),
+    featuredBadges: featuredByUserId.get(p.userId) ?? [],
   }));
 
   return {

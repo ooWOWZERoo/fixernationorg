@@ -26,8 +26,31 @@ interface RecommendationRow {
   feedback: FeedbackRow | null
 }
 
+interface TuneUpData {
+  isNew: boolean
+  hasIncompleteDailyGoal?: boolean
+  game?: {
+    key: string
+    label: string
+    emoji: string
+    routeSlug: string
+    tier: string | null
+  }
+  globalStreak?: number
+}
+
 interface Props {
   firstName: string | null
+}
+
+const TIER_LABELS: Record<string, string> = {
+  STARTER: "Starter",
+  EXPLORER: "Explorer",
+  BUILDER: "Builder",
+  CHALLENGER: "Challenger",
+  SKILLED: "Skilled",
+  ADVANCED: "Advanced",
+  CHAMPION: "Champion",
 }
 
 const CATEGORY_BADGE: Record<string, { label: string; bg: string; text: string }> = {
@@ -74,6 +97,7 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
   const [acting, setActing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [tuneUp, setTuneUp] = useState<TuneUpData | null | undefined>(undefined)
 
   const displayName = firstName ?? session?.user?.name?.split(" ")[0] ?? null
 
@@ -85,6 +109,13 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/account/tune-your-brain/today")
+      .then((r) => r.json())
+      .then((data) => setTuneUp(data))
+      .catch(() => setTuneUp(null))
   }, [])
 
   async function handleAction(action: "ACTED" | "SKIPPED" | "SAVED") {
@@ -262,6 +293,72 @@ const PersonalizedHomePage: NextPageWithLayout<Props> = ({ firstName }) => {
                   >
                     {refreshing ? "Finding something new…" : "Get a different suggestion"}
                   </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Today's Tune-Up card -- independent of the "One thing today" slot above, never fed by it */}
+          <div className="mt-6 rounded-2xl border border-navy/10 bg-white p-6 sm:p-8">
+            <p className="mb-4 text-xs font-bold uppercase tracking-widest text-amber-dark">
+              Today&apos;s Tune-Up
+            </p>
+
+            {tuneUp === undefined ? (
+              <div className="space-y-3">
+                <div className="h-4 w-24 animate-pulse rounded bg-navy/8" />
+                <div className="h-6 w-3/4 animate-pulse rounded bg-navy/8" />
+              </div>
+            ) : !tuneUp || tuneUp.isNew ? (
+              <>
+                <h2 className="text-xl font-extrabold text-navy sm:text-2xl leading-snug">
+                  Tune Your Brain
+                </h2>
+                <p className="mt-2 text-sm text-ink-soft">
+                  Small games. Positive habits. A stronger you.
+                </p>
+                <div className="mt-6">
+                  <Link
+                    href="/tune-your-brain"
+                    className="inline-flex rounded-xl bg-amber px-5 py-2.5 text-sm font-bold text-navy-dark no-underline transition hover:bg-amber-dark"
+                  >
+                    Play Today&apos;s Challenge →
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xl" aria-hidden="true">{tuneUp.game?.emoji}</span>
+                  <h2 className="text-xl font-extrabold text-navy sm:text-2xl leading-snug">
+                    {tuneUp.game?.label}
+                  </h2>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold text-ink-soft">
+                  {!!tuneUp.globalStreak && tuneUp.globalStreak > 1 && (
+                    <span>🔥 {tuneUp.globalStreak}-day streak</span>
+                  )}
+                  {tuneUp.game?.tier && (
+                    <span className="rounded-full bg-navy/6 px-2.5 py-0.5 text-navy">
+                      {TIER_LABELS[tuneUp.game.tier] ?? tuneUp.game.tier}
+                    </span>
+                  )}
+                </div>
+
+                {tuneUp.hasIncompleteDailyGoal && (
+                  <p className="mt-3 text-sm text-ink-soft">
+                    You still have today&apos;s Tune Your Brain goal to complete.
+                  </p>
+                )}
+
+                <div className="mt-6">
+                  <Link
+                    href={`/tune-your-brain/${tuneUp.game?.routeSlug}`}
+                    className="inline-flex rounded-xl bg-amber px-5 py-2.5 text-sm font-bold text-navy-dark no-underline transition hover:bg-amber-dark"
+                  >
+                    {tuneUp.hasIncompleteDailyGoal ? "Play Today's Challenge →" : "Continue Playing →"}
+                  </Link>
                 </div>
               </>
             )}

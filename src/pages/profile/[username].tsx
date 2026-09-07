@@ -6,7 +6,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { BadgeFrame } from "@/components/tuneBrain/BadgeFrame";
 import type { NextPageWithLayout } from "@/types/next";
+
+type FeaturedBadge = {
+  id: string;
+  name: string;
+  tier: string | null;
+  iconKey: string;
+};
 
 type GroupItem = {
   id: string;
@@ -52,6 +60,7 @@ interface Props {
   providerBusiness: ProviderBusiness;
   ambassadorInfo: AmbassadorInfo;
   groups: GroupItem[];
+  featuredBadges: FeaturedBadge[];
   isOwnProfile: boolean;
   currentUserId: string | null;
 }
@@ -61,6 +70,7 @@ const ProfilePage: NextPageWithLayout<Props> = ({
   providerBusiness,
   ambassadorInfo,
   groups,
+  featuredBadges,
   isOwnProfile,
   currentUserId,
 }) => {
@@ -200,6 +210,25 @@ const ProfilePage: NextPageWithLayout<Props> = ({
                 About
               </h2>
               <p className="text-sm leading-relaxed text-ink whitespace-pre-line">{profile.bio}</p>
+            </div>
+          )}
+
+          {/* Tune Your Brain achievements -- only badges this member chose to feature ever show here; featuring is the member's own visibility control, there's no separate privacy toggle */}
+          {featuredBadges.length > 0 && (
+            <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xs font-extrabold uppercase tracking-widest text-ink-soft">
+                  Achievements
+                </h2>
+                <Link href="/tune-your-brain" className="text-xs font-semibold text-amber hover:underline">
+                  View all achievements →
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                {featuredBadges.map((badge) => (
+                  <BadgeFrame key={badge.id} iconKey={badge.iconKey} name={badge.name} tier={badge.tier} size="lg" state="featured" />
+                ))}
+              </div>
             </div>
           )}
 
@@ -460,6 +489,20 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }
     : null;
 
+  const featureRows = await db.badgeFeature.findMany({
+    where: { userId: user.id },
+    orderBy: { order: "asc" },
+  });
+  const featuredBadgeRows =
+    featureRows.length > 0
+      ? await db.tbBadge.findMany({ where: { id: { in: featureRows.map((f) => f.badgeId) } } })
+      : [];
+  const badgeById = new Map(featuredBadgeRows.map((b) => [b.id, b]));
+  const featuredBadges: FeaturedBadge[] = featureRows
+    .map((f) => badgeById.get(f.badgeId))
+    .filter((b): b is (typeof featuredBadgeRows)[number] => !!b)
+    .map((b) => ({ id: b.id, name: b.name, tier: b.tier, iconKey: b.iconKey }));
+
   const ambassadorInfo: AmbassadorInfo = user.role === "AMBASSADOR" && user.ambassadorProfile
     ? {
         territory: user.ambassadorProfile.territory,
@@ -485,6 +528,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       providerBusiness,
       ambassadorInfo,
       groups,
+      featuredBadges,
       isOwnProfile: session?.user.id === user.id,
       currentUserId: session?.user.id ?? null,
     },
