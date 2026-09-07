@@ -34,6 +34,7 @@ const CATEGORIES: Record<string, string[]> = {
   security: ["mfa.enabled", "mfa.disabled"],
   content: ["blog.created", "blog.deleted", "resource.created", "resource.deleted", "morning_boost.created", "morning_boost.deleted"],
   groups: ["group.created", "group.deleted", "group_request.approved", "group_request.rejected"],
+  tunebrain: ["tunebrain.single_game_reset", "tunebrain.full_reset", "tunebrain.badge_reset", "tunebrain.goal_reset"],
 };
 
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
@@ -52,6 +53,10 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   "group.deleted":             { label: "Group deleted",          color: "bg-red-100 text-red-800" },
   "group_request.approved":    { label: "Join request approved",  color: "bg-green-100 text-green-800" },
   "group_request.rejected":    { label: "Join request rejected",  color: "bg-red-100 text-red-800" },
+  "tunebrain.single_game_reset": { label: "Tune Your Brain: single-game reset", color: "bg-red-100 text-red-800" },
+  "tunebrain.full_reset":        { label: "Tune Your Brain: full reset",        color: "bg-red-100 text-red-800" },
+  "tunebrain.badge_reset":       { label: "Tune Your Brain: badge removed",     color: "bg-amber-100 text-amber-800" },
+  "tunebrain.goal_reset":        { label: "Tune Your Brain: goal reset",        color: "bg-amber-100 text-amber-800" },
 };
 
 function actionDisplay(action: string) {
@@ -101,6 +106,7 @@ const AdminAuditPage: NextPageWithLayout<Props> = ({ entries, total, category, r
             <option value="security">Security</option>
             <option value="content">Content</option>
             <option value="groups">Groups</option>
+            <option value="tunebrain">Tune Your Brain</option>
           </select>
         </div>
         <div>

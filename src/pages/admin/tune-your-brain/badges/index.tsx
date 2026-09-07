@@ -46,12 +46,20 @@ const AdminTuneBrainBadgesPage: NextPageWithLayout<Props> = ({ badges }) => {
           <h1 className="mt-2 text-2xl font-extrabold text-navy">Badges</h1>
           <p className="mt-1 text-sm text-ink-soft">{badges.length} badge{badges.length !== 1 ? "s" : ""} configured.</p>
         </div>
-        <Link
-          href="/admin/tune-your-brain/badges/new"
-          className="rounded-xl bg-amber px-4 py-2 text-sm font-bold text-navy-dark no-underline hover:bg-amber-dark"
-        >
-          + New badge
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/tune-your-brain/users"
+            className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-medium text-navy no-underline hover:bg-cream-panel"
+          >
+            Member progress &amp; resets
+          </Link>
+          <Link
+            href="/admin/tune-your-brain/badges/new"
+            className="rounded-xl bg-amber px-4 py-2 text-sm font-bold text-navy-dark no-underline hover:bg-amber-dark"
+          >
+            + New badge
+          </Link>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-1.5">

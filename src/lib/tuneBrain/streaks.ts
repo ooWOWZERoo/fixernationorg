@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import type { Prisma } from "@prisma/client"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const STREAK_MILESTONES = [7, 30, 100]
@@ -58,4 +59,61 @@ export async function advanceStreak(userId: string, scope: string, todayDate: Da
   }
 
   return { scope, current: newCurrent, longest: newLongest, crossedMilestone: crossedAt(existing.current, newCurrent) }
+}
+
+// ── Reset-system support (SP-TB-P5) ─────────────────────────────────────────
+// A SINGLE_GAME reset deletes that game's sessions but must leave the
+// GLOBAL streak reflecting whatever activity remains across the member's
+// other games -- it can't just be left stale, and it can't be blindly
+// deleted either (the member may still have an active GLOBAL streak from
+// other games). Recomputing from history (rather than replaying
+// advanceStreak() day-by-day) is the only option once rows are gone, so this
+// extracts the same "consecutive calendar day" math advanceStreak uses
+// incrementally into a pure function over a full day list.
+export function computeStreakFromDays(days: Date[]): { current: number; longest: number; lastActiveDate: Date | null } {
+  if (days.length === 0) return { current: 0, longest: 0, lastActiveDate: null }
+
+  const sorted = [...days].sort((a, b) => a.getTime() - b.getTime())
+  let longest = 1
+  let run = 1
+  for (let i = 1; i < sorted.length; i++) {
+    run = sorted[i].getTime() - sorted[i - 1].getTime() === DAY_MS ? run + 1 : 1
+    longest = Math.max(longest, run)
+  }
+
+  // "Current" is the run ending at the most recent day -- mirrors
+  // advanceStreak's semantics of never decaying `current` on its own; it
+  // only ever changes in response to new (or, here, removed) activity.
+  let current = 1
+  for (let i = sorted.length - 1; i > 0; i--) {
+    if (sorted[i].getTime() - sorted[i - 1].getTime() === DAY_MS) current += 1
+    else break
+  }
+
+  return { current, longest, lastActiveDate: sorted[sorted.length - 1] }
+}
+
+// Persists a recomputed streak using a transaction client so it can run
+// atomically alongside the deletions that made the recompute necessary. If
+// no active days remain, the row is deleted outright -- matching
+// advanceStreak's own rule that a scope has no Streak row until its first
+// ever day of activity.
+export async function recomputeStreakRow(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  scope: string,
+  days: Date[]
+): Promise<void> {
+  const { current, longest, lastActiveDate } = computeStreakFromDays(days)
+
+  if (!lastActiveDate) {
+    await tx.streak.deleteMany({ where: { userId, scope } })
+    return
+  }
+
+  await tx.streak.upsert({
+    where: { userId_scope: { userId, scope } },
+    create: { userId, scope, current, longest, lastActiveDate },
+    update: { current, longest, lastActiveDate },
+  })
 }

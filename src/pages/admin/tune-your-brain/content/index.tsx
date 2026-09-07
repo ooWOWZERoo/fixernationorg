@@ -62,6 +62,12 @@ const AdminTuneBrainContentPage: NextPageWithLayout<Props> = ({ items: initial }
             Badges
           </Link>
           <Link
+            href="/admin/tune-your-brain/users"
+            className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-medium text-navy no-underline hover:bg-cream-panel"
+          >
+            Member progress &amp; resets
+          </Link>
+          <Link
             href="/admin/tune-your-brain/content/new"
             className="rounded-xl bg-amber px-4 py-2 text-sm font-bold text-navy-dark no-underline hover:bg-amber-dark"
           >
