@@ -131,7 +131,6 @@ export function SiteHeader() {
 
         {/* Auth CTAs + hamburger */}
         <div className="flex items-center gap-3">
-          {session && <NotificationBell />}
           {session ? (
             <div className="relative hidden lg:block">
               <button
@@ -189,6 +188,7 @@ export function SiteHeader() {
               </Link>
             </div>
           )}
+          {session && <NotificationBell />}
 
           {/* Hamburger */}
           <button
