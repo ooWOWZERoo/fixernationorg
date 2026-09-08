@@ -42,6 +42,12 @@ async function createTemplateViaApi(
   recurrenceSource: "MORNING_BOOST" | undefined,
   audienceTag: string
 ): Promise<string> {
+  // runCampaignRecurringDispatch (src/pages/api/cron.ts) only dispatches a
+  // template during the UTC hour matching its own recurrenceTime — a
+  // hardcoded "07:00" here would only ever pass during the 07:00 UTC cron
+  // tick. Use the current UTC hour instead so dispatch(page), called right
+  // after this returns, always falls inside the matching window.
+  const currentUtcHour = String(new Date().getUTCHours()).padStart(2, "0");
   const res = await page.request.post("/api/admin/campaigns", {
     data: {
       name,
@@ -50,7 +56,7 @@ async function createTemplateViaApi(
       audienceRules: { logic: "OR", include: [{ type: "tag", tag: audienceTag }], exclude: [] },
       isRecurring: true,
       recurrenceFrequency: "DAILY",
-      recurrenceTime: "07:00",
+      recurrenceTime: `${currentUtcHour}:00`,
       recurrenceSource,
     },
   });
@@ -78,14 +84,26 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
   await page.getByRole("button", { name: "Recurring" }).click();
 
   await page.getByRole("button", { name: /^Next:/ }).click();
-  await expect(page.getByText(/Daily at 7:00 AM UTC/)).toBeVisible();
+  // The displayed time is the browser's local equivalent of the stored
+  // 07:00 UTC slot (see src/lib/timeOfDay.ts), not a fixed "UTC" string —
+  // assert on the structure, not a specific hour that varies by timezone.
+  await expect(page.getByText(/Daily at .+ — Today's Morning Boost/)).toBeVisible();
+  await expect(page.getByText("UTC")).not.toBeVisible();
 
   await page.getByRole("button", { name: "Save recurring campaign" }).click();
   await expect(page).toHaveURL(/\/admin\/campaigns\/[a-z0-9]+$/);
   await expect(page.getByText("Recurrence")).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText("7:00 AM UTC")).toBeVisible();
+  // Mirrors formatUtcTimeOfDayLocal (src/lib/timeOfDay.ts) so this assertion
+  // is exact regardless of what timezone the test runs in — the wizard
+  // never sends a custom recurrenceTime, so the server-side default of
+  // "07:00" UTC is what's actually stored and converted for display.
+  const expectedTime = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 7, 0)
+  ).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  await expect(page.getByText(expectedTime)).toBeVisible();
+  await expect(page.getByText("UTC")).not.toBeVisible();
   await expect(page.getByText("Today's Morning Boost")).toBeVisible();
 });
 

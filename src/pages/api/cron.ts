@@ -154,7 +154,7 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
 // UTC calendar-day window for "published today" — shared shape with the
 // Morning Boost content lookup below, kept inline since it's only two lines.
 function utcDayWindow(now: Date): { startOfDay: Date; endOfDay: Date } {
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
   return { startOfDay, endOfDay };
 }

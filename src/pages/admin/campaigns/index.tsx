@@ -5,6 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatUtcTimeOfDayLocal } from "@/lib/timeOfDay";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -218,7 +219,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
                 <thead>
                   <tr className="border-b border-navy/8 text-left text-xs font-bold uppercase tracking-widest text-ink-soft">
                     <th className="px-5 py-3">Campaign</th>
-                    <th className="px-5 py-3">Time (UTC)</th>
+                    <th className="px-5 py-3">Time</th>
                     <th className="px-5 py-3">Source</th>
                     <th className="px-5 py-3">Occurrences</th>
                     <th className="px-5 py-3 text-right">Status</th>
@@ -232,7 +233,7 @@ const AdminCampaignsPage: NextPageWithLayout<Props> = ({ campaigns, stats }) => 
                           {t.name}
                         </Link>
                       </td>
-                      <td className="px-5 py-3 text-ink-soft">Daily at {t.recurrenceTime}</td>
+                      <td className="px-5 py-3 text-ink-soft">Daily at {formatUtcTimeOfDayLocal(t.recurrenceTime)}</td>
                       <td className="px-5 py-3 text-ink-soft">{t.recurrenceSource === "MORNING_BOOST" ? "Today's Morning Boost" : "Static content"}</td>
                       <td className="px-5 py-3 text-ink-soft">{t.occurrenceCount}</td>
                       <td className="px-5 py-3 text-right">

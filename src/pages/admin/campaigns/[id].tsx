@@ -5,6 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatUtcTimeOfDayLocal } from "@/lib/timeOfDay";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -287,7 +288,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time</label>
-              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">7:00 AM UTC</div>
+              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">{formatUtcTimeOfDayLocal(campaign.recurrenceTime)}</div>
               <p className="mt-1 text-xs text-ink-soft">All recurring campaigns fire at this same time each day.</p>
             </div>
             <div>
