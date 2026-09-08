@@ -47,11 +47,10 @@ type EmailContent = { subject: string; fromName: string; fromEmail: string; html
 
 // A single serverless invocation can't reliably finish sending a
 // large-audience campaign (thousands of contacts, ~20 at a time) before the
-// platform's execution time limit kills it — leaving the campaign stuck in
-// SENDING with only a partial, unknown fraction actually reached. This time
-// budget bounds each invocation's work; if QUEUED sends remain when the
-// budget runs out, triggerContinuation() fires a fresh invocation to pick up
-// where this one left off, chaining until the audience is exhausted.
+// platform's execution time limit kills it. This time budget bounds each
+// invocation's work; if QUEUED sends remain when it runs out, the campaign
+// stays SENDING and the campaign-send-hourly-resume cron job (cron.ts) picks
+// it back up on its next hourly sweep — see continueCampaignSend below.
 const TIME_BUDGET_MS = Number(process.env.SEND_TIME_BUDGET_MS ?? 45_000);
 const BATCH = 20;
 const DEFAULT_HOURLY_SEND_CAP = 60;
@@ -137,23 +136,106 @@ async function sendQueuedEmailBatches(
   return { done: false, sent, failed, hourlyCapReached: false };
 }
 
-// Fire-and-forget: intentionally not awaited, so the current invocation can
-// return (and free its own execution-time budget) while the next hop starts
-// almost immediately rather than waiting for the next cron tick.
-function triggerContinuation(campaignId: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
-  const url = `${base}/api/cron?job=campaign-send-continue&campaignId=${campaignId}&token=${encodeURIComponent(process.env.CRON_SECRET ?? "")}`;
-  fetch(url).catch((err) => console.error("[send-campaign] continuation trigger failed:", err));
+// PUSH sends have no hosting-side rate cap concept (that's an SMTP/mail-relay
+// constraint), so this only needs a time-budget deadline, not an hourly-cap
+// check. CampaignSend rows are keyed by contactId (not per-subscription), so
+// a contact with multiple push subscriptions still gets exactly one row.
+async function sendQueuedPushBatches(
+  campaignId: string,
+  payload: string,
+  deadline: number,
+): Promise<{ done: boolean; sent: number; failed: number }> {
+  const pushDb = db as never as PushDb;
+  let sent = 0;
+  let failed = 0;
+
+  while (Date.now() < deadline) {
+    const queued = await db.campaignSend.findMany({
+      where: { campaignId, status: "QUEUED" },
+      take: BATCH,
+      select: { id: true, contactId: true },
+    });
+    if (queued.length === 0) return { done: true, sent, failed };
+
+    const contacts = await pushDb.contact.findMany({
+      where: { id: { in: queued.map((q) => q.contactId) } } as never,
+      select: { id: true, userId: true } as never,
+    });
+    const userIdByContact = Object.fromEntries(
+      contacts.filter((c) => c.userId).map((c) => [c.id, c.userId!])
+    );
+    const userIds = Object.values(userIdByContact);
+    const subscriptions = userIds.length > 0
+      ? await pushDb.pushSubscription.findMany({ where: { userId: { in: userIds } } as never })
+      : [];
+    const subsByUserId = new Map<string, typeof subscriptions>();
+    for (const s of subscriptions) {
+      const arr = subsByUserId.get(s.userId) ?? [];
+      arr.push(s);
+      subsByUserId.set(s.userId, arr);
+    }
+
+    await Promise.allSettled(
+      queued.map(async (row) => {
+        const userId = userIdByContact[row.contactId];
+        const subs = userId ? subsByUserId.get(userId) ?? [] : [];
+        if (subs.length === 0) {
+          await db.campaignSend.update({ where: { id: row.id }, data: { status: "BOUNCED", bouncedAt: new Date() } }).catch(() => {});
+          failed++;
+          return;
+        }
+        try {
+          await Promise.all(subs.map((sub) =>
+            webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dhKey, auth: sub.authKey } },
+              payload,
+            )
+          ));
+          await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
+          sent++;
+        } catch {
+          await db.campaignSend.update({ where: { id: row.id }, data: { status: "BOUNCED", bouncedAt: new Date() } }).catch(() => {});
+          failed++;
+        }
+      })
+    );
+  }
+  return { done: false, sent, failed };
 }
 
-// Called only from the campaign-send-continue cron job — deliberately
-// bypasses sendCampaignNow's already_sent guard, since re-entering a
-// campaign that's already SENDING is exactly the point of a continuation
-// (as opposed to an external duplicate "Send now" trigger, which that guard
-// still correctly blocks).
+function buildPushPayload(campaign: { subject: string; textBody: string | null; pushUrl: string | null; pushIcon: string | null }): string {
+  return JSON.stringify({
+    title: campaign.subject,
+    body: campaign.textBody ?? "",
+    url: campaign.pushUrl ?? "/",
+    icon: campaign.pushIcon ?? undefined,
+  });
+}
+
+// Called by the campaign-send-hourly-resume cron sweep, which resumes any
+// SENDING campaign with QUEUED sends every hour, unconditionally — this is
+// now the sole driver of forward progress once the first invocation's own
+// time budget runs out (no more fire-and-forget self-triggering; see plan at
+// /Users/john.shaw/.claude/plans/soft-chasing-willow.md for why). Deliberately
+// bypasses sendCampaignNow's already_sent guard, since re-entering a campaign
+// that's already SENDING is exactly the point (as opposed to an external
+// duplicate "Send now" trigger, which that guard still correctly blocks).
 export async function continueCampaignSend(campaignId: string): Promise<{ done: boolean; sent: number; failed: number; hourlyCapReached: boolean }> {
   const campaign = await db.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign || campaign.status !== "SENDING") return { done: true, sent: 0, failed: 0, hourlyCapReached: false };
+
+  if (campaign.channelType === "PUSH") {
+    const payload = buildPushPayload(campaign as unknown as { subject: string; textBody: string | null; pushUrl: string | null; pushIcon: string | null });
+    const deadline = Date.now() + TIME_BUDGET_MS;
+    const result = await sendQueuedPushBatches(campaignId, payload, deadline);
+    if (result.done) {
+      await db.campaign.update({ where: { id: campaignId }, data: { status: "SENT", sentAt: new Date() } });
+      computeCampaignMetric(campaignId).catch(() => {});
+    } else {
+      await db.campaign.update({ where: { id: campaignId }, data: { updatedAt: new Date() } });
+    }
+    return { ...result, hourlyCapReached: false };
+  }
 
   const variantById = new Map<string, EmailContent>();
   if (campaign.isAbTest) {
@@ -168,16 +250,15 @@ export async function continueCampaignSend(campaignId: string): Promise<{ done: 
   if (result.done) {
     await db.campaign.update({ where: { id: campaignId }, data: { status: "SENT", sentAt: new Date() } });
     computeCampaignMetric(campaignId).catch(() => {});
-  } else if (!result.hourlyCapReached) {
-    // Time budget was hit but there's still hourly headroom — keep chaining
-    // immediately, same as before this sprint.
-    triggerContinuation(campaignId);
+  } else {
+    // Not done yet — bump updatedAt so the campaign doesn't look abandoned
+    // while it's still legitimately draining across hops (paused for the
+    // hourly cap, or just out of time budget this invocation). Nothing else
+    // touches this row while paused, and the admin "stuck sending" flag
+    // (src/pages/admin/campaigns/index.tsx) depends on updatedAt reflecting
+    // real last-progress, not just creation time.
+    await db.campaign.update({ where: { id: campaignId }, data: { updatedAt: new Date() } });
   }
-  // If the hourly cap was hit: do nothing further. The campaign stays
-  // SENDING with its remaining QUEUED rows untouched; re-triggering
-  // immediately would just slam the same exhausted hour again. The
-  // campaign-send-hourly-resume cron job picks it back up once the hour
-  // rolls over (or sooner, if other sends free up headroom).
   return result;
 }
 
@@ -255,6 +336,7 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
   // ── Resolve recipients ────────────────────────────────────────────────────
   let eligibleContacts: Array<{ id: string; email: string; firstName: string | null }>;
   let suppressedCount = 0;
+  let snapshotRules: unknown;
 
   if (campaign.audienceRules) {
     const def = campaign.audienceRules as unknown as AudienceDefinition;
@@ -266,22 +348,7 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
           select: { id: true, email: true, firstName: true },
         })
       : [];
-
-    await db.campaignAudienceSnapshot.upsert({
-      where: { campaignId: id },
-      create: {
-        campaignId: id,
-        totalIncluded: eligibleContacts.length,
-        totalSuppressed: suppressedCount,
-        rules: campaign.audienceRules,
-      },
-      update: {
-        totalIncluded: eligibleContacts.length,
-        totalSuppressed: suppressedCount,
-        takenAt: new Date(),
-        rules: campaign.audienceRules,
-      },
-    });
+    snapshotRules = campaign.audienceRules;
   } else {
     // Legacy path: use listId
     const members = await db.contactListMember.findMany({
@@ -304,22 +371,7 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
         email: (m.contact as { email: string }).email,
         firstName: (m.contact as { firstName: string | null }).firstName,
       }));
-
-    await db.campaignAudienceSnapshot.upsert({
-      where: { campaignId: id },
-      create: {
-        campaignId: id,
-        totalIncluded: eligibleContacts.length,
-        totalSuppressed: 0,
-        rules: { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] },
-      },
-      update: {
-        totalIncluded: eligibleContacts.length,
-        totalSuppressed: 0,
-        takenAt: new Date(),
-        rules: { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] },
-      },
-    });
+    snapshotRules = { logic: "OR", include: [{ type: "list", listId: campaign.listId }], exclude: [] };
   }
 
   // Filter out actively suppressed email addresses
@@ -338,6 +390,27 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
       eligibleContacts = eligibleContacts.filter((c) => !suppressedEmails.has(c.email));
     }
   }
+
+  // Snapshot is taken AFTER every suppression pass (audience-rule
+  // excludes/opt-outs AND the global SuppressionRecord list) so totalIncluded
+  // always equals exactly how many CampaignSend rows this send is about to
+  // create — the admin "Partial send" reconciliation check on
+  // /admin/campaigns depends on that equality holding exactly, not roughly.
+  await db.campaignAudienceSnapshot.upsert({
+    where: { campaignId: id },
+    create: {
+      campaignId: id,
+      totalIncluded: eligibleContacts.length,
+      totalSuppressed: suppressedCount,
+      rules: snapshotRules as never,
+    },
+    update: {
+      totalIncluded: eligibleContacts.length,
+      totalSuppressed: suppressedCount,
+      takenAt: new Date(),
+      rules: snapshotRules as never,
+    },
+  });
 
   if (eligibleContacts.length === 0) {
     return { status: "no_recipients" };
@@ -372,14 +445,6 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
       contactsWithUser.filter((c) => c.userId).map((c) => [c.userId!, c.id])
     );
 
-    const pushCampaign = campaign as unknown as { subject: string; textBody: string | null; pushUrl: string | null; pushIcon: string | null };
-    const payload = JSON.stringify({
-      title: pushCampaign.subject,
-      body: pushCampaign.textBody ?? "",
-      url: pushCampaign.pushUrl ?? "/",
-      icon: pushCampaign.pushIcon ?? undefined,
-    });
-
     await db.campaignSend.createMany({
       data: subscriptions.map((sub) => ({
         campaignId: id,
@@ -388,31 +453,15 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
       skipDuplicates: true,
     });
 
-    for (let i = 0; i < subscriptions.length; i += BATCH) {
-      const batch = subscriptions.slice(i, i + BATCH);
-      await Promise.allSettled(
-        batch.map(async (sub) => {
-          const contactId = contactByUserId[sub.userId];
-          if (!contactId) return;
-          try {
-            await webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dhKey, auth: sub.authKey } },
-              payload,
-            );
-            await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: id, contactId } },
-              data: { status: "SENT", sentAt: now },
-            });
-            sent++;
-          } catch {
-            await db.campaignSend.update({
-              where: { campaignId_contactId: { campaignId: id, contactId } },
-              data: { status: "BOUNCED", bouncedAt: now },
-            }).catch(() => {});
-            failed++;
-          }
-        })
-      );
+    const pushCampaign = campaign as unknown as { subject: string; textBody: string | null; pushUrl: string | null; pushIcon: string | null };
+    const payload = buildPushPayload(pushCampaign);
+
+    const deadline = Date.now() + TIME_BUDGET_MS;
+    const result = await sendQueuedPushBatches(id, payload, deadline);
+    sent = result.sent;
+    failed = result.failed;
+    if (!result.done) {
+      return { status: "sending_in_progress", sent, failed, pausedForHourlyCap: false };
     }
   } else if (isAbTest) {
     // ── A/B send: split audience by variant, stamp variantId on each send ──
@@ -467,7 +516,6 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
-      if (!result.hourlyCapReached) triggerContinuation(id);
       return { status: "sending_in_progress", sent, failed, pausedForHourlyCap: result.hourlyCapReached };
     }
   } else {
@@ -482,7 +530,6 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
-      if (!result.hourlyCapReached) triggerContinuation(id);
       return { status: "sending_in_progress", sent, failed, pausedForHourlyCap: result.hourlyCapReached };
     }
   }

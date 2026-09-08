@@ -323,6 +323,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         list: { select: { name: true } },
         _count: { select: { sends: true, occurrences: true } },
         metric: { select: { openRate: true, bounceRate: true } },
+        audienceSnapshot: { select: { totalIncluded: true } },
       },
     }),
     db.campaignMetric.aggregate({
@@ -335,24 +336,35 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const sentCampaigns = campaigns.filter((c) => c.status === "SENT").length;
 
   const now = new Date();
-  // Mirrors the exact "stuck" definition the campaign-scheduler/
-  // campaign-recovery cron jobs use to auto-reset a SENDING campaign back
-  // to DRAFT — that cron only runs once a day, so a campaign can sit
-  // visibly stuck for hours before it's caught; surface it immediately
-  // instead of waiting on the cron.
-  const stuckThreshold = new Date(now.getTime() - 30 * 60 * 1000);
+  // Purely informational now — nothing auto-resets or deletes a stuck
+  // campaign anymore (a prior version of that cleanup silently dropped most
+  // of a real campaign's audience; see
+  // /Users/john.shaw/.claude/plans/soft-chasing-willow.md). The threshold is
+  // generous because a large audience under the hourly send-rate cap can
+  // legitimately take many hours to fully drain — campaign-send-hourly-resume
+  // (cron.ts) bumps updatedAt on every real progress hop, so a campaign only
+  // trips this while genuinely making no progress at all.
+  const stuckThreshold = new Date(now.getTime() - 4 * 60 * 60 * 1000);
 
   return {
     props: {
       campaigns: campaigns.map((c) => {
         let needsAttention = false;
         let attentionReason: string | null = null;
+        const totalIncluded = c.audienceSnapshot?.totalIncluded ?? null;
         if (c.status === "SENDING" && c.updatedAt < stuckThreshold) {
           needsAttention = true;
-          attentionReason = "Stuck sending — over 30 min";
+          attentionReason = "Stuck sending — no progress in over 4 hours";
         } else if (c.status === "SCHEDULED" && c.scheduledAt && c.scheduledAt <= now) {
           needsAttention = true;
           attentionReason = "Overdue — scheduled send hasn't started";
+        } else if (
+          (c.status === "DRAFT" || c.status === "SENT") &&
+          totalIncluded !== null &&
+          c._count.sends < totalIncluded
+        ) {
+          needsAttention = true;
+          attentionReason = `Partial send — only sent to ${c._count.sends} of ${totalIncluded} intended recipients`;
         }
 
         return {

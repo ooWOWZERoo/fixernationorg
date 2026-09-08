@@ -16,10 +16,11 @@ import {
   buildGiftExpiring7Email,
 } from "@/lib/emails/membership";
 
-// Vercel Hobby's default execution limit (~10s) isn't enough to send a
-// large-audience campaign in one invocation; this raises the ceiling so
-// each hop of the self-continuing send chain (see send-campaign.ts) can get
-// through more of the audience before it has to hand off to the next hop.
+// Vercel's default execution limit (~10s) isn't enough to send a
+// large-audience campaign in one invocation; this raises the ceiling so each
+// hourly campaign-send-hourly-resume sweep (see send-campaign.ts) can get
+// through more of the audience before its own time budget hands off to the
+// next hourly tick.
 export const config = { maxDuration: 60 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
@@ -129,23 +130,6 @@ async function runMorningBoost(): Promise<{ message: string }> {
 
 async function runCampaignScheduler(): Promise<{ message: string }> {
   const now = new Date();
-
-  // Reset any campaigns stuck in SENDING for > 30 min (e.g. serverless timeout mid-send)
-  const stuckThreshold = new Date(now.getTime() - 30 * 60 * 1000);
-  const stuck = await db.campaign.findMany({
-    where: { status: "SENDING", updatedAt: { lt: stuckThreshold } },
-    select: { id: true },
-  });
-  if (stuck.length > 0) {
-    const stuckIds = stuck.map((c) => c.id);
-    await db.campaignSend.deleteMany({
-      where: { campaignId: { in: stuckIds }, status: "QUEUED" },
-    });
-    await db.campaign.updateMany({
-      where: { id: { in: stuckIds } },
-      data: { status: "DRAFT" },
-    });
-  }
 
   const campaigns = await db.campaign.findMany({
     where: { status: "SCHEDULED", scheduledAt: { lte: now } },
@@ -436,30 +420,6 @@ async function runAutomationTick(): Promise<{ message: string }> {
   };
 }
 
-async function runCampaignRecovery(): Promise<{ message: string }> {
-  const stuckThreshold = new Date(Date.now() - 30 * 60 * 1000);
-
-  const stuck = await db.campaign.findMany({
-    where: { status: "SENDING", updatedAt: { lt: stuckThreshold } },
-    select: { id: true },
-  });
-
-  if (stuck.length === 0) return { message: "No stuck campaigns found" };
-
-  const stuckIds = stuck.map((c) => c.id);
-
-  await db.campaignSend.deleteMany({
-    where: { campaignId: { in: stuckIds }, status: "QUEUED" },
-  });
-
-  const result = await db.campaign.updateMany({
-    where: { id: { in: stuckIds } },
-    data: { status: "DRAFT" },
-  });
-
-  return { message: `Recovered ${result.count} stuck campaign${result.count !== 1 ? "s" : ""}` };
-}
-
 async function runExpiredTokenCleanup(): Promise<{ message: string }> {
   const result = await db.verificationToken.deleteMany({
     where: { expires: { lt: new Date() } },
@@ -743,14 +703,16 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
   };
 }
 
-// Picks back up any campaign left SENDING after sendQueuedEmailBatches
-// paused it for the hourly send-rate cap (see send-campaign.ts) — those
-// campaigns deliberately do NOT self-trigger a continuation hop, so
-// something external has to nudge them again once headroom is available.
-// The cap-checking logic lives entirely inside sendQueuedEmailBatches, so
-// this job is just a scan-and-resume: it doesn't need to know the cap or
-// the current hourly count itself, and correctly no-ops (stays paused) if
-// the budget is still exhausted when it runs.
+// Sole driver of forward progress for any campaign send that didn't finish
+// within its first invocation — whether paused for the hourly send-rate cap
+// or just out of time budget (see send-campaign.ts). Deliberately
+// unconditional (no staleness check): it resumes every SENDING campaign with
+// QUEUED sends, every hour, regardless of why it paused, and correctly
+// no-ops (stays paused) if the cap is still exhausted when it runs. There is
+// intentionally no destructive "give up and delete" fallback anywhere in
+// this file — see /Users/john.shaw/.claude/plans/soft-chasing-willow.md for
+// why a prior version of this cleanup silently dropped most of a real
+// campaign's audience.
 async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
   const paused = await db.campaign.findMany({
     where: { status: "SENDING", sends: { some: { status: "QUEUED" } } },
@@ -781,7 +743,6 @@ const JOBS: Record<string, JobHandler> = {
   "application-expiration": runApplicationExpiration,
   "application-expiration-reminders": runApplicationExpirationReminders,
   "account-invitation-reminders": runAccountInvitationReminders,
-  "campaign-recovery": runCampaignRecovery,
   "expired-token-cleanup": runExpiredTokenCleanup,
   "membership-gift-retroactive-backfill": runMembershipGiftRetroactiveBackfill,
   "membership-renewal-reminders": runMembershipRenewalReminders,
@@ -808,21 +769,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!jobKey) {
     return res.status(400).json({ error: "Missing ?job= parameter" });
-  }
-
-  // Not a scheduled cron entry — a self-triggered hop in the chunked send
-  // chain (see triggerContinuation in send-campaign.ts). It rides on this
-  // route's existing token auth but deliberately skips the generic
-  // once-a-day CronJob lock below: that lock is keyed by jobKey, and a
-  // single "campaign-send-continue" key would incorrectly serialize hops
-  // for two different campaigns sending at once. The per-campaign guard
-  // (campaign.status === "SENDING") inside continueCampaignSend is what
-  // actually protects this one.
-  if (jobKey === "campaign-send-continue") {
-    const campaignId = req.query.campaignId as string | undefined;
-    if (!campaignId) return res.status(400).json({ error: "Missing campaignId" });
-    const result = await continueCampaignSend(campaignId);
-    return res.status(200).json({ ok: true, job: jobKey, campaignId, ...result });
   }
 
   const jobHandler = JOBS[jobKey];

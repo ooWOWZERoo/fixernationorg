@@ -101,11 +101,67 @@ export async function forceEnrollmentStatus(
 // serverless timeout or a real cron cycle to pass. Prisma respects an
 // explicit value for an `@updatedAt` field when one is provided, so
 // backdating `updatedAt` here isn't overwritten to "now".
+// Backdate past the admin list page's 4-hour "no progress" threshold (see
+// src/pages/admin/campaigns/index.tsx) — raised from 30 minutes because a
+// large audience under the hourly send-rate cap can legitimately take many
+// hours to fully drain; campaign-send-hourly-resume bumps updatedAt on every
+// real progress hop, so only genuine no-progress trips this now.
 export async function forceCampaignStuckSending(campaignId: string): Promise<void> {
   await client().campaign.update({
     where: { id: campaignId },
-    data: { status: "SENDING", updatedAt: new Date(Date.now() - 31 * 60 * 1000) },
+    data: { status: "SENDING", updatedAt: new Date(Date.now() - (4 * 60 + 1) * 60 * 1000) },
   });
+}
+
+// Directly upserts a CampaignAudienceSnapshot, same "force DB state"
+// convention as createEmailFailure below — used to simulate the
+// resolved-audience-vs-actual-sends mismatch the admin list page's
+// "Partial send" flag detects.
+export async function createCampaignAudienceSnapshot(
+  campaignId: string,
+  totalIncluded: number,
+  totalSuppressed = 0
+): Promise<void> {
+  await client().campaignAudienceSnapshot.upsert({
+    where: { campaignId },
+    create: { campaignId, totalIncluded, totalSuppressed, rules: { logic: "OR", include: [], exclude: [] } },
+    update: { totalIncluded, totalSuppressed, takenAt: new Date() },
+  });
+}
+
+// Seeds CampaignSend rows directly, bypassing the real send pipeline, so a
+// test can simulate a campaign mid-send (some SENT, some still QUEUED)
+// without actually emailing anyone. Creates one throwaway Contact per email
+// since CampaignSend.contactId is required and campaignId+contactId is
+// unique.
+export async function seedCampaignSends(
+  campaignId: string,
+  rows: { sent?: string[]; queued?: string[] }
+): Promise<void> {
+  const db_ = client();
+  const entries: Array<{ email: string; status: "SENT" | "QUEUED" }> = [
+    ...(rows.sent ?? []).map((email) => ({ email, status: "SENT" as const })),
+    ...(rows.queued ?? []).map((email) => ({ email, status: "QUEUED" as const })),
+  ];
+  for (const { email, status } of entries) {
+    const contact = await db_.contact.upsert({ where: { email }, create: { email }, update: {} });
+    await db_.campaignSend.upsert({
+      where: { campaignId_contactId: { campaignId, contactId: contact.id } },
+      create: { campaignId, contactId: contact.id, status, sentAt: status === "SENT" ? new Date() : null },
+      update: { status, sentAt: status === "SENT" ? new Date() : null },
+    });
+  }
+}
+
+export async function countCampaignSendsByStatus(campaignId: string): Promise<Record<string, number>> {
+  const rows = await client().campaignSend.groupBy({
+    by: ["status"],
+    where: { campaignId },
+    _count: { status: true },
+  });
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.status] = r._count.status;
+  return out;
 }
 
 export async function forceCampaignOverdueScheduled(campaignId: string): Promise<void> {

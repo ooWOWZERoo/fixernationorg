@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { signInAsTestAdmin } from "./helpers/auth";
-import { forceCampaignStuckSending, forceCampaignOverdueScheduled } from "./helpers/db";
+import {
+  forceCampaignStuckSending,
+  forceCampaignOverdueScheduled,
+  createCampaignAudienceSnapshot,
+  seedCampaignSends,
+  countCampaignSendsByStatus,
+  getCampaignById,
+} from "./helpers/db";
 import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
 const STAMP = Date.now();
@@ -242,7 +249,7 @@ test("campaigns list surfaces stuck-sending and overdue-scheduled campaigns unde
 
   const stuckRow = page.locator("tbody tr").filter({ hasText: stuckName });
   await expect(stuckRow).toBeVisible();
-  await expect(stuckRow.getByText("Stuck sending — over 30 min")).toBeVisible();
+  await expect(stuckRow.getByText("Stuck sending — no progress in over 4 hours")).toBeVisible();
 
   const overdueRow = page.locator("tbody tr").filter({ hasText: overdueName });
   await expect(overdueRow).toBeVisible();
@@ -250,6 +257,97 @@ test("campaigns list surfaces stuck-sending and overdue-scheduled campaigns unde
 
   // Both rows should be inside the same "Needs attention" group, not
   // scattered across the Sending/Scheduled sections.
+  const attentionHeading = page.getByRole("heading", { name: /^Needs attention/ });
+  await expect(attentionHeading).toBeVisible();
+});
+
+async function createDraftCampaignViaApi(page: import("@playwright/test").Page, name: string): Promise<string> {
+  const res = await page.request.post("/api/admin/campaigns", {
+    data: { name, subject: "QA e2e recovery subject", htmlBody: "<p>QA e2e recovery body.</p>" },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()).id as string;
+}
+
+test("campaign-scheduler no longer destroys a genuinely stuck SENDING campaign's queued sends", async ({ page }) => {
+  // Regression test for the incident where a real campaign lost 90% of its
+  // audience: a destructive "stuck &gt; 30 min" cleanup deleted remaining
+  // QUEUED CampaignSend rows and reset the campaign to DRAFT. That cleanup
+  // is gone — this asserts the negative directly, which nothing covered
+  // before (see /Users/john.shaw/.claude/plans/soft-chasing-willow.md).
+  test.setTimeout(30000);
+
+  const name = `QA e2e recovery no-destroy ${STAMP}`;
+  const campaignId = await createDraftCampaignViaApi(page, name);
+
+  await seedCampaignSends(campaignId, {
+    sent: [`qa-recovery-sent-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`],
+    queued: [
+      `qa-recovery-queued-a-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`,
+      `qa-recovery-queued-b-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`,
+    ],
+  });
+  await forceCampaignStuckSending(campaignId);
+
+  const cronRes = await page.request.get(
+    `/api/cron?job=campaign-scheduler&token=${encodeURIComponent(process.env.CRON_SECRET as string)}`
+  );
+  expect(cronRes.ok()).toBeTruthy();
+
+  const campaign = await getCampaignById(campaignId);
+  expect(campaign?.status).toBe("SENDING");
+
+  const counts = await countCampaignSendsByStatus(campaignId);
+  expect(counts.QUEUED ?? 0).toBe(2);
+  expect(counts.SENT ?? 0).toBe(1);
+});
+
+test("campaign-send-hourly-resume advances a paused campaign's queued sends", async ({ page }) => {
+  // Confirms the legitimate resume path still works now that it's the sole
+  // driver of forward progress (no more fire-and-forget self-triggering).
+  test.setTimeout(30000);
+
+  const name = `QA e2e recovery resume ${STAMP}`;
+  const campaignId = await createDraftCampaignViaApi(page, name);
+
+  await seedCampaignSends(campaignId, {
+    queued: [`qa-recovery-resume-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`],
+  });
+  await forceCampaignStuckSending(campaignId);
+
+  const cronRes = await page.request.get(
+    `/api/cron?job=campaign-send-hourly-resume&token=${encodeURIComponent(process.env.CRON_SECRET as string)}`
+  );
+  expect(cronRes.ok()).toBeTruthy();
+
+  await expect.poll(async () => (await countCampaignSendsByStatus(campaignId)).QUEUED ?? 0, {
+    timeout: 20000,
+    intervals: [1000, 2000, 3000],
+  }).toBe(0);
+
+  const campaign = await getCampaignById(campaignId);
+  expect(campaign?.status).toBe("SENT");
+});
+
+test("campaigns list flags a partial send when actual sends fall short of the resolved audience", async ({ page }) => {
+  test.setTimeout(30000);
+
+  const name = `QA e2e partial send ${STAMP}`;
+  const campaignId = await createDraftCampaignViaApi(page, name);
+
+  await seedCampaignSends(campaignId, {
+    sent: [`qa-partial-sent-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`],
+  });
+  // Simulates the real incident: the resolved audience (3,956 in production)
+  // was far larger than what actually ended up as CampaignSend rows (372).
+  await createCampaignAudienceSnapshot(campaignId, 5, 0);
+
+  await page.goto("/admin/campaigns");
+
+  const row = page.locator("tbody tr").filter({ hasText: name });
+  await expect(row).toBeVisible();
+  await expect(row.getByText("Partial send — only sent to 1 of 5 intended recipients")).toBeVisible();
+
   const attentionHeading = page.getByRole("heading", { name: /^Needs attention/ });
   await expect(attentionHeading).toBeVisible();
 });
