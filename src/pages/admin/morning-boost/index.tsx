@@ -79,7 +79,7 @@ const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries }) => {
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-500">
                     {entry.publishedAt
-                      ? new Date(entry.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                      ? new Date(entry.publishedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">

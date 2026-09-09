@@ -10,7 +10,7 @@ import { BlockComposer } from "@/components/email/BlockComposer";
 import { AudienceBuilder } from "@/components/email/AudienceBuilder";
 import { blocksToHtml, type EmailBlock } from "@/lib/email-blocks";
 import type { AudienceDefinition } from "@/lib/audience";
-import { formatUtcTimeOfDayLocal } from "@/lib/timeOfDay";
+import { formatHHMM, parseLocalTimeOfDayToUtc } from "@/lib/timeOfDay";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface ListOption { id: string; name: string; _count: { members: number } }
@@ -87,6 +87,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   const [scheduledAt, setScheduledAt] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceSource, setRecurrenceSource] = useState<"" | "MORNING_BOOST">("MORNING_BOOST");
+  const [recurrenceTimeLocal, setRecurrenceTimeLocal] = useState("07:00");
 
   function applyTemplate(id: string) {
     setSelectedTemplateId(id);
@@ -185,6 +186,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
             ...(isRecurring ? {
               isRecurring: true as const,
               recurrenceFrequency: "DAILY" as const,
+              recurrenceTime: parseLocalTimeOfDayToUtc(recurrenceTimeLocal),
               recurrenceSource: recurrenceSource || undefined,
             } : {}),
             metadata: {
@@ -551,8 +553,9 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time</label>
-                  <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">{formatUtcTimeOfDayLocal("07:00")}</div>
-                  <p className="mt-1 text-xs text-ink-soft">All recurring campaigns fire at this same time each day.</p>
+                  <input type="time" value={recurrenceTimeLocal} onChange={e => setRecurrenceTimeLocal(e.target.value)}
+                    className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                  <p className="mt-1 text-xs text-ink-soft">This campaign fires at this time each day, in your local time zone.</p>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
@@ -613,7 +616,7 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                   <dt className="w-28 shrink-0 font-semibold text-ink">Schedule</dt>
                   <dd className="text-ink-soft">
                     {isRecurring
-                      ? `Daily at ${formatUtcTimeOfDayLocal("07:00")}${recurrenceSource === "MORNING_BOOST" ? " — Today's Morning Boost" : " — static content"}`
+                      ? `Daily at ${formatHHMM(recurrenceTimeLocal)}${recurrenceSource === "MORNING_BOOST" ? " — Today's Morning Boost" : " — static content"}`
                       : scheduledAt ? new Date(scheduledAt).toLocaleString() : "Manual send (save as draft)"}
                   </dd>
                 </div>

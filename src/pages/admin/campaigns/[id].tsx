@@ -5,7 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatUtcTimeOfDayLocal } from "@/lib/timeOfDay";
+import { utcTimeOfDayToLocalHHMM, parseLocalTimeOfDayToUtc } from "@/lib/timeOfDay";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -107,6 +107,9 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const [pauseToggling, setPauseToggling] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState<{ willSend: boolean; reason?: string; subject?: string; html?: string } | null>(null);
+  const [recurrenceTimeLocal, setRecurrenceTimeLocal] = useState(utcTimeOfDayToLocalHHMM(initial.recurrenceTime));
+  const [recurrenceTimeSaving, setRecurrenceTimeSaving] = useState(false);
+  const [recurrenceTimeSaved, setRecurrenceTimeSaved] = useState(false);
 
   async function togglePause() {
     setPauseToggling(true);
@@ -118,6 +121,22 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
     });
     if (res.ok) setRecurrenceActive(next);
     setPauseToggling(false);
+  }
+
+  async function saveRecurrenceTime() {
+    setRecurrenceTimeSaving(true);
+    setRecurrenceTimeSaved(false);
+    const utcValue = parseLocalTimeOfDayToUtc(recurrenceTimeLocal);
+    const res = await fetch(`/api/admin/campaigns/${campaign.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recurrenceTime: utcValue }),
+    });
+    if (res.ok) {
+      setCampaign((c) => ({ ...c, recurrenceTime: utcValue }));
+      setRecurrenceTimeSaved(true);
+    }
+    setRecurrenceTimeSaving(false);
   }
 
   async function previewNextSend() {
@@ -288,8 +307,17 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Time</label>
-              <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">{formatUtcTimeOfDayLocal(campaign.recurrenceTime)}</div>
-              <p className="mt-1 text-xs text-ink-soft">All recurring campaigns fire at this same time each day.</p>
+              <div className="flex items-center gap-2">
+                <input type="time" value={recurrenceTimeLocal}
+                  onChange={e => { setRecurrenceTimeLocal(e.target.value); setRecurrenceTimeSaved(false); }}
+                  className="rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30" />
+                <button onClick={saveRecurrenceTime} disabled={recurrenceTimeSaving}
+                  className="rounded-xl bg-navy px-3 py-2 text-xs font-bold text-white disabled:opacity-40">
+                  {recurrenceTimeSaving ? "Saving…" : "Save"}
+                </button>
+                {recurrenceTimeSaved && <span className="text-xs font-semibold text-green-600">Saved</span>}
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">This campaign fires at this time each day, in your local time zone.</p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>

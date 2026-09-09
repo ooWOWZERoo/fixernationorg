@@ -95,13 +95,12 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
   await expect(page.getByText("Recurrence")).toBeVisible();
 
   await page.reload();
-  // Mirrors formatUtcTimeOfDayLocal (src/lib/timeOfDay.ts) so this assertion
-  // is exact regardless of what timezone the test runs in — the wizard
-  // never sends a custom recurrenceTime, so the server-side default of
-  // "07:00" UTC is what's actually stored and converted for display.
-  const expectedTime = new Date(
-    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 7, 0)
-  ).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  // The wizard's time picker defaults to local "07:00", which gets
+  // converted to UTC for storage (parseLocalTimeOfDayToUtc) and back to
+  // local for display (formatUtcTimeOfDayLocal) — an exact same-day
+  // round trip, so this should read "7:00 AM" regardless of what
+  // timezone the test runs in.
+  const expectedTime = new Date(2000, 0, 1, 7, 0).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   await expect(page.getByText(expectedTime)).toBeVisible();
   await expect(page.getByText("UTC")).not.toBeVisible();
   await expect(page.getByText("Today's Morning Boost")).toBeVisible();
