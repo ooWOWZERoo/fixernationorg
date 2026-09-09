@@ -97,11 +97,11 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
   await page.reload();
   // The wizard's time picker defaults to local "07:00", which gets
   // converted to UTC for storage (parseLocalTimeOfDayToUtc) and back to
-  // local for display (formatUtcTimeOfDayLocal) — an exact same-day
-  // round trip, so this should read "7:00 AM" regardless of what
-  // timezone the test runs in.
-  const expectedTime = new Date(2000, 0, 1, 7, 0).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  await expect(page.getByText(expectedTime)).toBeVisible();
+  // local for display (utcTimeOfDayToLocalHHMM) — an exact same-day
+  // round trip, so the detail page's <input type="time"> should be back
+  // to "07:00" regardless of what timezone the test runs in. Its value
+  // isn't page text, so check the input directly rather than getByText.
+  await expect(page.locator('input[type="time"]')).toHaveValue("07:00");
   await expect(page.getByText("UTC")).not.toBeVisible();
   await expect(page.getByText("Today's Morning Boost")).toBeVisible();
 });
