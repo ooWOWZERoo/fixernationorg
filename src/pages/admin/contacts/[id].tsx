@@ -782,7 +782,7 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
                     <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-cream-panel text-xs ring-2 ring-white">
                       {ACTIVITY_ICONS[a.type] ?? "•"}
                     </span>
-                    <div className="ml-2">
+                    <div className="ml-5">
                       <p className="text-sm text-ink">{a.summary}</p>
                       <p className="mt-0.5 text-xs text-ink-soft">
                         {new Date(a.occurredAt).toLocaleDateString(undefined, {
