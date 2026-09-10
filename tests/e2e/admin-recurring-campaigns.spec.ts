@@ -173,27 +173,6 @@ test("duplicate-content guard skips a template whose lastMorningBoostId already 
   }
 });
 
-test("kill switch stops the legacy direct Morning Boost sender", async ({ page }) => {
-  test.setTimeout(20000);
-
-  await page.request.post("/api/admin/settings", {
-    data: { key: "morning_boost_direct_send_enabled", value: "false" },
-  }).catch(() => {});
-
-  const res = await page.request.get(
-    `/api/cron?job=morning-boost&token=${encodeURIComponent(process.env.CRON_SECRET as string)}`
-  );
-  expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  expect(body.message).toContain("Disabled via Setting");
-
-  // Restore — don't leave the legacy sender permanently disabled as a side
-  // effect of this test suite.
-  await page.request.post("/api/admin/settings", {
-    data: { key: "morning_boost_direct_send_enabled", value: "true" },
-  }).catch(() => {});
-});
-
 test("regression: sendCampaignNow now correctly sends a one-time SCHEDULED campaign using only audienceRules", async ({ page }) => {
   // Before extracting sendCampaignNow, runCampaignScheduler only supported
   // the legacy listId audience path and silently skipped any scheduled

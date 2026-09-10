@@ -25,108 +25,12 @@ export const config = { maxDuration: 60 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
 
-// cPanel calls this URL via HTTP:
-//   https://fixernation.org/api/cron?job=morning-boost&token=CRON_SECRET
+// cPanel calls jobs not registered in vercel.json's cron list via HTTP, e.g.:
+//   https://fixernation.org/api/cron?job=application-expiration-reminders&token=CRON_SECRET
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 type JobHandler = () => Promise<{ message: string }>;
-
-async function runMorningBoost(): Promise<{ message: string }> {
-  // Reversible kill switch — flip via the existing generic Setting editor at
-  // /admin/settings (no redeploy needed) once the recurring-campaign
-  // replacement (see runCampaignRecurringDispatch) has been verified for a
-  // real day or two. Default (key unset) is unchanged existing behavior.
-  const killSwitch = await db.setting.findUnique({ where: { key: "morning_boost_direct_send_enabled" } });
-  if (killSwitch?.value === "false") {
-    return { message: "Disabled via Setting morning_boost_direct_send_enabled — recurring campaign system active" };
-  }
-
-  const now = new Date();
-  const { startOfDay, endOfDay } = utcDayWindow(now);
-
-  const entry = await db.morningBoost.findFirst({
-    where: {
-      publishedAt: { gte: startOfDay, lt: endOfDay },
-    },
-    select: {
-      title: true,
-      body: true,
-      authorName: true,
-      publishedAt: true,
-      slug: true,
-      excerpt: true,
-      imageUrl: true,
-      videoUrl: true,
-    },
-  });
-
-  if (!entry || !entry.publishedAt) {
-    return { message: "No Morning Boost entry scheduled for today — skipped" };
-  }
-
-  // Primary: contacts with MORNING_BOOST consent (CRM model).
-  // Fallback union: users with morningBoostEmails=true who don't have a Contact yet.
-  const consentedContacts = await db.contact.findMany({
-    where: {
-      consents: { some: { topic: "MORNING_BOOST", optedIn: true } },
-      user: { emailVerified: { not: null } },
-    },
-    select: { email: true, user: { select: { name: true } } },
-  });
-
-  const contactEmails = new Set(consentedContacts.map((c) => c.email));
-
-  const legacyUsers = await db.user.findMany({
-    where: {
-      emailVerified: { not: null },
-      morningBoostEmails: true,
-      crmContact: null,
-    },
-    select: { email: true, name: true },
-  });
-
-  const members = [
-    ...consentedContacts.map((c) => ({ email: c.email, name: c.user?.name ?? null })),
-    ...legacyUsers.filter((u) => !contactEmails.has(u.email)),
-  ];
-
-  if (members.length === 0) {
-    return { message: "No opted-in members to send to" };
-  }
-
-  let sent = 0;
-  let failed = 0;
-
-  const BATCH = 50;
-  for (let i = 0; i < members.length; i += BATCH) {
-    const batch = members.slice(i, i + BATCH);
-    await Promise.allSettled(
-      batch.map(async (member) => {
-        try {
-          const email = buildMorningBoostEmail(
-            { ...entry, publishedAt: new Date(entry.publishedAt!) },
-            member.name
-          );
-          await sendEmail({
-            to: member.email,
-            subject: email.subject,
-            html: email.html,
-            text: email.text,
-            from: process.env.MORNING_BOOST_FROM ?? "Fixer Nation <morningboost@fixernation.org>",
-          });
-          sent++;
-        } catch {
-          failed++;
-        }
-      })
-    );
-  }
-
-  return {
-    message: `Morning Boost "${entry.title}" sent to ${sent} member${sent !== 1 ? "s" : ""}${failed > 0 ? ` (${failed} failed)` : ""}`,
-  };
-}
 
 async function runCampaignScheduler(): Promise<{ message: string }> {
   const now = new Date();
@@ -736,7 +640,6 @@ async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
 
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
-  "morning-boost": runMorningBoost,
   "campaign-scheduler": runCampaignScheduler,
   "campaign-recurring-dispatch": runCampaignRecurringDispatch,
   "automation-tick": runAutomationTick,

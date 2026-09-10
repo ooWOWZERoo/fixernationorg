@@ -58,9 +58,8 @@ const DEFAULT_HOURLY_SEND_CAP = 60;
 // The hosting account's outgoing-mail rate limit is a single shared budget
 // across everything the account sends (all campaigns, all channels) — not
 // per-campaign. Editable at runtime via the existing generic Setting
-// key/value editor at /admin/settings (key: "smtp_hourly_send_cap"), same
-// pattern as the morning_boost_direct_send_enabled kill switch, so it can be
-// tuned without a redeploy if the host's actual cap turns out to be
+// key/value editor at /admin/settings (key: "smtp_hourly_send_cap"), so it
+// can be tuned without a redeploy if the host's actual cap turns out to be
 // different from our current best guess.
 async function getHourlySendCap(): Promise<number> {
   const row = await db.setting.findUnique({ where: { key: "smtp_hourly_send_cap" } });
