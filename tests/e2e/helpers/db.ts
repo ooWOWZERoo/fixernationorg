@@ -202,6 +202,49 @@ export async function countChildCampaigns(templateId: string): Promise<number> {
   return client().campaign.count({ where: { parentCampaignId: templateId } });
 }
 
+// At most one recurring template may exist per recurrenceSource (a partial
+// unique index enforces this — see migration 20260914_recurring_source_singleton),
+// so dispatch/duplicate-guard tests can no longer spin up a disposable
+// second MORNING_BOOST template. They instead borrow the real singleton
+// template for the duration of the test via these helpers: save its
+// mutable fields, mutate them for the test, then restore afterward
+// (always in a `finally` block — this is the live production sender).
+export async function getMorningBoostTemplateId(): Promise<string> {
+  const row = await client().campaign.findFirst({
+    where: { isRecurring: true, recurrenceSource: "MORNING_BOOST" },
+    select: { id: true },
+  });
+  if (!row) throw new Error("No MORNING_BOOST recurring template exists in this environment");
+  return row.id;
+}
+
+interface CampaignMutableFields {
+  recurrenceTime: string | null;
+  audienceRules: unknown;
+  lastMorningBoostId: string | null;
+}
+
+export async function getCampaignMutableFields(id: string): Promise<CampaignMutableFields> {
+  const row = await client().campaign.findUniqueOrThrow({
+    where: { id },
+    select: { recurrenceTime: true, audienceRules: true, lastMorningBoostId: true },
+  });
+  return row as CampaignMutableFields;
+}
+
+export async function setCampaignMutableFields(id: string, fields: Partial<CampaignMutableFields>): Promise<void> {
+  await client().campaign.update({ where: { id }, data: fields as never });
+}
+
+// Releases the day's dispatch slot claimed during a test run, so the real
+// production template isn't blocked from firing for real content later
+// the same day (RecurrenceRun's unique constraint is per templateId+day).
+export async function deleteRecurrenceRunForToday(templateId: string): Promise<void> {
+  const now = new Date();
+  const scheduledDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  await client().recurrenceRun.deleteMany({ where: { templateId, scheduledDate } });
+}
+
 export async function getCampaignById(id: string): Promise<{ subject: string; status: string; lastMorningBoostId: string | null } | null> {
   const row = await client().campaign.findUnique({
     where: { id },

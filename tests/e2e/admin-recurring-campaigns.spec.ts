@@ -6,6 +6,10 @@ import {
   getRecurrenceRun,
   countChildCampaigns,
   getCampaignById,
+  getMorningBoostTemplateId,
+  getCampaignMutableFields,
+  setCampaignMutableFields,
+  deleteRecurrenceRunForToday,
 } from "./helpers/db";
 import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
@@ -36,32 +40,27 @@ async function createContactWithTag(page: Page, email: string, lastName: string,
   await expect(page.getByText(tag).first()).toBeVisible();
 }
 
-async function createTemplateViaApi(
-  page: Page,
-  name: string,
-  recurrenceSource: "MORNING_BOOST" | undefined,
-  audienceTag: string
-): Promise<string> {
-  // runCampaignRecurringDispatch (src/pages/api/cron.ts) only dispatches a
-  // template during the UTC hour matching its own recurrenceTime — a
-  // hardcoded "07:00" here would only ever pass during the 07:00 UTC cron
-  // tick. Use the current UTC hour instead so dispatch(page), called right
-  // after this returns, always falls inside the matching window.
+// At most one recurring MORNING_BOOST template may exist (a partial unique
+// index enforces this — see migration 20260914_recurring_source_singleton),
+// so these tests can no longer spin up a disposable second one. Instead
+// they borrow the real singleton template for the duration of the test:
+// save its mutable fields, point recurrenceTime/audienceRules at this
+// test's own fixture data, run the assertions, then always restore the
+// original fields and release the day's RecurrenceRun slot in `finally` —
+// this is the live production Morning Boost sender.
+async function withBorrowedMorningBoostTemplate(
+  run: (templateId: string) => Promise<void>
+): Promise<void> {
+  const templateId = await getMorningBoostTemplateId();
+  const original = await getCampaignMutableFields(templateId);
   const currentUtcHour = String(new Date().getUTCHours()).padStart(2, "0");
-  const res = await page.request.post("/api/admin/campaigns", {
-    data: {
-      name,
-      subject: "placeholder subject (ignored for Morning Boost source)",
-      htmlBody: "<p>placeholder body</p>",
-      audienceRules: { logic: "OR", include: [{ type: "tag", tag: audienceTag }], exclude: [] },
-      isRecurring: true,
-      recurrenceFrequency: "DAILY",
-      recurrenceTime: `${currentUtcHour}:00`,
-      recurrenceSource,
-    },
-  });
-  expect(res.ok()).toBeTruthy();
-  return (await res.json()).id as string;
+  try {
+    await setCampaignMutableFields(templateId, { recurrenceTime: `${currentUtcHour}:00` });
+    await run(templateId);
+  } finally {
+    await setCampaignMutableFields(templateId, original);
+    await deleteRecurrenceRunForToday(templateId);
+  }
 }
 
 test("wizard creates a recurring campaign and its config persists", async ({ page }) => {
@@ -83,11 +82,18 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
   await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
   await page.getByRole("button", { name: "Recurring" }).click();
 
+  // A real MORNING_BOOST recurring template already exists (that's the
+  // whole point of the singleton guard tested elsewhere) -- the wizard
+  // correctly disables that content-source option and defaults to static
+  // content instead, so this test uses that rather than assuming
+  // Morning Boost is selectable.
+  await expect(page.getByRole("option", { name: /already exists/ })).toBeDisabled();
+
   await page.getByRole("button", { name: /^Next:/ }).click();
   // The displayed time is the browser's local equivalent of the stored
   // 07:00 UTC slot (see src/lib/timeOfDay.ts), not a fixed "UTC" string —
   // assert on the structure, not a specific hour that varies by timezone.
-  await expect(page.getByText(/Daily at .+ — Today's Morning Boost/)).toBeVisible();
+  await expect(page.getByText(/Daily at .+ — static content/)).toBeVisible();
   await expect(page.getByText("UTC")).not.toBeVisible();
 
   await page.getByRole("button", { name: "Save recurring campaign" }).click();
@@ -103,7 +109,7 @@ test("wizard creates a recurring campaign and its config persists", async ({ pag
   // isn't page text, so check the input directly rather than getByText.
   await expect(page.locator('input[type="time"]')).toHaveValue("07:00");
   await expect(page.getByText("UTC")).not.toBeVisible();
-  await expect(page.getByText("Today's Morning Boost")).toBeVisible();
+  await expect(page.getByText("Static content")).toBeVisible();
 });
 
 test("dispatch creates and sends a child occurrence, and won't double-fire the same day", async ({ page }) => {
@@ -113,32 +119,42 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
 
   const tag = `qa-recurring-dispatch-${STAMP}`;
   await createContactWithTag(page, `qa-recurring-dispatch-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `RecurringDispatch${STAMP}`, tag);
-  const templateId = await createTemplateViaApi(page, `QA e2e dispatch template ${STAMP}`, "MORNING_BOOST", tag);
 
-  await dispatch(page);
+  await withBorrowedMorningBoostTemplate(async (templateId) => {
+    await setCampaignMutableFields(templateId, {
+      audienceRules: { logic: "OR", include: [{ type: "tag", tag }], exclude: [] },
+    });
 
-  await expect.poll(async () => countChildCampaigns(templateId), {
-    timeout: 20000,
-    intervals: [1000, 2000, 3000],
-  }).toBe(1);
+    // The real template already has children from every day it's actually
+    // fired in production — assert the count grows by exactly one from
+    // this test's own dispatch, not an absolute count.
+    const baseline = await countChildCampaigns(templateId);
 
-  const run = await getRecurrenceRun(templateId);
-  expect(run?.outcome).toBe("SENT");
-  expect(run?.childCampaignId).toBeTruthy();
+    await dispatch(page);
 
-  const child = await getCampaignById(run!.childCampaignId as string);
-  expect(child?.subject.startsWith("Morning Boost: ")).toBe(true);
+    await expect.poll(async () => countChildCampaigns(templateId), {
+      timeout: 20000,
+      intervals: [1000, 2000, 3000],
+    }).toBe(baseline + 1);
 
-  await expect.poll(async () => (await getCampaignById(run!.childCampaignId as string))?.status, {
-    timeout: 20000,
-    intervals: [1000, 2000, 3000],
-  }).toBe("SENT");
+    const run = await getRecurrenceRun(templateId);
+    expect(run?.outcome).toBe("SENT");
+    expect(run?.childCampaignId).toBeTruthy();
 
-  // Second dispatch tick, same day — the atomic RecurrenceRun guard means
-  // no second occurrence gets created even though the template is still due.
-  await dispatch(page);
-  const countAfterSecondTick = await countChildCampaigns(templateId);
-  expect(countAfterSecondTick).toBe(1);
+    const child = await getCampaignById(run!.childCampaignId as string);
+    expect(child?.subject.startsWith("Morning Boost: ")).toBe(true);
+
+    await expect.poll(async () => (await getCampaignById(run!.childCampaignId as string))?.status, {
+      timeout: 20000,
+      intervals: [1000, 2000, 3000],
+    }).toBe("SENT");
+
+    // Second dispatch tick, same day — the atomic RecurrenceRun guard means
+    // no second occurrence gets created even though the template is still due.
+    await dispatch(page);
+    const countAfterSecondTick = await countChildCampaigns(templateId);
+    expect(countAfterSecondTick).toBe(baseline + 1);
+  });
 });
 
 test("duplicate-content guard skips a template whose lastMorningBoostId already matches today's entry", async ({ page }) => {
@@ -148,29 +164,40 @@ test("duplicate-content guard skips a template whose lastMorningBoostId already 
 
   const tag = `qa-recurring-dupguard-${STAMP}`;
   await createContactWithTag(page, `qa-recurring-dupguard-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `RecurringDupGuard${STAMP}`, tag);
-  const templateId = await createTemplateViaApi(page, `QA e2e duplicate-guard template ${STAMP}`, "MORNING_BOOST", tag);
-  await forceCampaignLastMorningBoostId(templateId, entry.id);
 
-  await dispatch(page);
+  await withBorrowedMorningBoostTemplate(async (templateId) => {
+    await setCampaignMutableFields(templateId, {
+      audienceRules: { logic: "OR", include: [{ type: "tag", tag }], exclude: [] },
+    });
+    await forceCampaignLastMorningBoostId(templateId, entry.id);
 
-  await expect.poll(async () => getRecurrenceRun(templateId), {
-    timeout: 20000,
-    intervals: [1000, 2000, 3000],
-  }).not.toBeNull();
+    // The real template already has children from every day it's actually
+    // fired in production — assert against how many existed before this
+    // test's own dispatch, not an absolute count.
+    const baseline = await countChildCampaigns(templateId);
 
-  const run = await getRecurrenceRun(templateId);
-  // Today's actual entry might be a different one if real content also
-  // exists — either way, forcing lastMorningBoostId to a real entry that
-  // exists today should never resolve to a "new" entry equal to it, so
-  // this either matches our forced id (duplicate) or resolves some other
-  // entry as new (SENT) — the count assertion below is what actually
-  // proves the guard: no child is created when the picked entry duplicates.
-  if (run?.outcome === "SKIPPED_DUPLICATE_CONTENT") {
-    expect(run.childCampaignId).toBeNull();
-    expect(await countChildCampaigns(templateId)).toBe(0);
-  } else {
-    expect(run?.outcome).toBe("SENT");
-  }
+    await dispatch(page);
+
+    await expect.poll(async () => getRecurrenceRun(templateId), {
+      timeout: 20000,
+      intervals: [1000, 2000, 3000],
+    }).not.toBeNull();
+
+    const run = await getRecurrenceRun(templateId);
+    // Today's actual entry might be a different one if real content also
+    // exists — either way, forcing lastMorningBoostId to a real entry that
+    // exists today should never resolve to a "new" entry equal to it, so
+    // this either matches our forced id (duplicate) or resolves some other
+    // entry as new (SENT) — the count assertion below is what actually
+    // proves the guard: no child is created when the picked entry duplicates.
+    if (run?.outcome === "SKIPPED_DUPLICATE_CONTENT") {
+      expect(run.childCampaignId).toBeNull();
+      expect(await countChildCampaigns(templateId)).toBe(baseline);
+    } else {
+      expect(run?.outcome).toBe("SENT");
+      expect(await countChildCampaigns(templateId)).toBe(baseline + 1);
+    }
+  });
 });
 
 test("regression: sendCampaignNow now correctly sends a one-time SCHEDULED campaign using only audienceRules", async ({ page }) => {
