@@ -18,12 +18,24 @@ const TRIGGER_LABELS: Record<string, string> = {
   LOYALTY_MILESTONE: "Loyalty milestone",
 };
 
+const TEMPLATE_CATEGORIES: { key: string; label: string }[] = [
+  { key: "lead", label: "Lead generation" },
+  { key: "cart", label: "Membership checkout" },
+  { key: "books", label: "Digital guides" },
+  { key: "license", label: "Group membership" },
+  { key: "curriculum", label: "Challenges & games" },
+  { key: "marketing", label: "Marketing" },
+  { key: "success", label: "Customer success" },
+  { key: "payments", label: "Payments & ops" },
+];
+
 const JOURNEY_TEMPLATES = [
   {
     id: "welcome",
     name: "Welcome series",
     trigger: "SIGNUP",
     stepCount: 5,
+    cat: "lead",
     description: "3 emails over 4 days for new signups.",
   },
   {
@@ -31,6 +43,7 @@ const JOURNEY_TEMPLATES = [
     name: "Loyalty milestone reward",
     trigger: "LOYALTY_MILESTONE",
     stepCount: 2,
+    cat: "success",
     description: "Email + tag when a member hits 100 points.",
   },
   {
@@ -38,6 +51,7 @@ const JOURNEY_TEMPLATES = [
     name: "Event follow-up",
     trigger: "EVENT_RSVP",
     stepCount: 3,
+    cat: "marketing",
     description: "Confirmation + reminder after RSVP.",
   },
   {
@@ -45,7 +59,392 @@ const JOURNEY_TEMPLATES = [
     name: "New member onboarding",
     trigger: "APPLICATION_ACCEPTED",
     stepCount: 5,
+    cat: "success",
     description: "4 emails over 7 days for newly accepted members.",
+  },
+
+  // Lead generation
+  {
+    id: "newsletter_signup",
+    name: "Newsletter signup welcome",
+    trigger: "TAG_ADDED",
+    stepCount: 1,
+    cat: "lead",
+    description: "Welcome contacts who join the newsletter list specifically.",
+  },
+  {
+    id: "resource_followup",
+    name: "Free resource follow-up",
+    trigger: "TAG_ADDED",
+    stepCount: 1,
+    cat: "lead",
+    description: "Follow up after a contact downloads a resource.",
+  },
+  {
+    id: "signup_recovery",
+    name: "Abandoned signup recovery",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "lead",
+    description: "Nudge someone who started signing up but never finished.",
+  },
+
+  // Membership checkout
+  {
+    id: "membership_checkout_nudge_1h",
+    name: "Membership checkout — 1 hour nudge",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Quick nudge for an unfinished membership checkout.",
+  },
+  {
+    id: "membership_checkout_followup_24h",
+    name: "Membership checkout — 24 hour follow-up",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Follow up a day after checkout was left unfinished.",
+  },
+  {
+    id: "membership_checkout_final_notice_72h",
+    name: "Membership checkout — final notice",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Last-chance nudge 72 hours after checkout was abandoned.",
+  },
+  {
+    id: "membership_checkout_started",
+    name: "Membership checkout started",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Encourage someone who opened checkout to finish it.",
+  },
+  {
+    id: "membership_payment_failed_signup",
+    name: "Membership signup payment failed",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Recovery email when a new member's card is declined.",
+  },
+  {
+    id: "membership_signup_confirmation_upsell",
+    name: "Membership confirmation + upgrade",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "cart",
+    description: "Confirm signup and point toward the annual plan.",
+  },
+
+  // Digital guides
+  {
+    id: "guide_purchase_thankyou",
+    name: "Guide purchase thank you",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Thank a member for buying or redeeming a digital guide.",
+  },
+  {
+    id: "guide_delivery_confirmation",
+    name: "Guide delivery confirmation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Confirm access is unlocked after a guide purchase.",
+  },
+  {
+    id: "guide_review_request_7d",
+    name: "Guide review request (7 days)",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Ask for feedback a week after someone gets a guide.",
+  },
+  {
+    id: "guide_related_recommendation",
+    name: "Related guide recommendation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Suggest a related guide after a purchase.",
+  },
+  {
+    id: "guide_reading_progress_checkin",
+    name: "Reading progress check-in",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Check in on someone who hasn't finished a guide.",
+  },
+  {
+    id: "guide_new_release_announcement",
+    name: "New guide release announcement",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "books",
+    description: "Announce a new guide to past guide recipients.",
+  },
+
+  // Group membership
+  {
+    id: "group_membership_purchase_confirmation",
+    name: "Group membership purchase confirmation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Confirm a group/team membership purchase.",
+  },
+  {
+    id: "group_seat_invitation",
+    name: "Group seat invitation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Invite someone to claim a seat in a group membership.",
+  },
+  {
+    id: "group_seat_activated_welcome",
+    name: "Group seat activated welcome",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Welcome someone once their seat is claimed.",
+  },
+  {
+    id: "group_unused_seats_reminder",
+    name: "Unused group seats reminder",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Remind a group owner they have unclaimed seats.",
+  },
+  {
+    id: "group_membership_expiring_60d",
+    name: "Group membership expiring — 60 days",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Advance notice a group membership is coming up for renewal.",
+  },
+  {
+    id: "group_membership_expiring_30d",
+    name: "Group membership expiring — 30 days",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Closer-in reminder a group membership is about to renew.",
+  },
+  {
+    id: "group_membership_renewal_confirmation",
+    name: "Group membership renewal confirmation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Confirm a group membership renewed.",
+  },
+  {
+    id: "group_membership_usage_report",
+    name: "Group membership usage report",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "license",
+    description: "Send a group owner a summary of team activity.",
+  },
+
+  // Challenges & games
+  {
+    id: "challenge_published_alert",
+    name: "New challenge published alert",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Announce a newly published Challenge.",
+  },
+  {
+    id: "challenge_access_granted",
+    name: "Challenge access granted",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Confirm a manually granted Challenge enrollment.",
+  },
+  {
+    id: "challenge_incomplete_nudge_48h",
+    name: "Incomplete challenge nudge (48h)",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Nudge a member who's gone quiet on their Challenge.",
+  },
+  {
+    id: "brain_game_completion_ack",
+    name: "Brain game completion acknowledgment",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Acknowledge a completed Tune Your Brain session.",
+  },
+  {
+    id: "challenge_completion_certificate",
+    name: "Challenge completion certificate",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Congratulate a member for finishing a Challenge.",
+  },
+  {
+    id: "next_challenge_recommendation",
+    name: "Next challenge recommendation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Suggest a next Challenge after one is finished.",
+  },
+  {
+    id: "challenge_bundle_suggestion",
+    name: "Challenge bundle suggestion",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "curriculum",
+    description: "Suggest Challenges that work well back to back.",
+  },
+
+  // Marketing
+  {
+    id: "blog_post_notification",
+    name: "New blog post notification",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Notify a segment when a new blog post is published.",
+  },
+  {
+    id: "social_proof_highlight",
+    name: "Social proof highlight",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Share member testimonials or community highlights.",
+  },
+  {
+    id: "seasonal_promotion",
+    name: "Seasonal promotion",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Generic seasonal offer — edit the details before sending.",
+  },
+  {
+    id: "reengagement_90d_inactive",
+    name: "Re-engagement — 90 day inactive",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Win back a member who's gone quiet.",
+  },
+  {
+    id: "anniversary_milestone_1yr",
+    name: "Milestone celebration — 1 year",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Celebrate a member's one-year anniversary.",
+  },
+  {
+    id: "birthday_message",
+    name: "Birthday / anniversary message",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "marketing",
+    description: "Send a birthday greeting.",
+  },
+
+  // Customer success
+  {
+    id: "feature_spotlight",
+    name: "Product feature spotlight",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "success",
+    description: "Highlight a feature members tend to miss.",
+  },
+  {
+    id: "support_followup",
+    name: "Support follow-up",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "success",
+    description: "Follow up after a contact-form or Ask The Fixer submission.",
+  },
+  {
+    id: "nps_survey",
+    name: "NPS survey",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "success",
+    description: "Ask members how likely they are to recommend Fixer Nation.",
+  },
+  {
+    id: "success_story_spotlight",
+    name: "Customer success story spotlight",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "success",
+    description: "Share a member's story with the community.",
+  },
+
+  // Payments & ops
+  {
+    id: "payment_failed_alert",
+    name: "Payment failed alert",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Alert a member their subscription payment failed.",
+  },
+  {
+    id: "payment_retry_success",
+    name: "Payment retry success",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Confirm a subscription payment succeeded on retry.",
+  },
+  {
+    id: "refund_processed_confirmation",
+    name: "Refund processed confirmation",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Confirm a refund was issued.",
+  },
+  {
+    id: "invoice_paid_receipt",
+    name: "Invoice paid receipt",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Send a receipt after a membership payment succeeds.",
+  },
+  {
+    id: "subscription_paused_notification",
+    name: "Subscription paused notification",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Notify a member their membership was paused.",
+  },
+  {
+    id: "invoice_reminder",
+    name: "Invoice reminder (PO-style)",
+    trigger: "MANUAL",
+    stepCount: 1,
+    cat: "payments",
+    description: "Purchase-order style reminder — review before use.",
   },
 ];
 
@@ -113,6 +512,7 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
   const journeys = showTest ? allJourneys : allJourneys.filter((j) => !isQaJourneyName(j.name));
   const [showNew, setShowNew] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [templateCat, setTemplateCat] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newTrigger, setNewTrigger] = useState("APPLICATION_ACCEPTED");
   const [creating, setCreating] = useState(false);
@@ -262,8 +662,39 @@ const AutomationsPage: NextPageWithLayout<Props> = ({ journeys: initial }) => {
             <h2 className="text-sm font-bold text-slate-800">Start from a template</h2>
             <button onClick={() => setShowTemplates(false)} className="text-xs text-slate-400 hover:text-slate-600">Close</button>
           </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => setTemplateCat(null)}
+              className={[
+                "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                templateCat === null
+                  ? "bg-navy text-white"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+              ].join(" ")}
+            >
+              All ({JOURNEY_TEMPLATES.length})
+            </button>
+            {TEMPLATE_CATEGORIES.map((c) => {
+              const count = JOURNEY_TEMPLATES.filter((t) => t.cat === c.key).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => setTemplateCat(c.key)}
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                    templateCat === c.key
+                      ? "bg-navy text-white"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                  ].join(" ")}
+                >
+                  {c.label} ({count})
+                </button>
+              );
+            })}
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {JOURNEY_TEMPLATES.map((t) => (
+            {JOURNEY_TEMPLATES.filter((t) => templateCat === null || t.cat === templateCat).map((t) => (
               <button
                 key={t.id}
                 onClick={() => handleFromTemplate(t.id)}
