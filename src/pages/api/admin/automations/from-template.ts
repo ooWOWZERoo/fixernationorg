@@ -578,271 +578,80 @@ One thing worth knowing: if you're on a monthly plan, switching to annual saves 
     ],
   },
 
-  // ── Digital guides (adapted from "books" — FNO has no direct book sales) ─
-  // MANUAL — FNO has no purchasable digital-guide product yet; adapt to whatever real SKU exists before activating
-  guide_purchase_thankyou: {
-    name: "Guide purchase thank you",
-    description: "Thank a member for buying or redeeming a digital guide (verify against a real product before use)",
-    trigger: "MANUAL",
+  // ── Book-gift redemption (the real "book purchase" signal on FNO) ─
+  // Books are sold on Amazon, not through FNO checkout -- but every physical
+  // copy ships with a QR code that redeems a GiftCode for a free 90-day
+  // membership (src/pages/api/redeem.ts, product "free-90-day-book-gift").
+  // That redemption is a real ROLE_CHANGE event, scoped with
+  // triggerConfig.source="GIFT_CODE" so this only fires for gift-code
+  // redemptions, not every other role change (admin edits, invite claims).
+  book_gift_redeemed: {
+    name: "Book gift membership redeemed",
+    description: "Thank a reader for redeeming their book's free 90-day membership code, then ask for feedback a week later",
+    trigger: "ROLE_CHANGE",
+    triggerConfig: { source: "GIFT_CODE" },
     steps: [
       {
         order: 0,
         type: "SEND_EMAIL",
         config: {
-          subject: "Thanks for grabbing that guide, {{first_name}}",
+          subject: "Your free 90 days are active, {{first_name}}",
           htmlBody: `<p>Hi {{first_name}},</p>
-<p>Thanks for picking that up. We put real time into it and hope it's useful to you.</p>
-<p>You'll find it, along with everything else you have access to, in your resource library: <a href="https://fixernation.org/resources">fixernation.org/resources</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Thanks for picking that up. We put real time into it and hope it's useful to you.
-
-You'll find it, along with everything else you have access to, in your resource library: https://fixernation.org/resources
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same gap as guide_purchase_thankyou; no real digital-guide delivery event exists yet
-  guide_delivery_confirmation: {
-    name: "Guide delivery confirmation",
-    description: "Confirm access is unlocked after a guide purchase or gift redemption",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "Your guide is ready, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Your guide is unlocked and sitting in your account, ready whenever you want it.</p>
-<p>Get it here: <a href="https://fixernation.org/resources">fixernation.org/resources</a></p>
-<p>If it doesn't show up or something looks off, reply to this email and we'll fix it.</p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Your guide is unlocked and sitting in your account, ready whenever you want it.
-
-Get it here: https://fixernation.org/resources
-
-If it doesn't show up or something looks off, reply to this email and we'll fix it.
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same gap; also assumes a review mechanism that doesn't exist on FNO yet
-  guide_review_request_7d: {
-    name: "Guide review request (7 days)",
-    description: "Ask for feedback a week after someone gets a guide",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "What did you think, {{first_name}}?",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>You picked up that guide about a week ago. Curious what landed, what didn't, and anything you'd change.</p>
-<p>Just reply to this email. We read every one and it genuinely shapes what we build next.</p>
-<p>— Anthony</p>`,
-          textBody: `Hi {{first_name}},
-
-You picked up that guide about a week ago. Curious what landed, what didn't, and anything you'd change.
-
-Just reply to this email. We read every one and it genuinely shapes what we build next.
-
-— Anthony`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same gap; recommendation logic would need a real catalog to match against
-  guide_related_recommendation: {
-    name: "Related guide recommendation",
-    description: "Suggest a related guide or resource after a purchase",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "Since you liked that, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>People who grab that guide usually end up in the resource library next. Worth a look if you haven't been through it: <a href="https://fixernation.org/resources">fixernation.org/resources</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-People who grab that guide usually end up in the resource library next. Worth a look if you haven't been through it: https://fixernation.org/resources
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — FNO has no reading-progress tracking; needs a real signal before this can be more than a generic check-in
-  guide_reading_progress_checkin: {
-    name: "Reading progress check-in",
-    description: "Generic check-in nudge for someone who hasn't finished a guide",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "How far did you get, {{first_name}}?",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Just checking in on that guide you picked up. If you got busy and didn't finish, that's normal. It's still there waiting.</p>
-<p><a href="https://fixernation.org/resources">Pick it back up.</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Just checking in on that guide you picked up. If you got busy and didn't finish, that's normal. It's still there waiting.
-
-Pick it back up: https://fixernation.org/resources
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — announces a new resource-library item or book; no purchase history to target against yet, so this goes to whoever an admin manually selects
-  guide_new_release_announcement: {
-    name: "New guide release announcement",
-    description: "Announce a new guide or resource to past guide recipients",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "New in the resource library, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>We just added something new to the resource library. Since you've grabbed guides from us before, figured you'd want to know first.</p>
-<p><a href="https://fixernation.org/resources">Check it out.</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-We just added something new to the resource library. Since you've grabbed guides from us before, figured you'd want to know first.
-
-Check it out: https://fixernation.org/resources
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // ── Group membership (adapted from "school licenses" — FNO has no seat-licensing feature) ─
-  // MANUAL — FNO has no group/team-membership feature yet; adapt once one exists. Closest real analog today is gifting individual GiftCodes to a few people.
-  group_membership_purchase_confirmation: {
-    name: "Group membership purchase confirmation",
-    description: "Confirm a group/team membership purchase (needs a real group-membership feature)",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "Your group membership is set up, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Your group membership purchase is confirmed. You'll be able to invite the people on your team next.</p>
-<p>Manage everything from your account: <a href="https://fixernation.org/account/billing">fixernation.org/account/billing</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Your group membership purchase is confirmed. You'll be able to invite the people on your team next.
-
-Manage everything from your account: https://fixernation.org/account/billing
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same group-membership gap; today this would map to sending someone a GiftCode manually
-  group_seat_invitation: {
-    name: "Group seat invitation",
-    description: "Invite someone to claim a seat in a group membership",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "{{first_name}}, you've got a Fixer Nation membership waiting",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Someone on your team set you up with a Fixer Nation membership. All you need to do is claim it.</p>
-<p><a href="https://fixernation.org/redeem">Claim your membership here.</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Someone on your team set you up with a Fixer Nation membership. All you need to do is claim it.
-
-Claim your membership here: https://fixernation.org/redeem
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same group-membership gap
-  group_seat_activated_welcome: {
-    name: "Group seat activated welcome",
-    description: "Welcome someone once their group-membership seat is claimed",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "You're in, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Your membership is active. Same full access as any member: the community, the resource library, Morning Boost, and every event.</p>
+<p>Thanks for picking up the book — your free 90-day Fixer Nation membership is active now.</p>
+<p>Here's what that gets you: <a href="https://fixernation.org/morning-boost">Morning Boost</a>, the <a href="https://fixernation.org/resources">resource library</a>, <a href="https://fixernation.org/events">events</a>, and the <a href="https://fixernation.org/network">community feed</a>.</p>
 <p>Start here: <a href="https://fixernation.org/dashboard">fixernation.org/dashboard</a></p>
-<p>— Anthony</p>`,
+<p>— Anthony J. Placito<br>Founder, Fixer Nation</p>`,
           textBody: `Hi {{first_name}},
 
-Your membership is active. Same full access as any member: the community, the resource library, Morning Boost, and every event.
+Thanks for picking up the book — your free 90-day Fixer Nation membership is active now.
+
+Here's what that gets you: Morning Boost (https://fixernation.org/morning-boost), the resource library (https://fixernation.org/resources), events (https://fixernation.org/events), and the community feed (https://fixernation.org/network).
 
 Start here: https://fixernation.org/dashboard
 
+— Anthony J. Placito
+Founder, Fixer Nation`,
+        },
+      },
+      { order: 1, type: "WAIT", config: { days: 7 } },
+      {
+        order: 2,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "What did you think of the book, {{first_name}}?",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>You picked up the book about a week ago. Curious what landed, what didn't, and anything you'd change.</p>
+<p>Just reply to this email — we read every one and it genuinely shapes what we build next.</p>
+<p>— Anthony</p>`,
+          textBody: `Hi {{first_name}},
+
+You picked up the book about a week ago. Curious what landed, what didn't, and anything you'd change.
+
+Just reply to this email — we read every one and it genuinely shapes what we build next.
+
 — Anthony`,
         },
       },
     ],
   },
 
-  // MANUAL — same group-membership gap; needs a real "seats purchased vs. claimed" count to be genuinely automated
-  group_unused_seats_reminder: {
-    name: "Unused group seats reminder",
-    description: "Remind a group owner they have unclaimed seats",
+  // MANUAL — a broadcast-style follow-up, not a single per-contact event; an admin decides when to send it to past redeemers
+  book_related_recommendation: {
+    name: "Related book recommendation",
+    description: "Suggest another Fixer Nation book to someone who already redeemed one",
     trigger: "MANUAL",
     steps: [
       {
         order: 0,
         type: "SEND_EMAIL",
         config: {
-          subject: "You've still got open seats, {{first_name}}",
+          subject: "Since you liked that one, {{first_name}}",
           htmlBody: `<p>Hi {{first_name}},</p>
-<p>A few of the memberships you set up haven't been claimed yet. Might be worth a nudge to whoever they're for.</p>
-<p>Manage invites from your account: <a href="https://fixernation.org/account/billing">fixernation.org/account/billing</a></p>
+<p>People who read that book usually end up picking up another one of ours next. Take a look: <a href="https://fixernation.org/books">fixernation.org/books</a></p>
 <p>— The Fixer Nation Team</p>`,
           textBody: `Hi {{first_name}},
 
-A few of the memberships you set up haven't been claimed yet. Might be worth a nudge to whoever they're for.
-
-Manage invites from your account: https://fixernation.org/account/billing
+People who read that book usually end up picking up another one of ours next. Take a look: https://fixernation.org/books
 
 — The Fixer Nation Team`,
         },
@@ -850,26 +659,26 @@ Manage invites from your account: https://fixernation.org/account/billing
     ],
   },
 
-  // MANUAL — same group-membership gap; adapts "license expiring" to a group membership renewal date
-  group_membership_expiring_60d: {
-    name: "Group membership expiring — 60 days",
-    description: "Advance notice that a group membership is coming up for renewal",
+  // MANUAL — a broadcast-style announcement, not a single per-contact event; an admin decides when to send it to past redeemers
+  book_new_release_announcement: {
+    name: "New book release announcement",
+    description: "Announce a new Fixer Nation book to past book-gift redeemers",
     trigger: "MANUAL",
     steps: [
       {
         order: 0,
         type: "SEND_EMAIL",
         config: {
-          subject: "Your group membership renews in 60 days",
+          subject: "New book from Fixer Nation, {{first_name}}",
           htmlBody: `<p>Hi {{first_name}},</p>
-<p>Heads-up that your group membership is set to renew in about 60 days. Nothing to do right now, just flagging it so it's not a surprise.</p>
-<p>Review it anytime: <a href="https://fixernation.org/account/billing">fixernation.org/account/billing</a></p>
+<p>We just published a new book. Since you've read one of ours before, figured you'd want to know first.</p>
+<p><a href="https://fixernation.org/books">Check it out.</a></p>
 <p>— The Fixer Nation Team</p>`,
           textBody: `Hi {{first_name}},
 
-Heads-up that your group membership is set to renew in about 60 days. Nothing to do right now, just flagging it so it's not a surprise.
+We just published a new book. Since you've read one of ours before, figured you'd want to know first.
 
-Review it anytime: https://fixernation.org/account/billing
+Check it out: https://fixernation.org/books
 
 — The Fixer Nation Team`,
         },
@@ -877,86 +686,12 @@ Review it anytime: https://fixernation.org/account/billing
     ],
   },
 
-  // MANUAL — same group-membership gap
-  group_membership_expiring_30d: {
-    name: "Group membership expiring — 30 days",
-    description: "Closer-in reminder that a group membership is about to renew",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "30 days until your group membership renews",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Your group membership renews in about 30 days. If anything about your team has changed, now's a good time to review who's using their seats.</p>
-<p><a href="https://fixernation.org/account/billing">Review your membership.</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
 
-Your group membership renews in about 30 days. If anything about your team has changed, now's a good time to review who's using their seats.
-
-Review your membership: https://fixernation.org/account/billing
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same group-membership gap
-  group_membership_renewal_confirmation: {
-    name: "Group membership renewal confirmation",
-    description: "Confirm a group membership renewed",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "Your group membership renewed",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Your group membership just renewed. Everyone on your team keeps their access without needing to do anything.</p>
-<p>Full billing details are here: <a href="https://fixernation.org/account/billing">fixernation.org/account/billing</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Your group membership just renewed. Everyone on your team keeps their access without needing to do anything.
-
-Full billing details are here: https://fixernation.org/account/billing
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
-
-  // MANUAL — same group-membership gap; needs real per-seat activity data before this can be more than a placeholder
-  group_membership_usage_report: {
-    name: "Group membership usage report",
-    description: "Send a group owner a summary of how active their team's seats are",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "How your team is using Fixer Nation",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>Quick look at how your team's been using their memberships lately: who's active, who hasn't logged in, that kind of thing.</p>
-<p>Full detail is in your account: <a href="https://fixernation.org/account/billing">fixernation.org/account/billing</a></p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-Quick look at how your team's been using their memberships lately: who's active, who hasn't logged in, that kind of thing.
-
-Full detail is in your account: https://fixernation.org/account/billing
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
+  // Group/seat-licensing templates (adapted from FNE's "school licenses") were
+  // removed entirely -- FNO's membership model is individual, not org/seat
+  // licensing, and there's no realistic path to that changing. Pure dead
+  // weight, unlike the other MANUAL drafts which map to a plausible future
+  // trigger.
 
   // ── Challenges & games (adapted from "curriculum") ───────────────────────
   // MANUAL — no "new Challenge published" trigger exists yet
@@ -1550,32 +1285,9 @@ Resume anytime: https://fixernation.org/account/billing
     ],
   },
 
-  // MANUAL — po6 "PO Invoice Reminder" is a school/district purchase-order concept that likely doesn't apply to an individual-membership platform at all; kept for completeness but flagged as probably not worth keeping
-  invoice_reminder: {
-    name: "Invoice reminder (PO-style)",
-    description: "Purchase-order style invoice reminder — likely not a real fit for FNO's individual-membership model; review before use",
-    trigger: "MANUAL",
-    steps: [
-      {
-        order: 0,
-        type: "SEND_EMAIL",
-        config: {
-          subject: "A reminder about your outstanding invoice, {{first_name}}",
-          htmlBody: `<p>Hi {{first_name}},</p>
-<p>This is a reminder that you have an outstanding invoice with Fixer Nation. If you've already taken care of it, you can ignore this.</p>
-<p>Questions about your invoice? Reply here.</p>
-<p>— The Fixer Nation Team</p>`,
-          textBody: `Hi {{first_name}},
-
-This is a reminder that you have an outstanding invoice with Fixer Nation. If you've already taken care of it, you can ignore this.
-
-Questions about your invoice? Reply here.
-
-— The Fixer Nation Team`,
-        },
-      },
-    ],
-  },
+  // po6 "PO Invoice Reminder" was removed entirely — a school/district
+  // purchase-order concept with no analog on an individual-membership
+  // platform at all.
 };
 
 export { TEMPLATES };

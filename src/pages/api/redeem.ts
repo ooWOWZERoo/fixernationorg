@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { enrollInJourneys } from "@/lib/automation";
 
 const schema = z.object({
   code: z.string().min(1).max(40).transform((s) => s.trim().toUpperCase()),
@@ -96,6 +97,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     });
 
+    // `source: "GIFT_CODE"` lets a journey scope itself to specifically
+    // this gift-membership redemption path (currently only the free
+    // 90-day book promo) without also firing on every other ROLE_CHANGE
+    // (admin role edits, invite-claim grants) that shares the same role.
+    enrollInJourneys({ trigger: "ROLE_CHANGE", userId: session.user.id, triggerConfig: { role: grantedRole, source: "GIFT_CODE" } }).catch(() => {});
     return res.json({ grantedRole });
   }
 
@@ -111,5 +117,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }),
   ]);
 
+  enrollInJourneys({ trigger: "ROLE_CHANGE", userId: session.user.id, triggerConfig: { role: giftCode.grantedRole } }).catch(() => {});
   return res.json({ grantedRole: giftCode.grantedRole });
 }
