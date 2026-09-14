@@ -343,8 +343,11 @@ Either way, glad to have you reading.
   resource_followup: {
     name: "Free resource follow-up",
     description: "Follow up after a contact downloads something from the resource library",
-    trigger: "TAG_ADDED",
-    triggerConfig: { tag: "downloaded-resource" },
+    // MANUAL — resources are members-only and admin-managed; there's no
+    // public download endpoint to apply a "downloaded-resource" tag from,
+    // so TAG_ADDED could never fire here. Revisit if resource downloads
+    // ever get their own tracked event.
+    trigger: "MANUAL",
     steps: [
       {
         order: 0,

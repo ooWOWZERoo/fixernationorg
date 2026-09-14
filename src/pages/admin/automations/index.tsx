@@ -75,7 +75,7 @@ const JOURNEY_TEMPLATES = [
   {
     id: "resource_followup",
     name: "Free resource follow-up",
-    trigger: "TAG_ADDED",
+    trigger: "MANUAL",
     stepCount: 1,
     cat: "lead",
     description: "Follow up after a contact downloads a resource.",

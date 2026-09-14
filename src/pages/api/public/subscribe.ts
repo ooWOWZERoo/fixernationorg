@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { setConsent } from "@/lib/contacts";
+import { enrollInJourneys } from "@/lib/automation";
 
 const schema = z.object({
   email: z.string().email(),
@@ -73,6 +74,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Default to general NEWSLETTERS consent when no specific topic is given.
   await setConsent(contact.id, topic ?? "NEWSLETTERS", true, source ?? "subscribe");
+
+  // Tag + enroll directly rather than going through the admin CRM's
+  // add-tag route (the only other place TAG_ADDED enrollment fires) —
+  // this is the real signup surface the "newsletter_signup" automation
+  // template is meant to fire from.
+  const NEWSLETTER_TAG = "newsletter-subscriber";
+  db.contactTag.upsert({
+    where: { contactId_tag: { contactId: contact.id, tag: NEWSLETTER_TAG } },
+    create: { contactId: contact.id, tag: NEWSLETTER_TAG },
+    update: {},
+  }).then(() =>
+    enrollInJourneys({ trigger: "TAG_ADDED", contactId: contact.id, triggerConfig: { tag: NEWSLETTER_TAG } })
+  ).catch(() => {});
 
   return res.status(200).json({ ok: true });
 }
