@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { normalizeUrlInput } from "@/lib/url";
 
 const MAX_SIZE_WARNING = 500 * 1024 * 1024; // 500 MB — fail fast rather than a long doomed upload
 
@@ -95,6 +96,7 @@ export function VideoField({ value, onChange }: VideoFieldProps) {
         type="url"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onChange(normalizeUrlInput(e.target.value))}
         placeholder="or paste a video URL…"
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
       />

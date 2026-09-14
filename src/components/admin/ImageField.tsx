@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { normalizeUrlInput } from "@/lib/url";
 
 interface ImageFieldProps {
   value: string;
@@ -72,6 +73,7 @@ export function ImageField({
         type="url"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onChange(normalizeUrlInput(e.target.value))}
         placeholder="or paste an image URL…"
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
       />

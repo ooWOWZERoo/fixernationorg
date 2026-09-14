@@ -8,6 +8,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ImageField } from "@/components/admin/ImageField";
 import { VideoField } from "@/components/admin/VideoField";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { describeValidationError } from "@/lib/url";
 import type { NextPageWithLayout } from "@/types/next";
 
 const toSlug = (title: string) =>
@@ -80,7 +81,7 @@ const AdminMorningBoostNew: NextPageWithLayout = () => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Something went wrong.");
+        setError(describeValidationError(data));
         setSaving(false);
         return;
       }
