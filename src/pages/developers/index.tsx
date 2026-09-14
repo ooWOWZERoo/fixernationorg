@@ -860,61 +860,6 @@ curl -X POST ${B}/api/admin/campaigns/cmp1 \\
     ],
   },
 
-  // ── Newsletter Topics ────────────────────────────────────────────────────────
-  {
-    id: "newsletter-topics",
-    label: "Newsletter Topics",
-    description: "Named subscription topics that contacts can opt in or out of (Morning Boost, Campaigns, Product Updates, etc.).",
-    endpoints: [
-      {
-        id: "topics-list",
-        method: "GET",
-        path: "/api/admin/newsletter-topics",
-        summary: "List topics",
-        auth: "admin",
-        curl: `curl ${B}/api/admin/newsletter-topics \\
-  -H "${CK}"`,
-      },
-      {
-        id: "topics-create",
-        method: "POST",
-        path: "/api/admin/newsletter-topics",
-        summary: "Create a topic",
-        auth: "admin",
-        bodyParams: [
-          { name: "name", type: "string", required: true, description: "Display name" },
-          { name: "slug", type: "string", required: true, description: "URL-safe slug used in subscribe/unsubscribe links" },
-          { name: "description", type: "string", description: "Subscriber-facing description" },
-          { name: "defaultOptIn", type: "boolean", description: "Whether new contacts are opted in by default (default false)" },
-        ],
-        curl: `curl -X POST ${B}/api/admin/newsletter-topics \\
-  -H "${CK}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"Monthly Newsletter","slug":"monthly-newsletter","defaultOptIn":false}'`,
-      },
-      {
-        id: "topics-update",
-        method: "PUT",
-        path: "/api/admin/newsletter-topics/:id",
-        summary: "Update a topic",
-        auth: "admin",
-        curl: `curl -X PUT ${B}/api/admin/newsletter-topics/topic1 \\
-  -H "${CK}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"defaultOptIn":true}'`,
-      },
-      {
-        id: "topics-delete",
-        method: "DELETE",
-        path: "/api/admin/newsletter-topics/:id",
-        summary: "Delete a topic",
-        auth: "admin",
-        curl: `curl -X DELETE ${B}/api/admin/newsletter-topics/topic1 \\
-  -H "${CK}"`,
-      },
-    ],
-  },
-
   // ── Custom Fields ────────────────────────────────────────────────────────────
   {
     id: "custom-fields",

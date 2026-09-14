@@ -3,6 +3,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatUtcTimeOfDayLocal } from "@/lib/timeOfDay";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -14,17 +15,24 @@ interface EntryRow {
   createdAt: string;
 }
 
-interface Props {
-  entries: EntryRow[];
+interface SendTemplate {
+  id: string;
+  recurrenceTime: string | null;
+  recurrenceActive: boolean;
 }
 
-const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries }) => {
+interface Props {
+  entries: EntryRow[];
+  sendTemplate: SendTemplate | null;
+}
+
+const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries, sendTemplate }) => {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Morning Boost</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage Morning Boost entries.</p>
+          <p className="mt-1 text-sm text-slate-500">Manage Morning Boost entries. The Publish Date only controls which day's entry is used — it does not control the send time.</p>
         </div>
         <Link
           href="/admin/morning-boost/new"
@@ -32,6 +40,25 @@ const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries }) => {
         >
           + New Entry
         </Link>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        {sendTemplate ? (
+          <>
+            Sends daily at <strong>{formatUtcTimeOfDayLocal(sendTemplate.recurrenceTime)}</strong> your local time, via the recurring campaign
+            {" "}(<span className={sendTemplate.recurrenceActive ? "font-medium text-green-700" : "font-medium text-slate-500"}>
+              {sendTemplate.recurrenceActive ? "active" : "paused"}
+            </span>).{" "}
+            <Link href={`/admin/campaigns/${sendTemplate.id}`} className="font-medium text-navy hover:underline">
+              Manage send time &amp; audience →
+            </Link>
+          </>
+        ) : (
+          <>
+            No recurring campaign is currently set up to send these entries — published content will never go out until one exists.{" "}
+            <Link href="/admin/campaigns/new" className="font-medium text-navy hover:underline">Create one →</Link>
+          </>
+        )}
       </div>
 
       {entries.length === 0 ? (
@@ -79,7 +106,7 @@ const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries }) => {
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-500">
                     {entry.publishedAt
-                      ? new Date(entry.publishedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+                      ? new Date(entry.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -109,12 +136,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent(context.resolvedUrl)}`, permanent: false } };
   }
 
-  const entries = await db.morningBoost.findMany({
-    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    select: { id: true, slug: true, title: true, publishedAt: true, createdAt: true },
-  });
+  const [entries, sendTemplate] = await Promise.all([
+    db.morningBoost.findMany({
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, slug: true, title: true, publishedAt: true, createdAt: true },
+    }),
+    db.campaign.findFirst({
+      where: { isRecurring: true, recurrenceSource: "MORNING_BOOST" },
+      select: { id: true, recurrenceTime: true, recurrenceActive: true },
+    }),
+  ]);
 
-  return { props: { entries: JSON.parse(JSON.stringify(entries)) } };
+  return { props: { entries: JSON.parse(JSON.stringify(entries)), sendTemplate } };
 };
 
 export default AdminMorningBoostPage;

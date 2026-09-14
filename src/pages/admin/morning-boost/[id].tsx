@@ -11,20 +11,15 @@ import { ImageField } from "@/components/admin/ImageField";
 import { VideoField } from "@/components/admin/VideoField";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { describeValidationError } from "@/lib/url";
+import { utcIsoToLocalDateInput, localDateToUtcNoonIso } from "@/lib/timeOfDay";
 import type { NextPageWithLayout } from "@/types/next";
-
-const toDatetimeLocal = (date: string | null): string => {
-  if (!date) return "";
-  const d = new Date(date);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 interface Props {
   entry: MorningBoost;
+  sendTemplateId: string | null;
 }
 
-const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
+const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateId }) => {
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -35,7 +30,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
     imageUrl: entry.imageUrl ?? "",
     videoUrl: entry.videoUrl ?? "",
     authorName: entry.authorName,
-    publishedAt: toDatetimeLocal(entry.publishedAt as unknown as string | null),
+    publishedAt: utcIsoToLocalDateInput(entry.publishedAt as unknown as string | null),
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -66,7 +61,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
       imageUrl: entry.imageUrl ?? "",
       videoUrl: entry.videoUrl ?? "",
       authorName: entry.authorName,
-      publishedAt: toDatetimeLocal(entry.publishedAt as unknown as string | null),
+      publishedAt: utcIsoToLocalDateInput(entry.publishedAt as unknown as string | null),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.id]);
@@ -85,18 +80,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
     setSaving(true);
     setSaveError(null);
 
-    // Browser-local -> UTC conversion for the timezone-naive datetime-local
-    // value. The discrete-args Date constructor interprets its inputs as
-    // the browser's local time (matching what the admin actually typed),
-    // and toISOString() turns that into an unambiguous UTC instant, so the
-    // server's `new Date(publishedAt)` always parses the intended moment.
-    const publishedAtIso = (() => {
-      if (!form.publishedAt) return null;
-      const [datePart, timePart] = form.publishedAt.split("T");
-      const [year, month, day] = datePart.split("-").map(Number);
-      const [hour, minute] = timePart.split(":").map(Number);
-      return new Date(year, month - 1, day, hour, minute).toISOString();
-    })();
+    const publishedAtIso = form.publishedAt ? localDateToUtcNoonIso(form.publishedAt) : null;
 
     const payload = {
       title: form.title.trim(),
@@ -301,11 +285,20 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry }) => {
           </label>
           <input
             id="publishedAt"
-            type="datetime-local"
+            type="date"
             value={form.publishedAt}
             onChange={(e) => setForm((f) => ({ ...f, publishedAt: e.target.value }))}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
           />
+          <p className="mt-1 text-xs text-slate-400">
+            Controls which day this entry is used for — not the send time.
+            {sendTemplateId && (
+              <>
+                {" "}The actual send time is set on the{" "}
+                <Link href={`/admin/campaigns/${sendTemplateId}`} className="text-navy hover:underline">Daily Morning Boost campaign</Link>.
+              </>
+            )}
+          </p>
         </div>
 
         <div className="flex justify-end border-t border-slate-100 pt-4">
@@ -338,10 +331,13 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   const { id } = context.params as { id: string };
-  const entry = await db.morningBoost.findUnique({ where: { id } });
+  const [entry, sendTemplate] = await Promise.all([
+    db.morningBoost.findUnique({ where: { id } }),
+    db.campaign.findFirst({ where: { isRecurring: true, recurrenceSource: "MORNING_BOOST" }, select: { id: true } }),
+  ]);
   if (!entry) return { notFound: true };
 
-  return { props: { entry: JSON.parse(JSON.stringify(entry)) } };
+  return { props: { entry: JSON.parse(JSON.stringify(entry)), sendTemplateId: sendTemplate?.id ?? null } };
 };
 
 export default AdminMorningBoostEdit;

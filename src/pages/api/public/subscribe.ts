@@ -8,11 +8,7 @@ const schema = z.object({
   email: z.string().email(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
-  // Legacy: system-level consent topic (enum-based)
   topic: z.enum(["MORNING_BOOST", "CAMPAIGNS", "NEWSLETTERS", "PRODUCT_UPDATES"]).optional(),
-  // New: admin-defined NewsletterTopic id or slug
-  topicId: z.string().optional(),
-  topicSlug: z.string().optional(),
   source: z.string().optional(),
   _hp: z.string().optional(),
 });
@@ -34,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { email, firstName, lastName, topic, topicId, topicSlug, source } = parsed.data;
+  const { email, firstName, lastName, topic, source } = parsed.data;
 
   // Upsert contact — name fields only set on create; never overwrite an existing contact's name
   const contact = await db.contact.upsert({
@@ -75,37 +71,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   })().catch(() => {});
 
-  const results: { consent?: boolean; subscription?: boolean } = {};
+  // Default to general NEWSLETTERS consent when no specific topic is given.
+  await setConsent(contact.id, topic ?? "NEWSLETTERS", true, source ?? "subscribe");
 
-  // System consent (enum topic)
-  if (topic) {
-    await setConsent(contact.id, topic, true, source ?? "subscribe");
-    results.consent = true;
-  }
-
-  // Named newsletter topic subscription
-  const resolvedTopicId = topicId ?? (topicSlug
-    ? (await db.newsletterTopic.findUnique({ where: { slug: topicSlug } }))?.id
-    : undefined);
-
-  if (resolvedTopicId) {
-    const newsletterTopic = await db.newsletterTopic.findUnique({ where: { id: resolvedTopicId } });
-    if (!newsletterTopic || !newsletterTopic.active) {
-      return res.status(400).json({ error: "Topic not found or inactive" });
-    }
-    await db.contactSubscription.upsert({
-      where: { contactId_topicId: { contactId: contact.id, topicId: resolvedTopicId } },
-      create: { contactId: contact.id, topicId: resolvedTopicId, active: true },
-      update: { active: true },
-    });
-    results.subscription = true;
-  }
-
-  // Default: if neither topic nor topicId given, opt into general NEWSLETTERS consent
-  if (!topic && !resolvedTopicId) {
-    await setConsent(contact.id, "NEWSLETTERS", true, source ?? "subscribe");
-    results.consent = true;
-  }
-
-  return res.status(200).json({ ok: true, ...results });
+  return res.status(200).json({ ok: true });
 }

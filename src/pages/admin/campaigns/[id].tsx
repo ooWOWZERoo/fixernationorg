@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { GetServerSideProps } from "next";
@@ -324,6 +325,11 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
               <div className="rounded-xl border border-navy/15 bg-cream-panel px-4 py-2 text-sm text-ink-soft">
                 {campaign.recurrenceSource === "MORNING_BOOST" ? "Today's Morning Boost" : "Static content"}
               </div>
+              {campaign.recurrenceSource === "MORNING_BOOST" && (
+                <p className="mt-1 text-xs text-ink-soft">
+                  Content is managed at <Link href="/admin/morning-boost" className="text-navy hover:underline">/admin/morning-boost</Link> — the entry published for a given day is used automatically; the Publish Date there only picks the day, not the send time (set above).
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Status</label>

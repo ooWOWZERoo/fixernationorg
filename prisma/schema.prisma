@@ -918,7 +918,6 @@ model Contact {
   notes            ContactNote[]
   listMemberships  ContactListMember[]
   campaignSends    CampaignSend[]
-  subscriptions     ContactSubscription[]
   attribution       ContactAttribution?
   customFieldValues CustomFieldValue[]
   activities        ContactActivity[]
@@ -1077,6 +1076,12 @@ model Campaign {
   recurrenceFrequency  RecurrenceFrequency?
   recurrenceTime       String?               // "HH:MM", UTC
   recurrenceSource     RecurrenceSource?      // null = resend static content
+  // At most one isRecurring=true template may exist per non-null
+  // recurrenceSource value -- enforced by a partial unique index
+  // (migration 20260914_recurring_source_singleton; Prisma can't express
+  // a WHERE-qualified @@unique declaratively). Two templates for the same
+  // source would each independently dispatch the same day's content with
+  // no cross-template dedup (see runCampaignRecurringDispatch).
   recurrenceActive     Boolean               @default(true)
   lastMorningBoostId   String?               // anti-repeat: last entry id actually used
   parentCampaignId     String?
@@ -1638,34 +1643,6 @@ model AutomationEvent {
   enrollment AutomationEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId, occurredAt])
-}
-
-model NewsletterTopic {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  subscriptions ContactSubscription[]
-}
-
-model ContactSubscription {
-  id        String   @id @default(cuid())
-  contactId String
-  topicId   String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contact Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  topic   NewsletterTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
-
-  @@unique([contactId, topicId])
-  @@index([contactId])
-  @@index([topicId])
 }
 
 // ── SP-30: Campaign metrics + contact attribution ─────────────────────────

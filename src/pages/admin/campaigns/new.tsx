@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
@@ -16,7 +17,11 @@ import type { NextPageWithLayout } from "@/types/next";
 interface ListOption { id: string; name: string; _count: { members: number } }
 interface TemplateOption { id: string; name: string; subject: string; htmlBody: string; textBody: string | null }
 
-interface Props { lists: ListOption[]; templates: TemplateOption[] }
+interface Props {
+  lists: ListOption[];
+  templates: TemplateOption[];
+  existingMorningBoostTemplate: { id: string; name: string } | null;
+}
 
 const STEPS = [
   "Details",
@@ -28,7 +33,7 @@ const STEPS = [
   "Review",
 ] as const;
 
-const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) => {
+const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates, existingMorningBoostTemplate }) => {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -86,7 +91,9 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
   // Step 5 — Schedule
   const [scheduledAt, setScheduledAt] = useState("");
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceSource, setRecurrenceSource] = useState<"" | "MORNING_BOOST">("MORNING_BOOST");
+  const [recurrenceSource, setRecurrenceSource] = useState<"" | "MORNING_BOOST">(
+    existingMorningBoostTemplate ? "" : "MORNING_BOOST"
+  );
   const [recurrenceTimeLocal, setRecurrenceTimeLocal] = useState("07:00");
 
   function applyTemplate(id: string) {
@@ -561,12 +568,21 @@ const AdminNewCampaignPage: NextPageWithLayout<Props> = ({ lists, templates }) =
                   <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-soft">Content source</label>
                   <select value={recurrenceSource} onChange={e => setRecurrenceSource(e.target.value as "" | "MORNING_BOOST")}
                     className="w-full rounded-xl border border-navy/15 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy/30">
-                    <option value="MORNING_BOOST">Today's Morning Boost — subject and body generated automatically each day</option>
+                    <option value="MORNING_BOOST" disabled={!!existingMorningBoostTemplate}>
+                      Today's Morning Boost — subject and body generated automatically each day{existingMorningBoostTemplate ? " (already exists)" : ""}
+                    </option>
                     <option value="">Static content — reuses the Subject/Body from Step 2 every time</option>
                   </select>
-                  {recurrenceSource === "MORNING_BOOST" && (
+                  {existingMorningBoostTemplate ? (
                     <p className="mt-1 text-xs text-ink-soft">
-                      The Subject and Body from Step 2 are ignored — each day's email is generated fresh from that day's published Morning Boost entry. If no new entry is published on a given day, or it's the same one already used last time, that day's send is skipped rather than repeating it.
+                      Only one Morning Boost template can exist at a time (two would each independently send the same content). One already exists —{" "}
+                      <Link href={`/admin/campaigns/${existingMorningBoostTemplate.id}`} className="text-navy hover:underline">
+                        edit &quot;{existingMorningBoostTemplate.name}&quot; →
+                      </Link>
+                    </p>
+                  ) : recurrenceSource === "MORNING_BOOST" && (
+                    <p className="mt-1 text-xs text-ink-soft">
+                      The Subject and Body from Step 2 are ignored — each day's email is generated fresh from that day's published Morning Boost entry. If no new entry is published on a given day, or it's the same one already used last time, that day's send is skipped rather than repeating it. Content is managed at <Link href="/admin/morning-boost" className="text-navy hover:underline">/admin/morning-boost</Link>.
                     </p>
                   )}
                 </div>
@@ -663,7 +679,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session?.user?.role || !["ADMIN", "SUPER_ADMIN"].includes(session.user.adminRole)) {
     return { redirect: { destination: "/", permanent: false } };
   }
-  const [lists, templates] = await Promise.all([
+  const [lists, templates, existingMorningBoostTemplate] = await Promise.all([
     db.contactList.findMany({
       where: { ownerType: "FN_ADMIN" },
       select: { id: true, name: true, _count: { select: { members: true } } },
@@ -673,6 +689,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       select: { id: true, name: true, subject: true, htmlBody: true, textBody: true },
       orderBy: { updatedAt: "desc" },
     }),
+    // At most one recurring template may exist per recurrenceSource (see
+    // migration 20260914_recurring_source_singleton) -- surfaced here so
+    // the wizard can point to the existing one instead of letting an admin
+    // walk into a 409 after filling out the whole form.
+    db.campaign.findFirst({
+      where: { isRecurring: true, recurrenceSource: "MORNING_BOOST" },
+      select: { id: true, name: true },
+    }),
   ]);
-  return { props: { lists, templates } };
+  return { props: { lists, templates, existingMorningBoostTemplate } };
 };

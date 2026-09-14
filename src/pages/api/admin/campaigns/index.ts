@@ -64,6 +64,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Recurring campaigns support the email channel only" });
     }
 
+    // Enforced at the DB level too (partial unique index, migration
+    // 20260914_recurring_source_singleton) -- this check is just for a
+    // clean 409 instead of a raw constraint-violation error. A second
+    // recurring template for the same source would independently dispatch
+    // the same day's content with no cross-template dedup (see
+    // runCampaignRecurringDispatch in src/pages/api/cron.ts).
+    if (parsed.data.isRecurring && parsed.data.recurrenceSource) {
+      const existing = await db.campaign.findFirst({
+        where: { isRecurring: true, recurrenceSource: parsed.data.recurrenceSource },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        return res.status(409).json({
+          error: `A recurring "${parsed.data.recurrenceSource}" template already exists ("${existing.name}") — edit it instead of creating a second one, to avoid double-sending.`,
+          existingCampaignId: existing.id,
+        });
+      }
+    }
+
     // Validate that the list (if provided) is FN_ADMIN-owned — AC-067
     if (parsed.data.listId) {
       const list = await db.contactList.findUnique({ where: { id: parsed.data.listId } });

@@ -54,3 +54,23 @@ export function parseLocalTimeOfDayToUtc(hhmm: string): string {
   const localInstant = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
   return `${String(localInstant.getUTCHours()).padStart(2, "0")}:${String(localInstant.getUTCMinutes()).padStart(2, "0")}`;
 }
+
+// Morning Boost's "Publish Date" is a calendar day, not an instant — the
+// recurring dispatch (runCampaignRecurringDispatch) only ever checks which
+// UTC calendar day it falls in, never the time-of-day. Anchoring at local
+// noon (rather than local midnight) keeps the stored instant safely inside
+// the intended UTC day for any realistic admin timezone, since midnight
+// would risk rolling into the adjacent UTC day for timezones east of UTC.
+export function localDateToUtcNoonIso(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day, 12, 0).toISOString();
+}
+
+// Inverse: for populating an <input type="date"> ("YYYY-MM-DD") from a
+// stored UTC instant.
+export function utcIsoToLocalDateInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

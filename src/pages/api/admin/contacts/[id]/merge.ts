@@ -6,14 +6,6 @@ import { db } from "@/lib/db";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
-type SubDb = {
-  contactSubscription: {
-    findMany: (a: unknown) => Promise<{ id: string; topicId: string }[]>;
-    deleteMany: (a: unknown) => Promise<unknown>;
-    updateMany: (a: unknown) => Promise<unknown>;
-  };
-};
-
 type IdDb = {
   contactIdentity: {
     updateMany: (a: unknown) => Promise<unknown>;
@@ -111,19 +103,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await db.campaignSend.deleteMany({ where: { id: { in: duplicateSendIds } } });
   }
   await db.campaignSend.updateMany({ where: { contactId: sourceId }, data: { contactId: survivorId } });
-
-  // ── ContactSubscription — @@unique([contactId, topicId]) ────────────────
-  const subDb = db as never as SubDb;
-  const [survivorSubs, sourceSubs] = await Promise.all([
-    subDb.contactSubscription.findMany({ where: { contactId: survivorId } as never, select: { topicId: true } as never }),
-    subDb.contactSubscription.findMany({ where: { contactId: sourceId } as never, select: { id: true, topicId: true } as never }),
-  ]);
-  const survivorSubSet = new Set(survivorSubs.map((s) => s.topicId));
-  const duplicateSubIds = sourceSubs.filter((s) => survivorSubSet.has(s.topicId)).map((s) => s.id);
-  if (duplicateSubIds.length > 0) {
-    await subDb.contactSubscription.deleteMany({ where: { id: { in: duplicateSubIds } } as never });
-  }
-  await subDb.contactSubscription.updateMany({ where: { contactId: sourceId } as never, data: { contactId: survivorId } as never });
 
   // ── CustomFieldValue — @@unique([contactId, fieldId]) ───────────────────
   const cfDb = db as never as {
