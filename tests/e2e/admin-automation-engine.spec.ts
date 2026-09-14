@@ -206,8 +206,11 @@ test("journey detail overview: status counts and the Failed filter reliably surf
 
   // The journeys list classifies this under "Needs attention" regardless
   // of the journey's own active/inactive toggle — a failed enrollment
-  // doesn't resolve itself, so it stays actionable either way.
+  // doesn't resolve itself, so it stays actionable either way. QA-named
+  // journeys are hidden by default (see the "Show test/QA" toggle), so
+  // reveal this run's own journey before looking for it.
   await page.goto("/admin/automations");
+  await page.getByLabel("Show test/QA").check();
   const listRow = page.locator("tbody tr").filter({ hasText: journeyName });
   await expect(listRow).toBeVisible();
   await expect(listRow.getByText(/Needs attention/)).toBeVisible();
