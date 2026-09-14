@@ -107,7 +107,10 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
   const [recurrenceActive, setRecurrenceActive] = useState(initial.recurrenceActive ?? true);
   const [pauseToggling, setPauseToggling] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewResult, setPreviewResult] = useState<{ willSend: boolean; reason?: string; subject?: string; html?: string } | null>(null);
+  const [previewOffset, setPreviewOffset] = useState(0);
+  const [previewResult, setPreviewResult] = useState<{
+    willSend: boolean; reason?: string; subject?: string; html?: string; boostDate?: string; offset?: number; isLast?: boolean;
+  } | null>(null);
   const [recurrenceTimeLocal, setRecurrenceTimeLocal] = useState(utcTimeOfDayToLocalHHMM(initial.recurrenceTime));
   const [recurrenceTimeSaving, setRecurrenceTimeSaving] = useState(false);
   const [recurrenceTimeSaved, setRecurrenceTimeSaved] = useState(false);
@@ -140,15 +143,15 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
     setRecurrenceTimeSaving(false);
   }
 
-  async function previewNextSend() {
+  async function previewNextSend(offset: number) {
     setPreviewLoading(true);
-    setPreviewResult(null);
+    setPreviewOffset(offset);
     try {
-      const res = await fetch(`/api/admin/campaigns/${campaign.id}/preview-occurrence`);
+      const res = await fetch(`/api/admin/campaigns/${campaign.id}/preview-occurrence?offset=${offset}`);
       const data = await res.json();
       setPreviewResult(data);
     } catch {
-      setPreviewResult({ willSend: false, reason: "Preview failed to load" });
+      setPreviewResult({ willSend: false, reason: "Preview failed to load", offset, isLast: true });
     } finally {
       setPreviewLoading(false);
     }
@@ -347,7 +350,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
         <div className="mb-6 rounded-2xl border border-navy/8 bg-white p-6">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold uppercase tracking-widest text-ink-soft">Preview next send</h2>
-            <button onClick={previewNextSend} disabled={previewLoading}
+            <button onClick={() => previewNextSend(0)} disabled={previewLoading}
               className="rounded-xl border border-navy/15 px-4 py-2 text-sm font-semibold text-navy hover:bg-cream-panel disabled:opacity-40">
               {previewLoading ? "Loading…" : "Preview next send"}
             </button>
@@ -355,13 +358,49 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
           {previewResult && (
             previewResult.willSend ? (
               <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                <p className="text-sm font-semibold text-green-800">Subject: {previewResult.subject}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-green-800">Subject: {previewResult.subject}</p>
+                  {previewResult.boostDate && (
+                    <p className="text-xs font-semibold text-green-700">
+                      {new Date(previewResult.boostDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
                 {previewResult.html && (
                   <iframe title="Preview" srcDoc={previewResult.html} className="mt-3 h-96 w-full rounded-lg border border-navy/10 bg-white" />
                 )}
+                {campaign.recurrenceSource === "MORNING_BOOST" && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      onClick={() => previewNextSend(previewOffset - 1)}
+                      disabled={previewLoading || previewOffset === 0}
+                      className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 disabled:opacity-40"
+                    >
+                      ← Earlier queued boost
+                    </button>
+                    <button
+                      onClick={() => previewNextSend(previewOffset + 1)}
+                      disabled={previewLoading || previewResult.isLast}
+                      className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 disabled:opacity-40"
+                    >
+                      {previewResult.isLast ? "End of queue" : "Next queued boost →"}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <p className="text-sm text-ink-soft">Won't send yet — {previewResult.reason}</p>
+              <div>
+                <p className="text-sm text-ink-soft">Won't send yet — {previewResult.reason}</p>
+                {campaign.recurrenceSource === "MORNING_BOOST" && previewOffset > 0 && (
+                  <button
+                    onClick={() => previewNextSend(previewOffset - 1)}
+                    disabled={previewLoading}
+                    className="mt-2 rounded-lg border border-navy/15 px-3 py-1.5 text-xs font-semibold text-navy hover:bg-cream-panel disabled:opacity-40"
+                  >
+                    ← Earlier queued boost
+                  </button>
+                )}
+              </div>
             )
           )}
         </div>

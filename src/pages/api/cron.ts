@@ -8,7 +8,7 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
-import { sendCampaignNow, continueCampaignSend } from "@/lib/send-campaign";
+import { sendCampaignNow, continueCampaignSend, utcDayWindow } from "@/lib/send-campaign";
 import {
   buildRenewalReminder30Email,
   buildRenewalReminder7Email,
@@ -53,14 +53,6 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
   }
 
   return { message: `Processed ${processed} of ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
-}
-
-// UTC calendar-day window for "published today" — shared shape with the
-// Morning Boost content lookup below, kept inline since it's only two lines.
-function utcDayWindow(now: Date): { startOfDay: Date; endOfDay: Date } {
-  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-  return { startOfDay, endOfDay };
 }
 
 // Runs hourly (vercel.json: "0 * * * *"), gated below to only dispatch a

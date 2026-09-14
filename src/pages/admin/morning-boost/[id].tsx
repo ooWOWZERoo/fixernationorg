@@ -14,6 +14,9 @@ import { describeValidationError } from "@/lib/url";
 import { utcIsoToLocalDateInput, localDateToUtcNoonIso } from "@/lib/timeOfDay";
 import type { NextPageWithLayout } from "@/types/next";
 
+const toSlug = (title: string) =>
+  title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 interface Props {
   entry: MorningBoost;
   sendTemplateId: string | null;
@@ -32,6 +35,11 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateI
     authorName: entry.authorName,
     publishedAt: utcIsoToLocalDateInput(entry.publishedAt as unknown as string | null),
   });
+  // Once the admin edits the slug field directly, stop overwriting it on
+  // further title changes — otherwise a deliberate manual slug edit on an
+  // already-published entry would get silently clobbered by the next
+  // keystroke in the title field.
+  const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -63,6 +71,7 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateI
       authorName: entry.authorName,
       publishedAt: utcIsoToLocalDateInput(entry.publishedAt as unknown as string | null),
     });
+    setSlugTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.id]);
 
@@ -206,7 +215,10 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateI
             id="title"
             type="text"
             value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            onChange={(e) => {
+              const title = e.target.value;
+              setForm((f) => (slugTouched ? { ...f, title } : { ...f, title, slug: toSlug(title) }));
+            }}
             required
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
           />
@@ -218,7 +230,10 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateI
             id="slug"
             type="text"
             value={form.slug}
-            onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+            onChange={(e) => {
+              setSlugTouched(true);
+              setForm((f) => ({ ...f, slug: e.target.value }));
+            }}
             required
             pattern="[a-z0-9-]+"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"

@@ -9,7 +9,7 @@ const BODY = `QA e2e morning boost body content, stamp ${STAMP}.`;
 // The single most-recently-published entry is the "featured" boost shown to
 // everyone, including signed-out visitors — dating this test entry in 2021
 // keeps it far behind any real content and out of that slot.
-const PUBLISHED_AT = "2021-01-15T08:00";
+const PUBLISHED_AT = "2021-01-15";
 
 const toSlug = (title: string) =>
   title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -28,7 +28,7 @@ test("admin creates, edits, and deletes a Morning Boost entry", async ({ page })
   await editor.click();
   await page.keyboard.type(BODY);
 
-  await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
+  await page.locator('input[type="date"]').fill(PUBLISHED_AT);
   await page.getByRole("button", { name: "Create Entry" }).click();
 
   // Exclude "new" explicitly — under concurrent load this assertion can
@@ -67,6 +67,55 @@ test("admin creates, edits, and deletes a Morning Boost entry", async ({ page })
   await expect(page.locator("tbody tr").filter({ hasText: TITLE })).not.toBeVisible();
 });
 
+test("duplicating an entry then editing its title keeps the slug in sync until the slug is touched directly", async ({ page }) => {
+  test.setTimeout(45000);
+
+  const originalTitle = `QA e2e slug source ${STAMP}`;
+  const retitled = `QA e2e slug source retitled ${STAMP}`;
+
+  await signInAsTestAdmin(page);
+  await page.goto("/admin/morning-boost/new");
+  await page.getByLabel("Title").fill(originalTitle);
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type(BODY);
+  await page.locator('input[type="date"]').fill(PUBLISHED_AT);
+  await page.getByRole("button", { name: "Create Entry" }).click();
+  await expect(page).toHaveURL(/\/admin\/morning-boost\/(?!new$)[a-z0-9-]+$/);
+
+  try {
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    // The page strips its own "?created=1" query param via a shallow
+    // router.replace almost immediately, so don't assert on it directly.
+    await expect(page).toHaveURL(/\/admin\/morning-boost\/(?!new$)[a-z0-9-]+/);
+    await expect(page.getByLabel("Title")).toHaveValue(`${originalTitle} (Copy)`);
+
+    // Retitling the fresh duplicate should re-derive the slug from the new
+    // title, since the duplicate's own slug (a throwaway "-copy-<ts>"
+    // suffix) hasn't been manually touched yet in this editing session.
+    await page.getByLabel("Title").fill(retitled);
+    await expect(page.getByLabel("Slug")).toHaveValue(toSlug(retitled));
+
+    // Once the admin edits the slug directly, further title edits must not
+    // clobber that deliberate choice.
+    await page.getByLabel("Slug").fill("a-manually-chosen-slug");
+    await page.getByLabel("Title").fill(`${retitled} again`);
+    await expect(page.getByLabel("Slug")).toHaveValue("a-manually-chosen-slug");
+  } finally {
+    await page.goto("/admin/morning-boost");
+    for (const title of [originalTitle, retitled, `${retitled} again`]) {
+      const row = page.locator("tbody tr").filter({ hasText: title }).first();
+      if (await row.isVisible().catch(() => false)) {
+        await row.getByRole("link", { name: "Edit" }).click();
+        page.once("dialog", (dialog) => dialog.accept());
+        await page.getByRole("button", { name: "Delete" }).click();
+        await expect(page).toHaveURL(/\/admin\/morning-boost$/);
+        await page.goto("/admin/morning-boost");
+      }
+    }
+  }
+});
+
 test("rich text formatting round-trips from the editor to the public page", async ({ page }) => {
   test.setTimeout(45000);
 
@@ -88,7 +137,7 @@ test("rich text formatting round-trips from the editor to the public page", asyn
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("ControlOrMeta+b");
 
-  await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
+  await page.locator('input[type="date"]').fill(PUBLISHED_AT);
 
   try {
     await page.getByRole("button", { name: "Create Entry" }).click();
@@ -128,7 +177,7 @@ test("a video URL saved on an entry renders with download deterrence on the publ
   await page.keyboard.type(BODY);
 
   await page.getByPlaceholder("or paste a video URL…").fill(VIDEO_URL);
-  await page.locator('input[type="datetime-local"]').fill(PUBLISHED_AT);
+  await page.locator('input[type="date"]').fill(PUBLISHED_AT);
 
   try {
     await page.getByRole("button", { name: "Create Entry" }).click();

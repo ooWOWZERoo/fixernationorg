@@ -11,6 +11,16 @@ import { webpush } from "@/lib/web-push";
 // legacy listId audience path and silently skipped any campaign using
 // rule-based audienceRules.
 
+// Shared by the recurring dispatch cron and the admin "preview next send"
+// endpoint so both agree on exactly which UTC calendar day "today" means —
+// duplicating this with plain (runtime-local) Date math previously caused
+// the preview to disagree with what the cron would actually pick.
+export function utcDayWindow(now: Date): { startOfDay: Date; endOfDay: Date } {
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  return { startOfDay, endOfDay };
+}
+
 type SupDb = {
   suppressionRecord: {
     findMany: (a: unknown) => Promise<{ email: string }[]>;
