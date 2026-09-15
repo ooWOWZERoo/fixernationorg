@@ -73,7 +73,7 @@ export function SiteHeader() {
         content width, not a fixed pixel breakpoint, so it stays correct
         regardless of logo size or how many nav items there are.
       */}
-      <div className="flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-3 lg:px-8">
+      <div className="flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-4 lg:px-8">
 
         {/* Brand */}
         <Link
@@ -82,9 +82,9 @@ export function SiteHeader() {
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Fixer Nation" className="h-16 w-auto max-w-[320px] object-contain" />
+            <img src={logoUrl} alt="Fixer Nation" className="h-32 w-auto max-w-[640px] object-contain" />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-[16px] bg-navy text-amber text-3xl font-extrabold">
+            <span className="flex h-32 w-32 items-center justify-center rounded-[16px] bg-navy text-amber text-5xl font-extrabold">
               ✓
             </span>
           )}
