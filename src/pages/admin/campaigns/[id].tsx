@@ -548,9 +548,13 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
           {campaign.channelType !== "PUSH" && (
           <div className="rounded-2xl border border-navy/8 bg-white p-5">
             <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ink-soft">Email preview</h2>
-            <div className="overflow-auto rounded-xl border border-navy/8 bg-cream-panel p-4 text-xs font-mono max-h-64 text-ink-soft whitespace-pre-wrap">
-              {(campaign.htmlBody ?? "").slice(0, 2000)}{(campaign.htmlBody ?? "").length > 2000 ? "\n…" : ""}
-            </div>
+            <iframe
+              title="Email preview"
+              srcDoc={campaign.htmlBody ?? ""}
+              sandbox="allow-same-origin"
+              className="w-full rounded-xl border border-navy/8 bg-white"
+              style={{ minHeight: 500 }}
+            />
           </div>
           )}
 
