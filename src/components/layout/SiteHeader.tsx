@@ -61,7 +61,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-navy/8 bg-white">
-      <div className="mx-auto flex h-28 max-w-6xl items-center justify-between px-6 lg:px-8">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 lg:px-8">
 
         {/* Brand */}
         <Link
@@ -70,24 +70,24 @@ export function SiteHeader() {
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Fixer Nation" className="h-24 w-auto max-w-[400px] object-contain" />
+            <img src={logoUrl} alt="Fixer Nation" className="h-14 w-auto max-w-[220px] object-contain" />
           ) : (
-            <span className="flex h-24 w-24 items-center justify-center rounded-[16px] bg-navy text-amber text-4xl font-extrabold">
+            <span className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-navy text-amber text-2xl font-extrabold">
               ✓
             </span>
           )}
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-3 lg:flex">
+        <nav className="hidden items-center gap-1.5 lg:flex">
           {NAV_LINKS.map((link) => {
             if (link.dropdown) {
               return (
-                <div key={link.href} className="group relative">
+                <div key={link.href} className="group relative shrink-0">
                   <Link
                     href={link.href}
                     className={[
-                      "block rounded-lg px-3 py-2 text-sm font-bold transition-colors no-underline",
+                      "block whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-bold transition-colors no-underline",
                       isActive(link.href) ? "text-amber-dark" : "text-navy hover:text-navy/70",
                     ].join(" ")}
                   >
@@ -114,7 +114,7 @@ export function SiteHeader() {
                 key={link.href}
                 href={link.href}
                 className={[
-                  "relative rounded-lg px-3 py-2 text-sm font-bold transition-colors no-underline",
+                  "relative shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-bold transition-colors no-underline",
                   isActive(link.href) ? "text-amber-dark" : "text-navy hover:text-navy/70",
                 ].join(" ")}
               >
@@ -132,20 +132,20 @@ export function SiteHeader() {
         {/* Auth CTAs + hamburger */}
         <div className="flex items-center gap-3">
           {session ? (
-            <div className="relative hidden lg:block">
+            <div className="relative hidden shrink-0 lg:block">
               <button
                 onClick={() => setUserMenuOpen((o) => !o)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-navy hover:text-navy/70 transition-colors"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-bold text-navy hover:text-navy/70 transition-colors"
               >
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+                  <img src={avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
                 ) : (
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-xs font-bold text-amber">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-amber">
                     {session.user?.name?.[0]?.toUpperCase() ?? "U"}
                   </span>
                 )}
-                <span>{session.user?.name ?? session.user?.email}</span>
+                <span className="whitespace-nowrap">{session.user?.name ?? session.user?.email}</span>
               </button>
               {userMenuOpen && (
                 <>
