@@ -14,6 +14,27 @@ const transporter = nodemailer.createTransport({
 const FROM = process.env.SMTP_FROM ?? "Fixer Nation <noreply@fixernation.org>";
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
+// A handful of fixed e2e test accounts (qa-member, qa-mfa-test, qa-admin,
+// etc.) are real User rows on the real production domain so they behave
+// identically to a real member for app logic — but their mailboxes don't
+// actually exist, so any real send to them (password resets, Morning
+// Boost, campaigns, or any of the automation triggers) hard-bounces
+// against the real production mail server, repeatedly, hurting sender
+// reputation. Dynamically-created e2e fixtures deliberately use reserved,
+// non-resolving domains (fixernation-e2e.test, fixernation-e2e-audience.test)
+// specifically so a real send attempt can prove the pipeline works without
+// ever reaching a real mailbox — those are intentionally NOT skipped here.
+const QA_LOCAL_PART = /^qa[-_]/i;
+const PRODUCTION_DOMAIN = "fixernation.org";
+
+function isQaAccountOnRealDomain(to: string): boolean {
+  const at = to.lastIndexOf("@");
+  if (at < 0) return false;
+  const localPart = to.slice(0, at);
+  const domain = to.slice(at + 1).toLowerCase();
+  return QA_LOCAL_PART.test(localPart) && domain === PRODUCTION_DOMAIN;
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -29,6 +50,10 @@ export async function sendEmail({
 }) {
   if (!process.env.SMTP_USER) {
     console.warn("[email] SMTP_USER not set — skipping send to", to);
+    return;
+  }
+  if (isQaAccountOnRealDomain(to)) {
+    console.warn("[email] Skipping send to fixed QA test account on the real domain:", to);
     return;
   }
   try {
