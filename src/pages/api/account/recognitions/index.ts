@@ -4,6 +4,7 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { awardPoints } from "@/lib/loyalty"
+import { enrollInJourneys } from "@/lib/automation"
 
 type RecognitionRow = {
   id: string
@@ -77,6 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Award 10 points to the sender, fire-and-forget
     awardPoints(fromUserId, 10, "RECOGNITION_GIVEN", recognition.id).catch(() => {})
+    enrollInJourneys({ trigger: "RECOGNITION_RECEIVED" as never, userId: toUserId }).catch(() => {})
 
     return res.status(201).json({ recognition: JSON.parse(JSON.stringify(recognition)) })
   }

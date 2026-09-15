@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { enrollInJourneys } from "@/lib/automation"
 
 type PathwaysDb = {
   pathwayEnrollment: {
@@ -63,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id: enrollmentId },
       data: { status: "COMPLETED", completedAt: new Date() },
     })
+    enrollInJourneys({ trigger: "PATHWAY_COMPLETED" as never, userId: enrollment.userId }).catch(() => {})
     return res.json({ progress, completed: true })
   }
 

@@ -4,14 +4,40 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { awardPoints } from "@/lib/loyalty"
+import { enrollInJourneys } from "@/lib/automation"
 
 type CheckInDb = {
   dailyCheckIn: {
     findUnique: (args: Record<string, unknown>) => Promise<unknown | null>
     upsert: (args: Record<string, unknown>) => Promise<unknown>
+    findMany: (args: Record<string, unknown>) => Promise<{ date: Date }[]>
   }
 }
 const db_ = db as never as CheckInDb
+
+const CHECKIN_STREAK_MILESTONES = [7, 30, 100]
+
+// Consecutive daily-check-in run ending the day before `date` — used to
+// detect when today's check-in crosses a streak milestone.
+async function computePrevStreak(userId: string, date: Date): Promise<number> {
+  const lookbackStart = new Date(date)
+  lookbackStart.setUTCDate(lookbackStart.getUTCDate() - (Math.max(...CHECKIN_STREAK_MILESTONES) + 5))
+
+  const rows = await db_.dailyCheckIn.findMany({
+    where: { userId, date: { gte: lookbackStart, lt: date } },
+    select: { date: true },
+  })
+  const dateKeys = new Set(rows.map((r) => new Date(r.date).toISOString().slice(0, 10)))
+
+  let streak = 0
+  const cursor = new Date(date)
+  cursor.setUTCDate(cursor.getUTCDate() - 1)
+  while (dateKeys.has(cursor.toISOString().slice(0, 10))) {
+    streak++
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
+  }
+  return streak
+}
 
 const bodySchema = z.object({
   mood: z.number().int().min(1).max(5),
@@ -60,6 +86,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Award 5 points only on first check-in of the day
     if (!existing) {
       awardPoints(userId, 5, "DAILY_CHECKIN", checkIn.id).catch(console.error)
+
+      const prevStreak = await computePrevStreak(userId, date)
+      const newStreak = prevStreak + 1
+      for (const milestone of CHECKIN_STREAK_MILESTONES) {
+        if (prevStreak < milestone && newStreak >= milestone) {
+          enrollInJourneys({
+            trigger: "DAILY_CHECKIN_STREAK" as never,
+            userId,
+            triggerConfig: { days: String(milestone) },
+          }).catch(() => {})
+        }
+      }
     }
 
     return res.json({ checkIn: JSON.parse(JSON.stringify(checkIn)) })

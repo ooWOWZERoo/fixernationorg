@@ -4,6 +4,7 @@ import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { awardPoints } from "@/lib/loyalty"
+import { enrollInJourneys } from "@/lib/automation"
 
 type ChallengesDb = {
   challengeEnrollment: {
@@ -73,6 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { status: "COMPLETED", completedAt: new Date() },
     })
     nowCompleted = true
+    enrollInJourneys({ trigger: "CHALLENGE_COMPLETED" as never, userId: enrollment.userId }).catch(() => {})
 
     if (enrollment.challenge.loyaltyPoints > 0) {
       awardPoints(

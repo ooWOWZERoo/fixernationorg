@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import type { TbGameKey } from "@prisma/client"
 import { awardPoints } from "@/lib/loyalty"
+import { enrollInJourneys } from "@/lib/automation"
 import { createNotification } from "@/lib/notifications"
 import { getMemberCalendarDate } from "@/lib/tuneBrainDate"
 import { xpToTier, tierRank, LEVEL_UP_POINTS, TIER_LABELS } from "@/lib/tuneBrain/progression"
@@ -104,6 +105,7 @@ export async function applyGameCompletionRewards(params: {
       badge.description,
       "/tune-your-brain"
     ).catch(() => {})
+    enrollInJourneys({ trigger: "BRAIN_BUILDER_MILESTONE" as never, userId }).catch(() => {})
   }
 
   for (const streakResult of [gameStreak, globalStreak]) {
@@ -116,6 +118,7 @@ export async function applyGameCompletionRewards(params: {
         `You've shown up for ${scopeLabel} ${streakResult.crossedMilestone} days in a row. Keep that rhythm going.`,
         "/tune-your-brain"
       ).catch(() => {})
+      enrollInJourneys({ trigger: "BRAIN_BUILDER_MILESTONE" as never, userId }).catch(() => {})
     }
   }
 

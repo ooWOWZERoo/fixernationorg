@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { enrollInJourneys } from "@/lib/automation"
 
 type ChallengesDb = {
   challenge: {
@@ -49,6 +50,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       currentDay: 1,
     },
   })
+
+  enrollInJourneys({ trigger: "CHALLENGE_ENROLLED" as never, userId: session.user.id }).catch(() => {})
 
   return res.status(201).json(enrollment)
 }

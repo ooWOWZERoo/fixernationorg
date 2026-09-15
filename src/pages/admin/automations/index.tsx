@@ -16,6 +16,12 @@ const TRIGGER_LABELS: Record<string, string> = {
   GROUP_JOIN: "Group join",
   EVENT_RSVP: "Event RSVP",
   LOYALTY_MILESTONE: "Loyalty milestone",
+  CHALLENGE_ENROLLED: "Challenge enrolled",
+  CHALLENGE_COMPLETED: "Challenge completed",
+  PATHWAY_COMPLETED: "Pathway completed",
+  DAILY_CHECKIN_STREAK: "Daily check-in streak",
+  RECOGNITION_RECEIVED: "Recognition received",
+  BRAIN_BUILDER_MILESTONE: "Brain Builder milestone",
 };
 
 const TEMPLATE_CATEGORIES: { key: string; label: string }[] = [
@@ -177,10 +183,10 @@ const JOURNEY_TEMPLATES = [
   {
     id: "challenge_access_granted",
     name: "Challenge access granted",
-    trigger: "MANUAL",
+    trigger: "CHALLENGE_ENROLLED",
     stepCount: 1,
     cat: "curriculum",
-    description: "Confirm a manually granted Challenge enrollment.",
+    description: "Confirm a Challenge enrollment right after a member enrolls.",
   },
   {
     id: "challenge_incomplete_nudge_48h",
@@ -199,20 +205,12 @@ const JOURNEY_TEMPLATES = [
     description: "Acknowledge a completed Tune Your Brain session.",
   },
   {
-    id: "challenge_completion_certificate",
-    name: "Challenge completion certificate",
-    trigger: "MANUAL",
-    stepCount: 1,
+    id: "challenge_completed",
+    name: "Challenge completed",
+    trigger: "CHALLENGE_COMPLETED",
+    stepCount: 3,
     cat: "curriculum",
-    description: "Congratulate a member for finishing a Challenge.",
-  },
-  {
-    id: "next_challenge_recommendation",
-    name: "Next challenge recommendation",
-    trigger: "MANUAL",
-    stepCount: 1,
-    cat: "curriculum",
-    description: "Suggest a next Challenge after one is finished.",
+    description: "Congratulate a member for finishing a Challenge, then suggest what's next a couple of days later.",
   },
   {
     id: "challenge_bundle_suggestion",
@@ -305,6 +303,38 @@ const JOURNEY_TEMPLATES = [
     stepCount: 1,
     cat: "success",
     description: "Share a member's story with the community.",
+  },
+  {
+    id: "pathway_completed",
+    name: "Growth Pathway completed",
+    trigger: "PATHWAY_COMPLETED",
+    stepCount: 1,
+    cat: "success",
+    description: "Congratulate a member for finishing a Growth Pathway.",
+  },
+  {
+    id: "daily_checkin_streak",
+    name: "Daily check-in streak",
+    trigger: "DAILY_CHECKIN_STREAK",
+    stepCount: 1,
+    cat: "success",
+    description: "Celebrate a member's daily check-in consistency.",
+  },
+  {
+    id: "recognition_received",
+    name: "Recognition received",
+    trigger: "RECOGNITION_RECEIVED",
+    stepCount: 1,
+    cat: "success",
+    description: "Notify a member when another member sends them recognition.",
+  },
+  {
+    id: "brain_builder_milestone",
+    name: "Brain Builder milestone",
+    trigger: "BRAIN_BUILDER_MILESTONE",
+    stepCount: 1,
+    cat: "success",
+    description: "Celebrate a badge earned or streak hit in Brain Builder.",
   },
 
   // Payments & ops

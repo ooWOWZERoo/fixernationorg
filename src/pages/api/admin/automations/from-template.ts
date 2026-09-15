@@ -721,11 +721,10 @@ Check it out: https://fixernation.org/challenges
     ],
   },
 
-  // MANUAL — challenge enrollment already happens in-app; this covers an admin manually granting/enrolling someone
   challenge_access_granted: {
     name: "Challenge access granted",
-    description: "Confirm a Challenge enrollment an admin granted manually",
-    trigger: "MANUAL",
+    description: "Confirm a Challenge enrollment right after a member enrolls",
+    trigger: "CHALLENGE_ENROLLED",
     steps: [
       {
         order: 0,
@@ -802,11 +801,10 @@ Play another: https://fixernation.org/tune-your-brain
     ],
   },
 
-  // MANUAL — the real fit is a future "challenge completed" trigger, which doesn't exist yet; content assumes it fires the moment a Challenge is finished
-  challenge_completion_certificate: {
-    name: "Challenge completion certificate",
-    description: "Congratulate a member for finishing a Challenge and note points earned",
-    trigger: "MANUAL",
+  challenge_completed: {
+    name: "Challenge completed",
+    description: "Congratulate a member for finishing a Challenge, then suggest what's next a couple of days later",
+    trigger: "CHALLENGE_COMPLETED",
     steps: [
       {
         order: 0,
@@ -826,17 +824,9 @@ Ready for the next one? Browse what's available: https://fixernation.org/challen
 — Anthony`,
         },
       },
-    ],
-  },
-
-  // MANUAL — needs a real "challenge completed" trigger before this can fire automatically
-  next_challenge_recommendation: {
-    name: "Next challenge recommendation",
-    description: "Suggest a next Challenge after one is finished",
-    trigger: "MANUAL",
-    steps: [
+      { order: 1, type: "WAIT", config: { days: 2 } },
       {
-        order: 0,
+        order: 2,
         type: "SEND_EMAIL",
         config: {
           subject: "What's next for you, {{first_name}}",
@@ -849,6 +839,116 @@ Ready for the next one? Browse what's available: https://fixernation.org/challen
 Since you just finished a challenge, here's a good next one to jump into while the momentum's still there.
 
 See what's available: https://fixernation.org/challenges
+
+— The Fixer Nation Team`,
+        },
+      },
+    ],
+  },
+
+  pathway_completed: {
+    name: "Growth Pathway completed",
+    description: "Congratulate a member for finishing a Growth Pathway and point them to what's next",
+    trigger: "PATHWAY_COMPLETED",
+    steps: [
+      {
+        order: 0,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "You finished your Growth Pathway, {{first_name}}",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>You made it through every stage of your Growth Pathway. Pathways take real time to work through, and you stuck with yours to the end.</p>
+<p>If you're up for another one, take a look: <a href="https://fixernation.org/account/pathways">fixernation.org/account/pathways</a></p>
+<p>Nice work seeing this one all the way through.</p>
+<p>— Anthony</p>`,
+          textBody: `Hi {{first_name}},
+
+You made it through every stage of your Growth Pathway. Pathways take real time to work through, and you stuck with yours to the end.
+
+If you're up for another one, take a look: https://fixernation.org/account/pathways
+
+Nice work seeing this one all the way through.
+
+— Anthony`,
+        },
+      },
+    ],
+  },
+
+  daily_checkin_streak: {
+    name: "Daily check-in streak",
+    description: "Celebrate a member's daily check-in consistency (fires at 7, 30, and 100 days)",
+    trigger: "DAILY_CHECKIN_STREAK",
+    steps: [
+      {
+        order: 0,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "You've been showing up, {{first_name}}",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>You've been checking in day after day, and that kind of steady habit is what actually moves things over time.</p>
+<p>Keep it going: <a href="https://fixernation.org/account/checkin">fixernation.org/account/checkin</a></p>
+<p>Glad you're sticking with it.</p>
+<p>— The Fixer Nation Team</p>`,
+          textBody: `Hi {{first_name}},
+
+You've been checking in day after day, and that kind of steady habit is what actually moves things over time.
+
+Keep it going: https://fixernation.org/account/checkin
+
+Glad you're sticking with it.
+
+— The Fixer Nation Team`,
+        },
+      },
+    ],
+  },
+
+  recognition_received: {
+    name: "Recognition received",
+    description: "Notify a member when another member sends them recognition",
+    trigger: "RECOGNITION_RECEIVED",
+    steps: [
+      {
+        order: 0,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "Someone gave you a shout-out, {{first_name}}",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>A fellow member just sent you some recognition for something you did. Good to hear when your effort landed for someone else in this community.</p>
+<p>Go see what they said: <a href="https://fixernation.org/account/recognitions">fixernation.org/account/recognitions</a></p>
+<p>— The Fixer Nation Team</p>`,
+          textBody: `Hi {{first_name}},
+
+A fellow member just sent you some recognition for something you did. Good to hear when your effort landed for someone else in this community.
+
+Go see what they said: https://fixernation.org/account/recognitions
+
+— The Fixer Nation Team`,
+        },
+      },
+    ],
+  },
+
+  brain_builder_milestone: {
+    name: "Brain Builder milestone",
+    description: "Celebrate a badge earned or a streak milestone hit in Brain Builder (Tune Your Brain)",
+    trigger: "BRAIN_BUILDER_MILESTONE",
+    steps: [
+      {
+        order: 0,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "Nice milestone in Brain Builder, {{first_name}}",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>You just hit a milestone in Brain Builder, whether that's a new badge or a streak you kept alive. Either way, it's the small stuff done over and over that adds up.</p>
+<p>Keep it rolling: <a href="https://fixernation.org/tune-your-brain">fixernation.org/tune-your-brain</a></p>
+<p>— The Fixer Nation Team</p>`,
+          textBody: `Hi {{first_name}},
+
+You just hit a milestone in Brain Builder, whether that's a new badge or a streak you kept alive. Either way, it's the small stuff done over and over that adds up.
+
+Keep it rolling: https://fixernation.org/tune-your-brain
 
 — The Fixer Nation Team`,
         },
