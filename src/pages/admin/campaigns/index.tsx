@@ -366,6 +366,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         ) {
           needsAttention = true;
           attentionReason = `Partial send — only sent to ${c._count.sends} of ${totalIncluded} intended recipients`;
+        } else if (c.status === "PAUSED") {
+          // The scheduler (cron.ts) is the only current writer of PAUSED for
+          // campaigns, and only for this one reason — so the message can be
+          // this specific and still be accurate.
+          needsAttention = true;
+          attentionReason = "Paused — had no audience configured when due to send";
         }
 
         return {

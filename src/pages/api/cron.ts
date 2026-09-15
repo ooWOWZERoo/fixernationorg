@@ -48,12 +48,24 @@ async function runCampaignScheduler(): Promise<{ message: string }> {
   // used to be a separate, listId-only reimplementation that silently
   // skipped any scheduled campaign using rule-based audienceRules.
   let processed = 0;
+  let paused = 0;
   for (const campaign of campaigns) {
     const result = await sendCampaignNow(campaign.id).catch(() => null);
-    if (result) processed++;
+    if (!result) continue;
+    if (result.status === "no_audience") {
+      // Without this, a campaign with no listId/audienceRules stays
+      // SCHEDULED forever and gets picked up by this same query every
+      // hour, silently no-op'ing with no error or log. Pausing it removes
+      // it from the `status: "SCHEDULED"` selection above.
+      await db.campaign.update({ where: { id: campaign.id }, data: { status: "PAUSED" } }).catch(() => null);
+      paused++;
+      continue;
+    }
+    processed++;
   }
 
-  return { message: `Processed ${processed} of ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}` };
+  const pausedNote = paused > 0 ? `; paused ${paused} with no audience configured` : "";
+  return { message: `Processed ${processed} of ${campaigns.length} scheduled campaign${campaigns.length !== 1 ? "s" : ""}${pausedNote}` };
 }
 
 // Runs hourly (vercel.json: "0 * * * *"), gated below to only dispatch a
