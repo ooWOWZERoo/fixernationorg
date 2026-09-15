@@ -170,6 +170,15 @@ const JOURNEY_TEMPLATES = [
     cat: "books",
     description: "Announce a new Fixer Nation book to past book-gift redeemers.",
   },
+  // Direct on-site book purchase (real: create-book-session.ts + webhooks/stripe.ts, BOOK_PURCHASED)
+  {
+    id: "book_purchased",
+    name: "Book order confirmation",
+    trigger: "BOOK_PURCHASED",
+    stepCount: 1,
+    cat: "books",
+    description: "Order-receipt email after a direct on-site book purchase.",
+  },
 
   // Challenges & games
   {

@@ -2,6 +2,9 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth";
+import { useState } from "react";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
@@ -20,14 +23,50 @@ interface BookProps {
   description: string | null;
   imageUrl: string | null;
   features: string[];
+  buyNowPriceId: string | null;
+  buyNowAmount: number | null;
 }
 
 interface Props {
   book: BookProps;
+  isSignedIn: boolean;
 }
 
-const BookDetailPage: NextPageWithLayout<Props> = ({ book }) => {
+const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
   const meta = BOOK_META[book.slug] ?? { amazon: null, tagNew: false };
+  const [buyLoading, setBuyLoading] = useState(false);
+  const [buyError, setBuyError] = useState<string | null>(null);
+
+  async function buyNow() {
+    if (!book.buyNowPriceId) return;
+
+    if (!isSignedIn) {
+      window.location.href = `/signin?callbackUrl=/books/${book.slug}`;
+      return;
+    }
+
+    setBuyLoading(true);
+    setBuyError(null);
+    try {
+      const res = await fetch("/api/checkout/create-book-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId: book.buyNowPriceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = `/signin?callbackUrl=/books/${book.slug}`;
+          return;
+        }
+        throw new Error(data.error ?? "Something went wrong");
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setBuyError(err instanceof Error ? err.message : "Something went wrong");
+      setBuyLoading(false);
+    }
+  }
 
   return (
     <>
@@ -111,6 +150,15 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book }) => {
               )}
 
               <div className="mt-8 flex flex-wrap gap-3">
+                {book.buyNowPriceId && book.buyNowAmount !== null && (
+                  <button
+                    onClick={buyNow}
+                    disabled={buyLoading}
+                    className="inline-flex items-center justify-center rounded-[10px] bg-navy px-7 py-3 text-sm font-bold text-white no-underline shadow-[0_12px_24px_-10px_rgba(20,40,56,0.45)] transition-all hover:-translate-y-0.5 hover:bg-navy-dark disabled:opacity-60"
+                  >
+                    {buyLoading ? "Redirecting…" : `Buy now — $${(book.buyNowAmount / 100).toFixed(2)}`}
+                  </button>
+                )}
                 {meta.amazon ? (
                   <a
                     href={meta.amazon}
@@ -120,11 +168,11 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book }) => {
                   >
                     Buy on Amazon
                   </a>
-                ) : (
+                ) : !book.buyNowPriceId ? (
                   <span className="inline-flex items-center justify-center rounded-[10px] bg-cream-panel px-7 py-3 text-sm font-bold text-ink-soft cursor-default">
                     Amazon — Coming Soon
                   </span>
-                )}
+                ) : null}
                 <Link
                   href="/join"
                   className="inline-flex items-center justify-center rounded-[10px] border-2 border-navy px-7 py-3 text-sm font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
@@ -133,8 +181,12 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book }) => {
                 </Link>
               </div>
 
+              {buyError && <p className="mt-3 text-sm text-red-600">{buyError}</p>}
+
               <p className="mt-5 text-xs text-ink-soft">
-                Every book includes a 90-day free Fixer Nation membership via QR code inside the cover.
+                {book.buyNowPriceId
+                  ? "Buying direct ships the physical book and turns on a free 90-day Fixer Nation membership automatically. No QR code needed."
+                  : "Every book includes a 90-day free Fixer Nation membership via QR code inside the cover."}
               </p>
             </div>
           </div>
@@ -172,18 +224,43 @@ BookDetailPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const slug = context.params?.slug as string;
+  const session = await getServerSession(context.req, context.res, authOptions);
 
   const book = await db.product.findUnique({
     where: { slug, type: "BOOK" },
-    select: { id: true, slug: true, name: true, description: true, imageUrl: true, features: true },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      description: true,
+      imageUrl: true,
+      features: true,
+      prices: {
+        where: { interval: "ONE_TIME", active: true },
+        select: { id: true, amount: true },
+        take: 1,
+      },
+    },
   });
 
-  if (!book || !book) {
+  if (!book) {
     return { notFound: true };
   }
 
+  const buyNowPrice = book.prices[0] ?? null;
+  const { prices, ...bookFields } = book;
+
   return {
-    props: { book: JSON.parse(JSON.stringify(book)) },
+    props: {
+      book: JSON.parse(
+        JSON.stringify({
+          ...bookFields,
+          buyNowPriceId: buyNowPrice?.id ?? null,
+          buyNowAmount: buyNowPrice?.amount ?? null,
+        })
+      ),
+      isSignedIn: !!session?.user?.id,
+    },
   };
 };
 

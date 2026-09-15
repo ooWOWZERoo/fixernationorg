@@ -686,6 +686,38 @@ Check it out: https://fixernation.org/books
     ],
   },
 
+  // BOOK_PURCHASED — real: direct on-site book checkout (create-book-session.ts
+  // + webhooks/stripe.ts). Distinct from book_gift_redeemed's ROLE_CHANGE
+  // trigger, which fires separately for the free-membership welcome email.
+  book_purchased: {
+    name: "Book order confirmation",
+    description: "Order-receipt email after a direct on-site book purchase",
+    trigger: "BOOK_PURCHASED",
+    steps: [
+      {
+        order: 0,
+        type: "SEND_EMAIL",
+        config: {
+          subject: "Your book's on the way, {{first_name}}",
+          htmlBody: `<p>Hi {{first_name}},</p>
+<p>Thanks for your order. Your book is on its way.</p>
+<p>One more thing: buying direct also switched on a free 90-day Fixer Nation membership on your account. It's already active, no QR code needed.</p>
+<p>Check it out here: <a href="https://fixernation.org/dashboard">fixernation.org/dashboard</a></p>
+<p>— The Fixer Nation Team</p>`,
+          textBody: `Hi {{first_name}},
+
+Thanks for your order. Your book is on its way.
+
+One more thing: buying direct also switched on a free 90-day Fixer Nation membership on your account. It's already active, no QR code needed.
+
+Check it out here: https://fixernation.org/dashboard
+
+— The Fixer Nation Team`,
+        },
+      },
+    ],
+  },
+
 
   // Group/seat-licensing templates (adapted from FNE's "school licenses") were
   // removed entirely -- FNO's membership model is individual, not org/seat

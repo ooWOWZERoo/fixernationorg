@@ -10,6 +10,7 @@ import {
   buildPaymentFailedEmail,
   buildMembershipCanceledEmail,
 } from "@/lib/emails/membership";
+import { enrollInJourneys } from "@/lib/automation";
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
@@ -37,6 +38,58 @@ type MembershipDb = {
     ) => Promise<{ userId: string; priceId: string; currentPeriodEnd: Date | null } | null>;
   };
 };
+
+// BookOrder is a new model the local Prisma client doesn't know about yet
+// (regenerates on the next Vercel build) — cast at the call site per
+// project convention.
+type BookOrderDb = {
+  bookOrder: {
+    update: (a: unknown) => Promise<{ id: string; userId: string } | unknown>;
+  };
+};
+
+const GIFT_MEMBERSHIP_PRODUCT_SLUG = "free-90-day-book-gift";
+
+// Grants the same free 90-day gift membership the book's in-cover QR code
+// grants (src/pages/api/redeem.ts) — a direct on-site purchase gets the
+// membership automatically, no physical code needed.
+async function grantFreeBookGiftMembership(userId: string): Promise<void> {
+  const giftPrice = await db.price.findFirst({
+    where: { product: { slug: GIFT_MEMBERSHIP_PRODUCT_SLUG } },
+    select: { id: true, membershipRole: true },
+  });
+  if (!giftPrice || !giftPrice.membershipRole) return;
+
+  const grantedRole = giftPrice.membershipRole;
+  const currentPeriodEnd = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+  await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { role: grantedRole } });
+    const membershipTx = tx as never as MembershipDb;
+    await membershipTx.userMembership.upsert({
+      where: { userId } as unknown as Record<string, unknown>,
+      create: {
+        userId,
+        priceId: giftPrice.id,
+        source: "GIFT_CODE",
+        status: "ACTIVE",
+        currentPeriodEnd,
+      },
+      update: {
+        priceId: giftPrice.id,
+        source: "GIFT_CODE",
+        status: "ACTIVE",
+        currentPeriodEnd,
+        stripeSubscriptionId: null,
+        cancelAtPeriodEnd: false,
+        trialEnd: null,
+        updatedAt: new Date(),
+      },
+    } as unknown as Record<string, unknown>);
+  });
+
+  enrollInJourneys({ trigger: "ROLE_CHANGE", userId, triggerConfig: { role: grantedRole, source: "GIFT_CODE" } }).catch(() => {});
+}
 
 // Look up userId from Stripe customerId
 async function userIdFromCustomer(customerId: string): Promise<string | null> {
@@ -255,6 +308,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             meta: { sessionId: cs.id, amountTotal: cs.amount_total, currency: cs.currency },
           },
         });
+      } else if (cs.metadata?.bookOrderId) {
+        // Direct on-site book purchase (separate flow from the membership
+        // subscription checkout — see create-book-session.ts).
+        const bookOrderId = cs.metadata.bookOrderId;
+        const shipping = (cs as unknown as {
+          shipping_details?: {
+            name?: string | null;
+            address?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              state?: string | null;
+              postal_code?: string | null;
+              country?: string | null;
+            } | null;
+          } | null;
+        }).shipping_details;
+
+        const bookOrderDb = db as never as BookOrderDb;
+        const updated = (await bookOrderDb.bookOrder.update({
+          where: { id: bookOrderId },
+          data: {
+            status: "PAID",
+            amountPaid: cs.amount_total,
+            shippingName: shipping?.name ?? null,
+            shippingAddressLine1: shipping?.address?.line1 ?? null,
+            shippingAddressLine2: shipping?.address?.line2 ?? null,
+            shippingCity: shipping?.address?.city ?? null,
+            shippingState: shipping?.address?.state ?? null,
+            shippingPostalCode: shipping?.address?.postal_code ?? null,
+            shippingCountry: shipping?.address?.country ?? null,
+          },
+        })) as { id: string; userId: string };
+
+        const userId = updated.userId ?? cs.metadata.userId;
+        if (userId) {
+          // Same free 90-day gift membership the QR-code flow grants.
+          await grantFreeBookGiftMembership(userId);
+
+          // A separate, purchase-receipt-focused email — distinct from the
+          // membership-welcome email the ROLE_CHANGE journey above sends.
+          enrollInJourneys({ trigger: "BOOK_PURCHASED" as never, userId }).catch(() => {});
+        }
       }
       // Subscription sessions are handled via customer.subscription.* events below
       break;

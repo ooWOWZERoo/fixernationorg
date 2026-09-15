@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/products", label: "Products" },
       { href: "/admin/gift-codes", label: "Gift codes" },
       { href: "/admin/memberships", label: "Memberships" },
+      { href: "/admin/book-orders", label: "Book orders" },
     ],
   },
   {

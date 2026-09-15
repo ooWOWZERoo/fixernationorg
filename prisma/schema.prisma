@@ -60,6 +60,7 @@ model User {
   pushSubscriptions        PushSubscription[]
   stripeCustomerId         String?
   membership               UserMembership?
+  bookOrders               BookOrder[]
   providerContacts         ProviderContact[]  @relation("ProviderContacts")
   providerCampaigns        ProviderCampaign[] @relation("ProviderCampaigns")
   memberFocusAreas         MemberFocusArea[]
@@ -178,6 +179,7 @@ model Product {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   prices          Price[]
+  bookOrders      BookOrder[]
 
   @@index([type, active])
   @@index([sortOrder])
@@ -197,9 +199,50 @@ model Price {
   updatedAt      DateTime      @updatedAt
   product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   memberships    UserMembership[]
+  bookOrders     BookOrder[]
 
   @@index([productId])
   @@index([active])
+}
+
+// ─── Book Orders (direct on-site book purchases) ─────────────────────────────
+// A dedicated, separate flow from the membership-subscription checkout —
+// buying a book must not be blocked by an existing UserMembership subscription,
+// and grants the same free 90-day gift membership the QR-code flow grants.
+
+enum BookOrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+model BookOrder {
+  id                      String          @id @default(cuid())
+  userId                  String
+  productId               String
+  priceId                 String
+  status                  BookOrderStatus @default(PENDING)
+  stripeCheckoutSessionId String          @unique
+  amountPaid              Int?            // cents, set once paid
+  shippingName            String?
+  shippingAddressLine1    String?
+  shippingAddressLine2    String?
+  shippingCity            String?
+  shippingState           String?
+  shippingPostalCode      String?
+  shippingCountry         String?
+  shippedAt               DateTime?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  price   Price   @relation(fields: [priceId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }
 
 model UserMembership {
@@ -1562,6 +1605,7 @@ enum AutomationTrigger {
   DAILY_CHECKIN_STREAK
   RECOGNITION_RECEIVED
   BRAIN_BUILDER_MILESTONE
+  BOOK_PURCHASED
 }
 
 enum AutomationStepType {
