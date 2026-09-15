@@ -73,7 +73,7 @@ export function SiteHeader() {
         content width, not a fixed pixel breakpoint, so it stays correct
         regardless of logo size or how many nav items there are.
       */}
-      <div className="flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-4 lg:px-8">
+      <div className="flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-2 lg:px-8">
 
         {/* Brand */}
         <Link
