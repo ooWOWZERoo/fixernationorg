@@ -410,6 +410,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       failureCount24h,
       lastFailure,
       emailBannerDismissedSetting,
+      lastSuccessSetting,
     ] = await Promise.all([
       db.user.count(),
       // Active Members now reflects real UserMembership status (paid or gift),
@@ -463,13 +464,26 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         select: { to: true, errorMessage: true, occurredAt: true },
       }),
       db.setting.findUnique({ where: { key: "email_failure_banner_dismissed_at" } }),
+      db.setting.findUnique({ where: { key: "last_successful_send_at" } }),
     ]);
 
     // Dismissing hides the banner, but only until a NEW failure happens —
     // if one arrives after the dismiss timestamp, the banner reappears
     // automatically rather than staying silenced through a real recurrence.
     const dismissedAt = emailBannerDismissedSetting ? new Date(emailBannerDismissedSetting.value) : null;
-    const showEmailBanner = failureCount24h > 0 && (!dismissedAt || (lastFailure && lastFailure.occurredAt > dismissedAt));
+    // A rolling 24h failure count alone can't tell "still broken" apart from
+    // "failed earlier, already recovered" -- it kept showing red for a full
+    // day after a real hosting suspension was lifted and mail was flowing
+    // again (confirmed via the actual cPanel delivery report, which showed a
+    // real successful send minutes after the last recorded failure). Only
+    // show the banner if the latest failure is actually newer than the
+    // latest known successful send.
+    const lastSuccessAt = lastSuccessSetting ? new Date(lastSuccessSetting.value) : null;
+    const recoveredSinceLastFailure = !!(lastFailure && lastSuccessAt && lastSuccessAt > lastFailure.occurredAt);
+    const showEmailBanner =
+      failureCount24h > 0 &&
+      !recoveredSinceLastFailure &&
+      (!dismissedAt || (lastFailure && lastFailure.occurredAt > dismissedAt));
 
     const countFor = (statuses: string[], type?: string) =>
       appCounts

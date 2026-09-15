@@ -58,6 +58,19 @@ export async function sendEmail({
   }
   try {
     await transporter.sendMail({ from: from ?? FROM, to, subject, html, text });
+    // Tracked so the admin dashboard's email-health banner can tell "still
+    // broken" apart from "failed earlier, already recovered" -- a rolling
+    // failure count alone can't distinguish those, and kept showing a red
+    // banner for a full 24h after a real hosting-side suspension was
+    // already lifted and mail was flowing again. Fire-and-forget: a hiccup
+    // here must never affect the actual send's success.
+    db.setting
+      .upsert({
+        where: { key: "last_successful_send_at" },
+        create: { key: "last_successful_send_at", value: new Date().toISOString() },
+        update: { value: new Date().toISOString() },
+      })
+      .catch(() => {});
   } catch (err) {
     // Recorded centrally here — every caller (password reset, verify-email,
     // Morning Boost, campaigns, admin notifications) goes through this one
