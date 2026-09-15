@@ -28,7 +28,6 @@ const TEMPLATE_CATEGORIES: { key: string; label: string }[] = [
   { key: "lead", label: "Lead generation" },
   { key: "cart", label: "Membership checkout" },
   { key: "books", label: "Digital guides" },
-  { key: "license", label: "Group membership" },
   { key: "curriculum", label: "Challenges & games" },
   { key: "marketing", label: "Marketing" },
   { key: "success", label: "Customer success" },

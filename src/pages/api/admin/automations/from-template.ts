@@ -8,12 +8,14 @@ const TEMPLATES: Record<string, {
   description: string;
   trigger: string;
   triggerConfig?: Record<string, string>;
+  cat: string;
   steps: { order: number; type: string; config: Record<string, unknown> }[];
 }> = {
   welcome: {
     name: "Welcome series",
     description: "3-email welcome sequence for new signups",
     trigger: "SIGNUP",
+    cat: "lead",
     steps: [
       {
         order: 0,
@@ -123,6 +125,7 @@ See you there.
     description: "Celebrate members when they hit 100 points",
     trigger: "LOYALTY_MILESTONE",
     triggerConfig: { threshold: "100" },
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -153,6 +156,7 @@ See your full point history: https://fixernation.org/account/points
     name: "Event follow-up",
     description: "Confirm and remind attendees after they RSVP",
     trigger: "EVENT_RSVP",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -207,6 +211,7 @@ Bring a notebook. Bring a question. We'll take it from there.
     name: "New member onboarding",
     description: "4-step sequence for newly accepted members",
     trigger: "APPLICATION_ACCEPTED",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -315,6 +320,7 @@ Go here: https://fixernation.org/network
     description: "Welcome contacts who join the newsletter list specifically, separate from full membership",
     trigger: "TAG_ADDED",
     triggerConfig: { tag: "newsletter-subscriber" },
+    cat: "lead",
     steps: [
       {
         order: 0,
@@ -348,6 +354,7 @@ Either way, glad to have you reading.
     // so TAG_ADDED could never fire here. Revisit if resource downloads
     // ever get their own tracked event.
     trigger: "MANUAL",
+    cat: "lead",
     steps: [
       {
         order: 0,
@@ -378,6 +385,7 @@ And if you want the full picture, not just the downloads, membership gets you a 
     name: "Abandoned signup recovery",
     description: "Nudge someone who started signing up but never finished",
     trigger: "MANUAL",
+    cat: "lead",
     steps: [
       {
         order: 0,
@@ -406,6 +414,7 @@ If something got in the way or you have a question, just reply to this email. Ot
     name: "Membership checkout — 1 hour nudge",
     description: "Quick nudge for someone who started a membership checkout and didn't finish",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -436,6 +445,7 @@ If something didn't work or you have a question, just reply here.
     name: "Membership checkout — 24 hour follow-up",
     description: "Follow up a day after a membership checkout was left unfinished",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -466,6 +476,7 @@ Finish here: https://fixernation.org/join
     name: "Membership checkout — final notice",
     description: "Last-chance nudge 72 hours after a membership checkout was left unfinished",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -496,6 +507,7 @@ If a question held you up, reply and ask. We answer these ourselves.
     name: "Membership checkout started",
     description: "Encourage someone who opened checkout to complete it",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -523,6 +535,7 @@ Pick up where you left off: https://fixernation.org/join
     name: "Membership signup payment failed",
     description: "Recovery email when a new member's card is declined during signup",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -553,6 +566,7 @@ If you keep hitting the same wall, reply to this email and we'll help you sort i
     name: "Membership confirmation + upgrade",
     description: "Confirm a new paid membership and point toward annual/upgrade options",
     trigger: "MANUAL",
+    cat: "cart",
     steps: [
       {
         order: 0,
@@ -590,6 +604,7 @@ One thing worth knowing: if you're on a monthly plan, switching to annual saves 
     description: "Thank a reader for redeeming their book's free 90-day membership code, then ask for feedback a week later",
     trigger: "ROLE_CHANGE",
     triggerConfig: { source: "GIFT_CODE" },
+    cat: "books",
     steps: [
       {
         order: 0,
@@ -640,6 +655,7 @@ Just reply to this email — we read every one and it genuinely shapes what we b
     name: "Related book recommendation",
     description: "Suggest another Fixer Nation book to someone who already redeemed one",
     trigger: "MANUAL",
+    cat: "books",
     steps: [
       {
         order: 0,
@@ -664,6 +680,7 @@ People who read that book usually end up picking up another one of ours next. Ta
     name: "New book release announcement",
     description: "Announce a new Fixer Nation book to past book-gift redeemers",
     trigger: "MANUAL",
+    cat: "books",
     steps: [
       {
         order: 0,
@@ -693,6 +710,7 @@ Check it out: https://fixernation.org/books
     name: "Book order confirmation",
     description: "Order-receipt email after a direct on-site book purchase",
     trigger: "BOOK_PURCHASED",
+    cat: "books",
     steps: [
       {
         order: 0,
@@ -731,6 +749,7 @@ Check it out here: https://fixernation.org/dashboard
     name: "New challenge published alert",
     description: "Announce a newly published Challenge",
     trigger: "MANUAL",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -757,6 +776,7 @@ Check it out: https://fixernation.org/challenges
     name: "Challenge access granted",
     description: "Confirm a Challenge enrollment right after a member enrolls",
     trigger: "CHALLENGE_ENROLLED",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -784,6 +804,7 @@ Get started: https://fixernation.org/account/challenges
     name: "Incomplete challenge nudge (48h)",
     description: "Nudge a member who hasn't touched their Challenge in 48 hours",
     trigger: "MANUAL",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -811,6 +832,7 @@ Pick it back up: https://fixernation.org/account/challenges
     name: "Brain game completion acknowledgment",
     description: "Acknowledge a completed Tune Your Brain game session",
     trigger: "MANUAL",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -837,6 +859,7 @@ Play another: https://fixernation.org/tune-your-brain
     name: "Challenge completed",
     description: "Congratulate a member for finishing a Challenge, then suggest what's next a couple of days later",
     trigger: "CHALLENGE_COMPLETED",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -882,6 +905,7 @@ See what's available: https://fixernation.org/challenges
     name: "Growth Pathway completed",
     description: "Congratulate a member for finishing a Growth Pathway and point them to what's next",
     trigger: "PATHWAY_COMPLETED",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -911,6 +935,7 @@ Nice work seeing this one all the way through.
     name: "Daily check-in streak",
     description: "Celebrate a member's daily check-in consistency (fires at 7, 30, and 100 days)",
     trigger: "DAILY_CHECKIN_STREAK",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -940,6 +965,7 @@ Glad you're sticking with it.
     name: "Recognition received",
     description: "Notify a member when another member sends them recognition",
     trigger: "RECOGNITION_RECEIVED",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -966,6 +992,7 @@ Go see what they said: https://fixernation.org/account/recognitions
     name: "Brain Builder milestone",
     description: "Celebrate a badge earned or a streak milestone hit in Brain Builder (Tune Your Brain)",
     trigger: "BRAIN_BUILDER_MILESTONE",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -993,6 +1020,7 @@ Keep it rolling: https://fixernation.org/tune-your-brain
     name: "Challenge bundle suggestion",
     description: "Suggest a few Challenges that work well back to back",
     trigger: "MANUAL",
+    cat: "curriculum",
     steps: [
       {
         order: 0,
@@ -1021,6 +1049,7 @@ Browse challenges: https://fixernation.org/challenges
     name: "New blog post notification",
     description: "Notify a segment when a new blog post is published",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1048,6 +1077,7 @@ Read it here: https://fixernation.org/blog
     name: "Social proof highlight",
     description: "Share member testimonials or community highlights",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1075,6 +1105,7 @@ If it's been a while since you've been in the community feed, this is a good tim
     name: "Seasonal promotion",
     description: "Generic seasonal offer template — edit the offer details before sending",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1102,6 +1133,7 @@ See the details: https://fixernation.org/join
     name: "Re-engagement — 90 day inactive",
     description: "Win back a member who's gone quiet",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1129,6 +1161,7 @@ A few things worth a look if you're coming back: today's Morning Boost, whatever
     name: "Milestone celebration — 1 year",
     description: "Celebrate a member's one-year anniversary",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1156,6 +1189,7 @@ Thanks for sticking around and being part of this.
     name: "Birthday / anniversary message",
     description: "Send a birthday greeting (needs a stored birthdate before this can be automated)",
     trigger: "MANUAL",
+    cat: "marketing",
     steps: [
       {
         order: 0,
@@ -1181,6 +1215,7 @@ Just wanted to say happy birthday from all of us at Fixer Nation. Hope it's a go
     name: "Product feature spotlight",
     description: "Highlight a feature members tend to miss",
     trigger: "MANUAL",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -1208,6 +1243,7 @@ Check it out: https://fixernation.org/dashboard
     name: "Support follow-up",
     description: "Follow up after a contact-form or Ask The Fixer submission is resolved",
     trigger: "MANUAL",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -1235,6 +1271,7 @@ Just reply to this email either way.
     name: "NPS survey",
     description: "Ask members how likely they are to recommend Fixer Nation",
     trigger: "MANUAL",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -1262,6 +1299,7 @@ Just reply with a number. If you've got a sentence about why, even better, that'
     name: "Customer success story spotlight",
     description: "Share a member's story with the rest of the community",
     trigger: "MANUAL",
+    cat: "success",
     steps: [
       {
         order: 0,
@@ -1290,6 +1328,7 @@ Read the story: https://fixernation.org/blog
     name: "Payment failed alert",
     description: "Alert an existing member their subscription renewal payment failed",
     trigger: "MANUAL",
+    cat: "payments",
     steps: [
       {
         order: 0,
@@ -1320,6 +1359,7 @@ We'll try again automatically, but updating your card now is the fastest way to 
     name: "Payment retry success",
     description: "Confirm a subscription payment succeeded on retry",
     trigger: "MANUAL",
+    cat: "payments",
     steps: [
       {
         order: 0,
@@ -1344,6 +1384,7 @@ Good news, your payment went through on the retry. Your membership is current an
     name: "Refund processed confirmation",
     description: "Confirm a refund was issued",
     trigger: "MANUAL",
+    cat: "payments",
     steps: [
       {
         order: 0,
@@ -1371,6 +1412,7 @@ If you don't see it within a week, reply here and we'll look into it.
     name: "Invoice paid receipt",
     description: "Send a receipt after a membership payment succeeds",
     trigger: "MANUAL",
+    cat: "payments",
     steps: [
       {
         order: 0,
@@ -1395,6 +1437,7 @@ Here's confirmation that your membership payment went through. Find the full rec
     name: "Subscription paused notification",
     description: "Notify a member their membership was paused (needs a real pause feature)",
     trigger: "MANUAL",
+    cat: "payments",
     steps: [
       {
         order: 0,
@@ -1441,22 +1484,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Unknown template." });
   }
 
-  const journey = await db.automationJourney.create({
-    data: {
-      name: template.name,
-      description: template.description,
-      trigger: template.trigger as never,
-      triggerConfig: template.triggerConfig ? (template.triggerConfig as never) : undefined,
-      active: false,
-      steps: {
-        create: template.steps.map((s) => ({
-          order: s.order,
-          type: s.type as never,
-          config: s.config as never,
-        })),
-      },
+  // category is a new AutomationJourney scalar field not yet in the
+  // locally-generated Prisma client types (regenerates on Vercel build).
+  const createData = {
+    name: template.name,
+    description: template.description,
+    trigger: template.trigger,
+    triggerConfig: template.triggerConfig ?? undefined,
+    category: template.cat,
+    active: false,
+    steps: {
+      create: template.steps.map((s) => ({
+        order: s.order,
+        type: s.type,
+        config: s.config,
+      })),
     },
-  });
+  } as never;
+
+  const journey = await db.automationJourney.create({ data: createData });
 
   return res.status(201).json({ id: journey.id });
 }

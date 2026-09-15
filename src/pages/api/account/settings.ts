@@ -26,6 +26,15 @@ const PutSchema = z.union([
     topic: z.enum(SELF_SERVICE_TOPICS),
     optedIn: z.boolean(),
   }),
+  z.object({
+    action: z.literal("automationOptOutAll"),
+    optedOutAll: z.boolean(),
+  }),
+  z.object({
+    action: z.literal("automationCategoryOptOut"),
+    category: z.string().min(1),
+    optedOut: z.boolean(),
+  }),
 ]);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -80,6 +89,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await setConsent(contactId, topic, optedIn, "account_settings");
     }
 
+    return res.json({ ok: true });
+  }
+
+  if (parsed.data.action === "automationOptOutAll") {
+    // automationsOptedOutAll is a new User scalar field not yet in the
+    // locally-generated Prisma client types (regenerates on Vercel build).
+    await db.user.update({
+      where: { id: userId },
+      data: { automationsOptedOutAll: parsed.data.optedOutAll } as never,
+    });
+    return res.json({ ok: true });
+  }
+
+  if (parsed.data.action === "automationCategoryOptOut") {
+    const { category, optedOut } = parsed.data;
+    const current = await db.user.findUnique({ where: { id: userId } });
+    const existingOptOuts =
+      (current as unknown as { automationCategoryOptOuts?: string[] } | null)?.automationCategoryOptOuts ?? [];
+    const nextOptOuts = optedOut
+      ? existingOptOuts.includes(category) ? existingOptOuts : [...existingOptOuts, category]
+      : existingOptOuts.filter((c) => c !== category);
+
+    await db.user.update({
+      where: { id: userId },
+      data: { automationCategoryOptOuts: nextOptOuts } as never,
+    });
     return res.json({ ok: true });
   }
 }

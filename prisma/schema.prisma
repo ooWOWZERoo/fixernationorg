@@ -30,6 +30,8 @@ model User {
   mfaEnabled          Boolean  @default(false)
   mfaSecret           String?  // encrypted TOTP secret; null until MFA enrolled
   morningBoostEmails  Boolean  @default(true)
+  automationsOptedOutAll     Boolean  @default(false)
+  automationCategoryOptOuts  String[] @default([])
   createdAt           DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1634,6 +1636,7 @@ model AutomationJourney {
   triggerConfig Json?
   active        Boolean           @default(false)
   description   String?           @db.Text
+  category      String?
   createdBy     String?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt

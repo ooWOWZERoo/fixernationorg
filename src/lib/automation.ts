@@ -85,6 +85,34 @@ async function executeStepAction(step: StepWithConfig, enrollment: AutomationEnr
     case "SEND_EMAIL": {
       const recipient = await resolveRecipient(enrollment);
       if (!recipient) return;
+
+      // Per-user automation email opt-out (SP: automation opt-out). Only
+      // applies to userId-scoped enrollments -- contactId enrollments (e.g.
+      // newsletter_signup) are governed by the separate ContactConsentTopic
+      // system and are untouched here.
+      if (enrollment.userId) {
+        // automationsOptedOutAll / automationCategoryOptOuts (User) and
+        // category (AutomationJourney) are new scalar fields not yet in the
+        // locally-generated Prisma client's types (regenerates on Vercel
+        // build) -- fetch full rows and cast rather than using `select` with
+        // field names the current type doesn't know about.
+        const [user, journey] = await Promise.all([
+          db.user.findUnique({ where: { id: enrollment.userId } }),
+          db.automationJourney.findUnique({ where: { id: enrollment.journeyId } }),
+        ]);
+
+        const optedOutAll = (user as unknown as { automationsOptedOutAll?: boolean } | null)?.automationsOptedOutAll ?? false;
+        const categoryOptOuts = (user as unknown as { automationCategoryOptOuts?: string[] } | null)?.automationCategoryOptOuts ?? [];
+        const category = (journey as unknown as { category?: string | null } | null)?.category ?? null;
+
+        if (optedOutAll || (category && categoryOptOuts.includes(category))) {
+          console.log(
+            `[automation] Skipping SEND_EMAIL for enrollment ${enrollment.id} -- user opted out (all=${optedOutAll}, category=${category ?? "none"})`
+          );
+          return;
+        }
+      }
+
       const vars = { first_name: recipient.firstName ?? "" };
 
       let subject = (config.subject as string) ?? "";
