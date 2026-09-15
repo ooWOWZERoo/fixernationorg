@@ -61,7 +61,19 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-navy/8 bg-white">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 lg:px-8">
+      {/*
+        Full-bleed, not centered in a max-w column: the logo pins to the
+        true left edge of the browser (just inset by the padding below),
+        and this row is a wrapping flex container rather than a fixed-height
+        nowrap row -- on a wide viewport everything fits on one line, but
+        once the logo + full nav + account widget genuinely don't fit
+        side-by-side, the nav wraps down to its own full-width second line
+        instead of squeezing (which is what caused labels to wrap
+        word-by-word before). The exact wrap point is driven by real
+        content width, not a fixed pixel breakpoint, so it stays correct
+        regardless of logo size or how many nav items there are.
+      */}
+      <div className="flex w-full flex-wrap items-center justify-between gap-y-2 px-6 py-3 lg:px-8">
 
         {/* Brand */}
         <Link
@@ -70,15 +82,18 @@ export function SiteHeader() {
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Fixer Nation" className="h-14 w-auto max-w-[220px] object-contain" />
+            <img src={logoUrl} alt="Fixer Nation" className="h-16 w-auto max-w-[320px] object-contain" />
           ) : (
-            <span className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-navy text-amber text-2xl font-extrabold">
+            <span className="flex h-16 w-16 items-center justify-center rounded-[16px] bg-navy text-amber text-3xl font-extrabold">
               ✓
             </span>
           )}
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop nav -- one atomic flex item in the wrapping row above, so
+            if it doesn't fit alongside the logo and account widget, the
+            whole nav drops to its own line rather than any single label
+            wrapping mid-word. */}
         <nav className="hidden items-center gap-1.5 lg:flex">
           {NAV_LINKS.map((link) => {
             if (link.dropdown) {
