@@ -19,17 +19,19 @@ const EMAIL_PREF_TOPICS: { key: ConsentTopic; label: string; description: string
   { key: "PRODUCT_UPDATES", label: "Product updates", description: "New features and changes as we roll them out." },
 ];
 
-// Mirrors TEMPLATE_CATEGORIES in src/pages/admin/automations/index.tsx (minus
-// the empty "license" tab) -- these are the categories a user's automated
-// emails (challenges, pathways, check-ins, recognitions, Brain Builder,
-// loyalty milestones, the book-gift welcome series, etc.) can be tagged with.
+// Same category keys as TEMPLATE_CATEGORIES in src/pages/admin/automations/index.tsx,
+// with member-friendly labels instead of the admin picker's internal
+// taxonomy names. Only categories with at least one live (non-MANUAL, active)
+// automation are actually shown to the member -- see `liveCategories` below --
+// so this list can stay ahead of what's wired without confusing anyone with
+// a toggle that currently does nothing.
 const AUTOMATION_CATEGORIES: { key: string; label: string }[] = [
   { key: "lead", label: "Lead generation" },
   { key: "cart", label: "Membership checkout" },
-  { key: "books", label: "Digital guides" },
+  { key: "books", label: "Books" },
   { key: "curriculum", label: "Challenges & games" },
   { key: "marketing", label: "Marketing" },
-  { key: "success", label: "Customer success" },
+  { key: "success", label: "Community & milestones" },
   { key: "payments", label: "Payments & ops" },
 ];
 
@@ -42,6 +44,7 @@ interface Props {
     role: string;
     automationsOptedOutAll: boolean;
     automationCategoryOptOuts: string[];
+    liveAutomationCategories: string[];
   };
 }
 
@@ -65,6 +68,7 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
   const [categoryOptOuts, setCategoryOptOuts] = useState<string[]>(user.automationCategoryOptOuts);
   const [automationSaving, setAutomationSaving] = useState<string | null>(null);
   const [automationMsg, setAutomationMsg] = useState<{ key: string; ok: boolean; text: string } | null>(null);
+  const liveCategories = AUTOMATION_CATEGORIES.filter((cat) => user.liveAutomationCategories.includes(cat.key));
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -195,7 +199,9 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
           {/* Email preferences */}
           <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
             <h2 className="text-base font-extrabold text-navy">Email preferences</h2>
-            <div className="mt-4 space-y-4">
+
+            <h3 className="mt-5 text-sm font-bold uppercase tracking-wide text-ink-soft">Subscriptions</h3>
+            <div className="mt-3 space-y-4">
               {EMAIL_PREF_TOPICS.map((topic) => (
                 <div key={topic.key}>
                   <label className="flex cursor-pointer items-start gap-3">
@@ -220,58 +226,62 @@ const AccountSettingsPage: NextPageWithLayout<Props> = ({ user }) => {
               ))}
             </div>
             <PushNotificationToggle />
-          </div>
 
-          {/* Automated emails */}
-          <div className="mt-6 rounded-2xl border border-navy/8 bg-white p-6">
-            <h2 className="text-base font-extrabold text-navy">Automated emails</h2>
-            <p className="mt-1 text-sm text-ink-soft">
-              Celebratory and progress emails triggered by things you do in Fixer Nation — challenges, pathways, check-ins, recognitions, Brain Builder, and more.
-            </p>
-            <div className="mt-4">
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={optedOutAll}
-                  disabled={automationSaving === "all"}
-                  onChange={(e) => saveOptOutAll(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 cursor-pointer accent-navy"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-ink">Turn off all automated emails</span>
-                  <span className="block text-sm text-ink-soft">Stop every automated email below, regardless of category.</span>
-                </span>
-              </label>
-              {automationMsg?.key === "all" && (
-                <p className={`mt-1.5 text-sm font-semibold ${automationMsg.ok ? "text-green-700" : "text-red-600"}`}>
-                  {automationMsg.text}
+            {/* Automated emails — only categories with a live automation are shown */}
+            {liveCategories.length > 0 && (
+              <>
+                <h3 className="mt-6 border-t border-navy/8 pt-5 text-sm font-bold uppercase tracking-wide text-ink-soft">
+                  Automated & activity emails
+                </h3>
+                <p className="mt-1 text-sm text-ink-soft">
+                  Celebratory and progress emails triggered by things you do in Fixer Nation — challenges, pathways, check-ins, recognitions, Brain Builder, and more.
                 </p>
-              )}
-            </div>
-            <div className={`mt-4 space-y-4 border-t border-navy/8 pt-4 ${optedOutAll ? "opacity-40" : ""}`}>
-              {AUTOMATION_CATEGORIES.map((cat) => {
-                const isOn = !categoryOptOuts.includes(cat.key);
-                return (
-                  <div key={cat.key}>
-                    <label className="flex cursor-pointer items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={isOn}
-                        disabled={optedOutAll || automationSaving === cat.key}
-                        onChange={(e) => saveCategoryOptOut(cat.key, e.target.checked)}
-                        className="mt-0.5 h-4 w-4 cursor-pointer accent-navy disabled:cursor-not-allowed"
-                      />
-                      <span className="block text-sm font-semibold text-ink">{cat.label}</span>
-                    </label>
-                    {automationMsg?.key === cat.key && (
-                      <p className={`mt-1.5 text-sm font-semibold ${automationMsg.ok ? "text-green-700" : "text-red-600"}`}>
-                        {automationMsg.text}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                <div className="mt-3">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={optedOutAll}
+                      disabled={automationSaving === "all"}
+                      onChange={(e) => saveOptOutAll(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 cursor-pointer accent-navy"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-ink">Turn off all automated emails</span>
+                      <span className="block text-sm text-ink-soft">Stop every automated email below, regardless of category.</span>
+                    </span>
+                  </label>
+                  {automationMsg?.key === "all" && (
+                    <p className={`mt-1.5 text-sm font-semibold ${automationMsg.ok ? "text-green-700" : "text-red-600"}`}>
+                      {automationMsg.text}
+                    </p>
+                  )}
+                </div>
+                <div className={`mt-4 space-y-4 border-t border-navy/8 pt-4 ${optedOutAll ? "opacity-40" : ""}`}>
+                  {liveCategories.map((cat) => {
+                    const isOn = !categoryOptOuts.includes(cat.key);
+                    return (
+                      <div key={cat.key}>
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isOn}
+                            disabled={optedOutAll || automationSaving === cat.key}
+                            onChange={(e) => saveCategoryOptOut(cat.key, e.target.checked)}
+                            className="mt-0.5 h-4 w-4 cursor-pointer accent-navy disabled:cursor-not-allowed"
+                          />
+                          <span className="block text-sm font-semibold text-ink">{cat.label}</span>
+                        </label>
+                        {automationMsg?.key === cat.key && (
+                          <p className={`mt-1.5 text-sm font-semibold ${automationMsg.ok ? "text-green-700" : "text-red-600"}`}>
+                            {automationMsg.text}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Password */}
@@ -376,6 +386,22 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     automationCategoryOptOuts?: string[];
   } | null;
 
+  // Only surface a category toggle once something real is actually wired
+  // to it -- most of the 7 categories are still MANUAL-only drafts, and a
+  // toggle that changes nothing today is more confusing than no toggle.
+  type JourneyDb = {
+    automationJourney: {
+      findMany: (a: unknown) => Promise<{ category: string | null }[]>;
+    };
+  };
+  const journeyDb = db as never as JourneyDb;
+  const liveJourneys = await journeyDb.automationJourney.findMany({
+    where: { active: true, trigger: { not: "MANUAL" }, category: { not: null } },
+    distinct: ["category"],
+    select: { category: true },
+  });
+  const liveAutomationCategories = liveJourneys.map((j) => j.category).filter((c): c is string => !!c);
+
   const consentByTopic = new Map(user?.crmContact?.consents.map((c) => [c.topic, c.optedIn]) ?? []);
 
   // Morning Boost predates consent tracking, so a missing row defaults to
@@ -399,6 +425,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         role: session.user.role ?? "CONSUMER",
         automationsOptedOutAll: automationFields?.automationsOptedOutAll ?? false,
         automationCategoryOptOuts: automationFields?.automationCategoryOptOuts ?? [],
+        liveAutomationCategories,
       },
     },
   };
