@@ -35,6 +35,22 @@ async function main() {
     },
   });
 
+  // Mirrors src/lib/contacts.ts's ensureContactForUser (can't import the TS
+  // path-aliased app code from this plain CommonJS bootstrap script) --
+  // every real User needs a linked CRM Contact, or they register on the
+  // platform invisibly to the CRM (the same defect class that left
+  // aplacito@vssus.com with no Contact for weeks).
+  const existingContact = await db.contact.findUnique({ where: { email: EMAIL }, select: { id: true, userId: true } });
+  if (existingContact) {
+    if (!existingContact.userId) {
+      await db.contact.update({ where: { id: existingContact.id }, data: { userId: user.id } });
+    }
+  } else {
+    await db.contact.create({
+      data: { email: EMAIL, firstName: "Admin", userId: user.id, source: "signup" },
+    });
+  }
+
   console.log(`Created user: ${user.email} (role: ${user.role})`);
   await db.$disconnect();
 }

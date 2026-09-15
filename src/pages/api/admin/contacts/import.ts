@@ -98,9 +98,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const emails = contacts.map((c) => c.email.toLowerCase().trim());
   const contactRecords = await db.contact.findMany({
     where: { email: { in: emails } },
-    select: { id: true, email: true },
+    select: { id: true, email: true, userId: true },
   });
   const emailToId = Object.fromEntries(contactRecords.map((c) => [c.email, c.id]));
+
+  // Link any imported contact to an already-registered platform User with
+  // the same email — otherwise a real member imported via CSV (e.g. a bulk
+  // migration from another CRM) stays permanently unlinked, since nothing
+  // else ever revisits this row after the import.
+  const unlinked = contactRecords.filter((c) => !c.userId);
+  if (unlinked.length > 0) {
+    const matchingUsers = await db.user.findMany({
+      where: { email: { in: unlinked.map((c) => c.email) } },
+      select: { id: true, email: true },
+    });
+    const userIdByEmail = Object.fromEntries(matchingUsers.map((u) => [u.email.toLowerCase().trim(), u.id]));
+    await Promise.all(
+      unlinked
+        .filter((c) => userIdByEmail[c.email])
+        .map((c) => db.contact.update({ where: { id: c.id }, data: { userId: userIdByEmail[c.email] } }).catch(() => {}))
+    );
+  }
 
   // 3. Addresses — delete existing, recreate from import data
   const allAddressData = contacts.flatMap((c) => {

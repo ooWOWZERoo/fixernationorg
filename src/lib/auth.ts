@@ -144,4 +144,18 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+
+  // Not currently exercised -- only CredentialsProvider is configured, and
+  // credentials signup goes through register.ts's own db.user.create, not
+  // this adapter's createUser. Kept as a safety net for whenever an OAuth
+  // provider gets added: PrismaAdapter's createUser would otherwise be a
+  // 4th User-creation path with no CRM Contact ever created, same defect
+  // class that left a real account (aplacito@vssus.com) unlinked for weeks.
+  events: {
+    async createUser({ user }) {
+      if (!user.email) return;
+      const { ensureContactForUser } = await import("./contacts");
+      await ensureContactForUser(user.id, user.email, user.name, "signup").catch(() => {});
+    },
+  },
 };

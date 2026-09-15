@@ -8,6 +8,7 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { ensureContactForUser } from "@/lib/contacts";
 import { sendCampaignNow, continueCampaignSend, utcDayWindow } from "@/lib/send-campaign";
 import {
   buildRenewalReminder30Email,
@@ -630,6 +631,53 @@ async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
   return { message: `Attempted resume on ${resumed} of ${paused.length} paused campaign${paused.length !== 1 ? "s" : ""}` };
 }
 
+// Standing safety net, not just a one-time backfill: every known
+// User<->Contact gap (admin verify-email, admin-invite claim, public
+// subscribe-before-registering, CSV import) has its own targeted fix at
+// the call site, but this catches any of those AND anything not yet
+// discovered, daily, so a registered user can never again go unlinked
+// from the CRM indefinitely the way aplacito@vssus.com did for weeks.
+async function runCrmReconciliation(): Promise<{ message: string }> {
+  const orphanUsers = await db.user.findMany({
+    where: { crmContact: null },
+    select: { id: true, email: true, name: true },
+  });
+  let usersLinked = 0;
+  for (const u of orphanUsers) {
+    try {
+      await ensureContactForUser(u.id, u.email, u.name, "cron_reconciliation");
+      usersLinked++;
+    } catch (err) {
+      console.error(`[reconcile-crm] failed to link user ${u.id}:`, err);
+    }
+  }
+
+  const unlinkedContacts = await db.contact.findMany({
+    where: { userId: null },
+    select: { id: true, email: true },
+  });
+  let contactsLinked = 0;
+  if (unlinkedContacts.length > 0) {
+    const matchingUsers = await db.user.findMany({
+      where: { email: { in: unlinkedContacts.map((c) => c.email) } },
+      select: { id: true, email: true },
+    });
+    const userIdByEmail = Object.fromEntries(matchingUsers.map((u) => [u.email, u.id]));
+    for (const c of unlinkedContacts) {
+      const userId = userIdByEmail[c.email];
+      if (!userId) continue;
+      try {
+        await db.contact.update({ where: { id: c.id }, data: { userId } });
+        contactsLinked++;
+      } catch (err) {
+        console.error(`[reconcile-crm] failed to link contact ${c.id}:`, err);
+      }
+    }
+  }
+
+  return { message: `Reconciled ${usersLinked} orphaned user(s), linked ${contactsLinked} previously-unlinked contact(s)` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "campaign-scheduler": runCampaignScheduler,
@@ -642,6 +690,7 @@ const JOBS: Record<string, JobHandler> = {
   "membership-gift-retroactive-backfill": runMembershipGiftRetroactiveBackfill,
   "membership-renewal-reminders": runMembershipRenewalReminders,
   "campaign-send-hourly-resume": runCampaignSendHourlyResume,
+  "reconcile-crm": runCrmReconciliation,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

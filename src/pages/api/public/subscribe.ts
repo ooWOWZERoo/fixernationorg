@@ -40,6 +40,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     update: {},
   });
 
+  // If this email already belongs to a registered platform User, link them
+  // — otherwise a member who subscribes via this public form before (or
+  // instead of) registering ends up with a permanently unlinked CRM record
+  // even after they do sign up, since nothing else ever revisits this row.
+  if (!contact.userId) {
+    const existingUser = await db.user.findUnique({ where: { email }, select: { id: true } });
+    if (existingUser) {
+      await db.contact.update({ where: { id: contact.id }, data: { userId: existingUser.id } }).catch(() => {});
+    }
+  }
+
   // Attribution: only set on first touch (upsert with no-op update preserves original)
   db.contactAttribution.upsert({
     where: { contactId: contact.id },

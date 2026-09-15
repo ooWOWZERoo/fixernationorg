@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { ensureContactForUser } from "@/lib/contacts";
 
 const ClaimSchema = z.object({
   name: z.string().min(2).max(100),
@@ -75,6 +76,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { id: invite.id },
       data: { claimedAt: new Date(), claimedById: user.id },
     });
+
+    // This creates a fully-active account (emailVerified set at creation)
+    // outside the normal register->verify-email flow that's the only other
+    // place a Contact gets created -- without this, every admin/staff
+    // account claimed via invite would register on the platform with no
+    // CRM record at all, same defect class as the admin verify-email tool.
+    await ensureContactForUser(user.id, invite.email, name.trim(), "admin_invite").catch(() => {});
 
     return res.status(201).json({ ok: true });
   }

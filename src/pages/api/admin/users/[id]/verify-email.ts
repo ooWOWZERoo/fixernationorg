@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
+import { ensureContactForUser } from "@/lib/contacts";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -25,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { id } = req.query as { id: string };
-  const target = await db.user.findUnique({ where: { id }, select: { id: true, email: true, adminRole: true, emailVerified: true } });
+  const target = await db.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, adminRole: true, emailVerified: true } });
   if (!target) return res.status(404).json({ error: "User not found" });
 
   if (target.adminRole === "SUPER_ADMIN" && session.user.adminRole !== "SUPER_ADMIN") {
@@ -37,6 +38,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   await db.user.update({ where: { id }, data: { emailVerified: new Date() } });
+
+  // The normal signup flow creates the CRM Contact at real verify-email
+  // time (src/pages/api/auth/verify-email.ts) -- this admin override skips
+  // that entirely, which is exactly how a real account (aplacito@vssus.com)
+  // ended up registered on the platform with zero CRM record.
+  await ensureContactForUser(target.id, target.email, target.name, "admin_verify_email").catch(() => {});
 
   await logAction({
     actorId: session.user.id,
