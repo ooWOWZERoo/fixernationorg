@@ -526,7 +526,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                   {sending ? "Sending…" : "Send now"}
                 </button>
               )}
-              {campaign.status === "DRAFT" && (
+              {campaign.status !== "SENDING" && campaign.status !== "SENT" && (
                 <a href={`/admin/campaigns/${campaign.id}/edit`}
                   className="rounded-xl border border-navy/15 px-5 py-2.5 text-sm font-bold text-ink-soft hover:bg-cream-panel no-underline">
                   Edit
@@ -539,7 +539,7 @@ const AdminCampaignDetailPage: NextPageWithLayout<Props> = ({ campaign: initial,
                 </button>
               )}
             </div>
-            {!campaign.listId && !campaign.hasAudienceRules && campaign.status === "DRAFT" && (
+            {!campaign.listId && !campaign.hasAudienceRules && campaign.status !== "SENDING" && campaign.status !== "SENT" && (
               <p className="mt-2 text-xs text-amber-dark">No audience defined — edit the campaign to set one before sending.</p>
             )}
           </div>
