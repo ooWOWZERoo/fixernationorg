@@ -17,6 +17,8 @@ interface PreviewResult {
   totalSuppressed: number;
   suppressionBreakdown: { reason: string; count: number }[];
   sample: Array<{ id: string; email: string; firstName: string | null }>;
+  rawIncludedCount: number;
+  excludeImpact: Array<{ rule: AudienceRule; removed: number }>;
 }
 
 // Membership tiers only — ADMIN/SUPER_ADMIN are legacy UserRole values left
@@ -32,12 +34,18 @@ const CF_OPS: { value: string; label: string }[] = [
   { value: "contains", label: "contains" },
 ];
 
-function ruleDisplay(rule: AudienceRule, lists: ListOption[], fields: FieldOption[], groups: GroupOption[], events: EventOption[]): { badge: string; label: string } {
+function ruleDisplay(rule: AudienceRule, lists: ListOption[], fields: FieldOption[], groups: GroupOption[], events: EventOption[]): { badge: string; label: string; warning?: string } {
   switch (rule.type) {
     case "list":
       return { badge: "List", label: rule.label ?? lists.find((l) => l.id === rule.listId)?.name ?? rule.listId };
     case "role":
-      return { badge: "Role", label: rule.role };
+      return {
+        badge: "Role",
+        label: rule.role,
+        ...(!ROLES.includes(rule.role)
+          ? { warning: "Legacy value — not selectable here; staff access is controlled by adminRole, not role" }
+          : {}),
+      };
     case "tag":
       return { badge: "Tag", label: rule.tag };
     case "consent_topic":
@@ -384,11 +392,16 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
 
         <div className="space-y-1.5">
           {value.include.map((rule, idx) => {
-            const { badge, label } = ruleDisplay(rule, lists, fields, groups, events);
+            const { badge, label, warning } = ruleDisplay(rule, lists, fields, groups, events);
             return (
               <div key={idx} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                 <span className="shrink-0 rounded bg-navy/8 px-1.5 py-0.5 text-xs font-semibold text-navy">{badge}</span>
-                <span className="flex-1 text-sm text-ink">{label}</span>
+                <span className="flex-1 text-sm text-ink">
+                  {label}
+                  {warning && (
+                    <span className="ml-1.5 text-amber-dark" title={warning}>⚠</span>
+                  )}
+                </span>
                 <button
                   type="button"
                   onClick={() => removeInclude(idx)}
@@ -434,11 +447,24 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
 
         <div className="space-y-1.5">
           {value.exclude.map((rule, idx) => {
-            const { badge, label } = ruleDisplay(rule, lists, fields, groups, events);
+            const { badge, label, warning } = ruleDisplay(rule, lists, fields, groups, events);
+            const impact = preview?.excludeImpact[idx];
+            const isHeavy = impact && preview.rawIncludedCount > 0 && impact.removed > preview.rawIncludedCount / 2;
             return (
               <div key={idx} className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
                 <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">{badge}</span>
-                <span className="flex-1 text-sm text-ink">{label}</span>
+                <span className="flex-1 text-sm text-ink">
+                  {label}
+                  {warning && (
+                    <span className="ml-1.5 text-amber-dark" title={warning}>⚠</span>
+                  )}
+                </span>
+                {impact && (
+                  <span className="shrink-0 text-xs font-semibold text-red-600">
+                    {isHeavy && "⚠ "}
+                    → removes {impact.removed}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => removeExclude(idx)}
@@ -492,6 +518,11 @@ export function AudienceBuilder({ value, onChange, lists }: Props) {
 
         {preview && (
           <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm">
+            {value.exclude.length > 0 && (
+              <p className="text-green-700">
+                {preview.rawIncludedCount.toLocaleString()} contact{preview.rawIncludedCount !== 1 ? "s" : ""} matched your include rules before exclusions
+              </p>
+            )}
             <p className="font-semibold text-green-800">
               {preview.totalIncluded.toLocaleString()} contact{preview.totalIncluded !== 1 ? "s" : ""} will receive this email
             </p>

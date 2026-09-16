@@ -35,6 +35,8 @@ export interface AudiencePreview {
   totalSuppressed:     number;
   suppressionBreakdown: { reason: string; count: number }[];
   sample: Array<{ id: string; email: string; firstName: string | null }>;
+  rawIncludedCount: number;
+  excludeImpact: Array<{ rule: AudienceRule; removed: number }>;
 }
 
 // ─── Rule resolution ──────────────────────────────────────────────────────────
@@ -137,22 +139,23 @@ async function resolveRule(rule: AudienceRule): Promise<Set<string>> {
 
 // ─── Core resolution ──────────────────────────────────────────────────────────
 
+async function resolveIncludeSet(def: Pick<AudienceDefinition, "include" | "logic">): Promise<Set<string>> {
+  if (def.include.length === 0) {
+    return new Set();
+  }
+  const sets = await Promise.all(def.include.map(resolveRule));
+  if (def.logic === "AND") {
+    return sets.reduce((a, b) => new Set([...a].filter((x) => b.has(x))));
+  }
+  return new Set(sets.flatMap((s) => [...s]));
+}
+
 export async function resolveAudience(def: AudienceDefinition): Promise<{
   includedIds: string[];
   suppressed: SuppressionEntry[];
 }> {
   // 1. Resolve and combine include rules
-  let included: Set<string>;
-  if (def.include.length === 0) {
-    included = new Set();
-  } else {
-    const sets = await Promise.all(def.include.map(resolveRule));
-    if (def.logic === "AND") {
-      included = sets.reduce((a, b) => new Set([...a].filter((x) => b.has(x))));
-    } else {
-      included = new Set(sets.flatMap((s) => [...s]));
-    }
-  }
+  const included = await resolveIncludeSet(def);
 
   // 2. Subtract exclude rules
   if (def.exclude.length > 0) {
@@ -234,10 +237,29 @@ export async function previewAudience(def: AudienceDefinition): Promise<Audience
         })
       : [];
 
+  // Raw include-rule union with no excludes/suppression applied — the true
+  // "before any exclusion" candidate pool, for surfacing how much each
+  // exclude rule below is really cutting into it.
+  const rawIncluded = await resolveIncludeSet(def);
+
+  let excludeImpact: Array<{ rule: AudienceRule; removed: number }> = [];
+  if (def.exclude.length > 0) {
+    const excludeSets = await Promise.all(def.exclude.map(resolveRule));
+    excludeImpact = def.exclude.map((rule, i) => {
+      let removed = 0;
+      for (const id of excludeSets[i]) {
+        if (rawIncluded.has(id)) removed++;
+      }
+      return { rule, removed };
+    });
+  }
+
   return {
     totalIncluded: includedIds.length,
     totalSuppressed: suppressed.length,
     suppressionBreakdown: Object.entries(reasons).map(([reason, count]) => ({ reason, count })),
     sample,
+    rawIncludedCount: rawIncluded.size,
+    excludeImpact,
   };
 }
