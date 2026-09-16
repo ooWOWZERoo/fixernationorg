@@ -83,7 +83,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         scheduledAt: rawScheduledAt !== undefined
           ? rawScheduledAt ? new Date(rawScheduledAt) : null
           : undefined,
-        status: rawScheduledAt ? "SCHEDULED" : campaign.status === "SCHEDULED" ? "DRAFT" : campaign.status,
+        status: rawScheduledAt !== undefined
+          ? (rawScheduledAt ? "SCHEDULED" : "DRAFT")
+          : undefined,
       },
     });
 
