@@ -9,6 +9,16 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Pooled + capped so a full 20-contact send batch (BATCH in
+  // send-campaign.ts) reuses a handful of persistent connections instead
+  // of opening one new SMTP connection per email -- that concurrent-burst
+  // pattern is a likely contributor to this hosting provider's repeated
+  // account suspensions (see project memory: recurring incidents on
+  // 2026-09-02, 09-05, 09-15, 09-17). maxConnections is set conservatively
+  // below typical shared-hosting concurrent-connection limits.
+  pool: true,
+  maxConnections: 5,
+  maxMessages: 100,
 });
 
 const FROM = process.env.SMTP_FROM ?? "Fixer Nation <noreply@fixernation.org>";
