@@ -63,6 +63,17 @@ type EmailContent = { subject: string; fromName: string; fromEmail: string; html
 // whether their address is valid.
 const SENDER_MAILBOX_SUSPENDED = /outgoing mail from .* has been suspended/i;
 
+// Nodemailer's transport/connection-level error codes -- these mean we
+// never got a response from the recipient's mail server (or our own SMTP
+// auth failed) at all, so none of them can indicate anything about
+// whether the recipient's address is valid. Confirmed live: a raw
+// ESOCKET/ETIMEDOUT connection failure to the mail host happened minutes
+// after the SENDER_MAILBOX_SUSPENDED incident above, while the same host
+// was still stabilizing post-recovery, and hit the exact same real
+// recipients -- same underlying problem (infra, not the recipient), just
+// a different nodemailer error code with no matching wording.
+const TRANSPORT_LEVEL_ERROR_CODES = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNREFUSED", "EDNS", "EAUTH"]);
+
 // A single serverless invocation can't reliably finish sending a
 // large-audience campaign (thousands of contacts, ~20 at a time) before the
 // platform's execution time limit kills it. This time budget bounds each
@@ -134,7 +145,7 @@ async function sendQueuedEmailBatches(
     });
     if (queued.length === 0) return { done: true, sent, failed, hourlyCapReached: false };
 
-    let mailboxSuspended = false;
+    let infrastructureFailure = false;
 
     await Promise.allSettled(
       queued.map(async (row) => {
@@ -146,12 +157,15 @@ async function sendQueuedEmailBatches(
           sent++;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          if (SENDER_MAILBOX_SUSPENDED.test(message)) {
-            // Sender-side outage, not a per-recipient rejection -- leave the
-            // row QUEUED so campaign-send-hourly-resume retries it once the
-            // suspension is lifted, instead of permanently blacklisting this
-            // contact via resolveAudience's bounce-suppression check.
-            mailboxSuspended = true;
+          const code = (err as { code?: string })?.code;
+          if (SENDER_MAILBOX_SUSPENDED.test(message) || (code && TRANSPORT_LEVEL_ERROR_CODES.has(code))) {
+            // Sender-side outage or transport/connection-level failure, not a
+            // per-recipient rejection -- leave the row QUEUED so
+            // campaign-send-hourly-resume retries it once the underlying
+            // infrastructure issue clears, instead of permanently
+            // blacklisting this contact via resolveAudience's
+            // bounce-suppression check.
+            infrastructureFailure = true;
             failed++;
             return;
           }
@@ -161,9 +175,9 @@ async function sendQueuedEmailBatches(
       })
     );
 
-    if (mailboxSuspended) {
+    if (infrastructureFailure) {
       // Every remaining attempt this invocation would hit the identical
-      // suspension error -- looping until the time/hourly-cap budget
+      // infrastructure failure -- looping until the time/hourly-cap budget
       // exhausts would just spam duplicate EmailFailure rows for no benefit.
       // Leave the rest of the queue QUEUED for the next hourly resume tick.
       return { done: false, sent, failed, hourlyCapReached: false };
