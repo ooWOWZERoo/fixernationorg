@@ -55,6 +55,14 @@ type PushDb = {
 
 type EmailContent = { subject: string; fromName: string; fromEmail: string; htmlBody: string | null; textBody: string | null };
 
+// This hosting provider's exact wording for a sender-side account
+// suspension (not a per-recipient rejection) -- has recurred at least 4
+// times. Treating it as a normal per-recipient BOUNCED would permanently
+// blacklist real recipients from every future send via resolveAudience's
+// bounce-suppression check, for an outage that has nothing to do with
+// whether their address is valid.
+const SENDER_MAILBOX_SUSPENDED = /outgoing mail from .* has been suspended/i;
+
 // A single serverless invocation can't reliably finish sending a
 // large-audience campaign (thousands of contacts, ~20 at a time) before the
 // platform's execution time limit kills it. This time budget bounds each
@@ -126,6 +134,8 @@ async function sendQueuedEmailBatches(
     });
     if (queued.length === 0) return { done: true, sent, failed, hourlyCapReached: false };
 
+    let mailboxSuspended = false;
+
     await Promise.allSettled(
       queued.map(async (row) => {
         try {
@@ -134,12 +144,30 @@ async function sendQueuedEmailBatches(
           await sendEmail({ to: row.contact.email, subject, html, text, from: `${content.fromName} <${content.fromEmail}>` });
           await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
           sent++;
-        } catch {
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (SENDER_MAILBOX_SUSPENDED.test(message)) {
+            // Sender-side outage, not a per-recipient rejection -- leave the
+            // row QUEUED so campaign-send-hourly-resume retries it once the
+            // suspension is lifted, instead of permanently blacklisting this
+            // contact via resolveAudience's bounce-suppression check.
+            mailboxSuspended = true;
+            failed++;
+            return;
+          }
           await db.campaignSend.update({ where: { id: row.id }, data: { status: "BOUNCED", bouncedAt: new Date() } }).catch(() => {});
           failed++;
         }
       })
     );
+
+    if (mailboxSuspended) {
+      // Every remaining attempt this invocation would hit the identical
+      // suspension error -- looping until the time/hourly-cap budget
+      // exhausts would just spam duplicate EmailFailure rows for no benefit.
+      // Leave the rest of the queue QUEUED for the next hourly resume tick.
+      return { done: false, sent, failed, hourlyCapReached: false };
+    }
     usedThisHour += queued.length;
   }
   return { done: false, sent, failed, hourlyCapReached: false };
