@@ -9,7 +9,8 @@ import {
   getMorningBoostTemplateId,
   getCampaignMutableFields,
   setCampaignMutableFields,
-  deleteRecurrenceRunForToday,
+  snapshotRecurrenceRunForToday,
+  restoreRecurrenceRunForToday,
 } from "./helpers/db";
 import { E2E_AUDIENCE_FIXTURE_DOMAIN } from "../../src/lib/testContacts";
 
@@ -49,17 +50,21 @@ async function createContactWithTag(page: Page, email: string, lastName: string,
 // original fields and release the day's RecurrenceRun slot in `finally` —
 // this is the live production Morning Boost sender.
 async function withBorrowedMorningBoostTemplate(
-  run: (templateId: string) => Promise<void>
+  run: (
+    templateId: string,
+    recurrenceRunSnapshot: Awaited<ReturnType<typeof snapshotRecurrenceRunForToday>>
+  ) => Promise<void>
 ): Promise<void> {
   const templateId = await getMorningBoostTemplateId();
+  const recurrenceRunSnapshot = await snapshotRecurrenceRunForToday(templateId);
   const original = await getCampaignMutableFields(templateId);
   const currentUtcHour = String(new Date().getUTCHours()).padStart(2, "0");
   try {
     await setCampaignMutableFields(templateId, { recurrenceTime: `${currentUtcHour}:00` });
-    await run(templateId);
+    await run(templateId, recurrenceRunSnapshot);
   } finally {
     await setCampaignMutableFields(templateId, original);
-    await deleteRecurrenceRunForToday(templateId);
+    await restoreRecurrenceRunForToday(templateId, recurrenceRunSnapshot);
   }
 }
 
@@ -120,7 +125,7 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
   const tag = `qa-recurring-dispatch-${STAMP}`;
   await createContactWithTag(page, `qa-recurring-dispatch-${STAMP}@${E2E_AUDIENCE_FIXTURE_DOMAIN}`, `RecurringDispatch${STAMP}`, tag);
 
-  await withBorrowedMorningBoostTemplate(async (templateId) => {
+  await withBorrowedMorningBoostTemplate(async (templateId, recurrenceRunSnapshot) => {
     await setCampaignMutableFields(templateId, {
       audienceRules: { logic: "OR", include: [{ type: "tag", tag }], exclude: [] },
     });
@@ -132,6 +137,14 @@ test("dispatch creates and sends a child occurrence, and won't double-fire the s
 
     await dispatch(page);
 
+    // If a real RecurrenceRun for today already existed before this test ran
+    // (recurrenceRunSnapshot is non-null — i.e. the real 10:00 UTC dispatch
+    // already fired today), the dispatch's atomic day-slot claim legitimately
+    // no-ops here instead of creating a new child, so this assertion will
+    // fail in that case. That's expected and accepted: this test can no
+    // longer assume it exclusively owns today's dispatch slot on a live
+    // production singleton template, and preserving the real RecurrenceRun
+    // audit trail takes priority over keeping this assertion green.
     await expect.poll(async () => countChildCampaigns(templateId), {
       timeout: 20000,
       intervals: [1000, 2000, 3000],

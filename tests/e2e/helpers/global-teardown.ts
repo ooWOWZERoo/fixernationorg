@@ -156,6 +156,39 @@ export default async function globalTeardown() {
           })
         ).count,
     },
+    // admin-recurring-campaigns.spec.ts dispatches its QA MorningBoost
+    // entries (above) through the real MORNING_BOOST recurring template,
+    // which creates a real child Campaign occurrence (parentCampaignId =
+    // the template's id) for each one -- the morningBoosts task above only
+    // clears the content entry, never these occurrences, so they piled up
+    // (33 found and cleaned as a one-off 2026-09-17). The template itself
+    // is the live singleton production sender and must never be deleted --
+    // only its QA-created children. Subject is `Morning Boost: <entry
+    // title>` (see src/lib/emails/morning-boost.ts), so it carries the same
+    // "QA e2e" marker as the source entry's title. RecurrenceRun has no
+    // cascade on childCampaignId (plain string, not a relation), so any
+    // RecurrenceRun pointing at a deleted QA child must be cleared first.
+    {
+      name: "morningBoostChildCampaigns",
+      run: async () => {
+        const template = await db.campaign.findFirst({
+          where: { isRecurring: true, recurrenceSource: "MORNING_BOOST" },
+          select: { id: true },
+        });
+        if (!template) return 0;
+        const qaChildren = await db.campaign.findMany({
+          where: {
+            parentCampaignId: template.id,
+            subject: { contains: "qa e2e", mode: "insensitive" },
+            createdAt: { gte: startedAt },
+          },
+          select: { id: true },
+        });
+        const qaChildIds = qaChildren.map((c) => c.id);
+        await db.recurrenceRun.deleteMany({ where: { childCampaignId: { in: qaChildIds } } });
+        return (await db.campaign.deleteMany({ where: { id: { in: qaChildIds } } })).count;
+      },
+    },
     {
       name: "mediaAssets",
       run: async () =>

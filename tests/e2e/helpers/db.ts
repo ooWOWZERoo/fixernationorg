@@ -236,13 +236,51 @@ export async function setCampaignMutableFields(id: string, fields: Partial<Campa
   await client().campaign.update({ where: { id }, data: fields as never });
 }
 
-// Releases the day's dispatch slot claimed during a test run, so the real
-// production template isn't blocked from firing for real content later
-// the same day (RecurrenceRun's unique constraint is per templateId+day).
-export async function deleteRecurrenceRunForToday(templateId: string): Promise<void> {
+interface RecurrenceRunSnapshot {
+  id: string;
+  scheduledDate: Date;
+  childCampaignId: string | null;
+  outcome: string;
+  createdAt: Date;
+}
+
+// Reads today's RecurrenceRun row for this template, if any, before a test
+// touches it. The real 10:00 UTC dispatch runs against this same live
+// singleton template every day, so a test that later wipes today's row
+// unconditionally would be destroying the real production dispatch audit
+// record/day-guard, not just its own test-created one. Paired with
+// restoreRecurrenceRunForToday below.
+export async function snapshotRecurrenceRunForToday(templateId: string): Promise<RecurrenceRunSnapshot | null> {
+  const now = new Date();
+  const scheduledDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const row = await client().recurrenceRun.findFirst({ where: { templateId, scheduledDate } });
+  return row ?? null;
+}
+
+// Releases the day's dispatch slot claimed during a test run, then puts
+// back whatever real RecurrenceRun row existed before the test started (if
+// any), with the same id/scheduledDate/childCampaignId/outcome/createdAt —
+// so the real production template isn't left blocked, and its real dispatch
+// history for today isn't lost either. If no row existed before the test,
+// nothing is recreated.
+export async function restoreRecurrenceRunForToday(
+  templateId: string,
+  snapshot: RecurrenceRunSnapshot | null
+): Promise<void> {
   const now = new Date();
   const scheduledDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   await client().recurrenceRun.deleteMany({ where: { templateId, scheduledDate } });
+  if (!snapshot) return;
+  await client().recurrenceRun.create({
+    data: {
+      id: snapshot.id,
+      templateId,
+      scheduledDate: snapshot.scheduledDate,
+      childCampaignId: snapshot.childCampaignId,
+      outcome: snapshot.outcome,
+      createdAt: snapshot.createdAt,
+    },
+  });
 }
 
 export async function getCampaignById(id: string): Promise<{ subject: string; status: string; lastMorningBoostId: string | null } | null> {
