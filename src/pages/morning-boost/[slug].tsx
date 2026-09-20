@@ -195,7 +195,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     },
   });
 
-  if (!entry || !entry.publishedAt) {
+  const now = new Date();
+  const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+
+  if (!entry || !entry.publishedAt || new Date(entry.publishedAt) >= tomorrowStartUtc) {
     return { notFound: true };
   }
 

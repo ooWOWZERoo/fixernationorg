@@ -210,8 +210,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const session = await getServerSession(context.req, context.res, authOptions);
   const activeMember = session ? isMember(session.user.role, session.user.adminRole) : false;
 
+  const now = new Date();
+  const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+
   const all = await db.morningBoost.findMany({
-    where: { publishedAt: { not: null } },
+    where: { publishedAt: { not: null, lt: tomorrowStartUtc } },
     select: {
       id: true,
       slug: true,

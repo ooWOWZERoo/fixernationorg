@@ -45,10 +45,11 @@ function toXml(urls: UrlEntry[]): string {
 
 export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   const now = new Date();
+  const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 
   const [blogPosts, boosts, books, events, challenges, pathways, issues] = await Promise.all([
     db.blogPost.findMany({ where: { publishedAt: { not: null } }, select: { slug: true, updatedAt: true } }),
-    db.morningBoost.findMany({ where: { publishedAt: { not: null } }, select: { slug: true, updatedAt: true } }),
+    db.morningBoost.findMany({ where: { publishedAt: { not: null, lt: tomorrowStartUtc } }, select: { slug: true, updatedAt: true } }),
     db.product.findMany({ where: { type: "BOOK" }, select: { slug: true, updatedAt: true } }),
     db.event.findMany({ where: { publishedAt: { not: null, lte: now } }, select: { slug: true, updatedAt: true } }),
     db.challenge.findMany({ where: { active: true }, select: { slug: true, updatedAt: true } }),
