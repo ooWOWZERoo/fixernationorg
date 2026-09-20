@@ -13,6 +13,7 @@ interface EntryRow {
   title: string;
   publishedAt: string | null;
   createdAt: string;
+  status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
 }
 
 interface SendTemplate {
@@ -94,9 +95,13 @@ const AdminMorningBoostPage: NextPageWithLayout<Props> = ({ entries, sendTemplat
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {entry.publishedAt ? (
+                    {entry.status === "PUBLISHED" ? (
                       <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
                         Published
+                      </span>
+                    ) : entry.status === "SCHEDULED" ? (
+                      <span className="inline-flex rounded-full bg-amber/20 px-2.5 py-0.5 text-xs font-medium text-amber-dark">
+                        Scheduled
                       </span>
                     ) : (
                       <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
@@ -147,7 +152,21 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     }),
   ]);
 
-  return { props: { entries: JSON.parse(JSON.stringify(entries)), sendTemplate } };
+  // Same day-window convention as the public site (see 945cb71): a
+  // publishedAt dated today-or-earlier is live now; a future day is only
+  // scheduled, not actually published yet.
+  const now = new Date();
+  const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const entriesWithStatus = entries.map((entry) => ({
+    ...entry,
+    status: !entry.publishedAt
+      ? ("DRAFT" as const)
+      : entry.publishedAt < tomorrowStartUtc
+      ? ("PUBLISHED" as const)
+      : ("SCHEDULED" as const),
+  }));
+
+  return { props: { entries: JSON.parse(JSON.stringify(entriesWithStatus)), sendTemplate } };
 };
 
 export default AdminMorningBoostPage;

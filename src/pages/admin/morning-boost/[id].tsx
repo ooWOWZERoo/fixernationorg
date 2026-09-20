@@ -20,9 +20,10 @@ const toSlug = (title: string) =>
 interface Props {
   entry: MorningBoost;
   sendTemplateId: string | null;
+  status: "DRAFT" | "SCHEDULED" | "PUBLISHED";
 }
 
-const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateId }) => {
+const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateId, status }) => {
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -175,9 +176,13 @@ const AdminMorningBoostEdit: NextPageWithLayout<Props> = ({ entry, sendTemplateI
         <div className="mt-2 flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{entry.title}</h1>
-            {entry.publishedAt ? (
+            {status === "PUBLISHED" ? (
               <span className="mt-1 inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
                 Published
+              </span>
+            ) : status === "SCHEDULED" ? (
+              <span className="mt-1 inline-flex rounded-full bg-amber/20 px-2.5 py-0.5 text-xs font-medium text-amber-dark">
+                Scheduled
               </span>
             ) : (
               <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
@@ -352,7 +357,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   ]);
   if (!entry) return { notFound: true };
 
-  return { props: { entry: JSON.parse(JSON.stringify(entry)), sendTemplateId: sendTemplate?.id ?? null } };
+  // Same day-window convention as the public site (see 945cb71) and the
+  // Morning Boost list page: a publishedAt dated today-or-earlier is live
+  // now; a future day is only scheduled, not actually published yet.
+  const now = new Date();
+  const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const status: "DRAFT" | "SCHEDULED" | "PUBLISHED" = !entry.publishedAt
+    ? "DRAFT"
+    : entry.publishedAt < tomorrowStartUtc
+    ? "PUBLISHED"
+    : "SCHEDULED";
+
+  return { props: { entry: JSON.parse(JSON.stringify(entry)), sendTemplateId: sendTemplate?.id ?? null, status } };
 };
 
 export default AdminMorningBoostEdit;
