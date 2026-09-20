@@ -1679,6 +1679,11 @@ model AutomationEnrollment {
   journey AutomationJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
   events  AutomationEvent[]
 
+  // Only one ACTIVE enrollment per journey+user (or journey+contact) is
+  // enforced via a partial unique index in migration
+  // 20260920_fix_automation_enrollment_race -- a plain @@unique would break
+  // legitimate re-enrollment once a prior row moves to COMPLETED/CANCELLED/
+  // FAILED; see the matching note on PathwayEnrollment for why.
   @@index([journeyId, status])
   @@index([status, nextRunAt])
   @@index([userId])

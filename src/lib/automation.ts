@@ -41,18 +41,28 @@ export async function enrollInJourneys(opts: EnrollOptions): Promise<void> {
     });
     if (alreadyActive) continue;
 
-    await db.automationEnrollment.create({
-      data: {
-        journeyId: journey.id,
-        userId: userId ?? null,
-        contactId: contactId ?? null,
-        nextRunAt: new Date(),
-        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
-        events: {
-          create: { type: "enrolled", metadata: { trigger, ...(triggerConfig ?? {}) } },
+    try {
+      await db.automationEnrollment.create({
+        data: {
+          journeyId: journey.id,
+          userId: userId ?? null,
+          contactId: contactId ?? null,
+          nextRunAt: new Date(),
+          ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
+          events: {
+            create: { type: "enrolled", metadata: { trigger, ...(triggerConfig ?? {}) } },
+          },
         },
-      },
-    });
+      });
+    } catch (err: unknown) {
+      if (err != null && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002") {
+        // Already enrolled by a concurrent call for the same journey+user
+        // (or journey+contact) -- the partial unique index caught the race
+        // that the findFirst check above could miss.
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
