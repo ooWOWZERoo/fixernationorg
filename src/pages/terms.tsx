@@ -15,7 +15,7 @@ const TermsPage: NextPageWithLayout = () => {
         <div className="mb-10">
           <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-ink-soft">Legal</span>
           <h1 className="mt-2 text-4xl font-extrabold text-navy">Terms of service</h1>
-          <p className="mt-3 text-sm text-ink-soft">Last updated: August 13, 2026</p>
+          <p className="mt-3 text-sm text-ink-soft">Last updated: September 21, 2026</p>
         </div>
 
         <div className="prose-legal">
@@ -49,6 +49,11 @@ const TermsPage: NextPageWithLayout = () => {
             cancellation, your membership remains active through the end of the period you already
             paid for. We do not offer prorated refunds for partial periods except where required
             by law.
+          </p>
+          <p>
+            Membership includes automatic enrollment in Morning Boost, our daily email. You can
+            opt out of these emails anytime from your account settings without affecting your
+            membership.
           </p>
           <p>
             We reserve the right to change membership pricing. We will give you at least 30 days'

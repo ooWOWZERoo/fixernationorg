@@ -15,7 +15,7 @@ const PrivacyPage: NextPageWithLayout = () => {
         <div className="mb-10">
           <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-ink-soft">Legal</span>
           <h1 className="mt-2 text-4xl font-extrabold text-navy">Privacy policy</h1>
-          <p className="mt-3 text-sm text-ink-soft">Last updated: August 13, 2026</p>
+          <p className="mt-3 text-sm text-ink-soft">Last updated: September 21, 2026</p>
         </div>
 
         <div className="prose-legal">
@@ -44,6 +44,12 @@ const PrivacyPage: NextPageWithLayout = () => {
             We use your information to run the service: process your account, deliver membership
             content (Morning Boost, blog, community features), send transactional emails (receipts,
             password resets, email verification), and respond to questions you submit.
+          </p>
+          <p>
+            As part of membership, or when you become a Brand Ambassador or Service Provider, we
+            automatically subscribe you to Morning Boost, our daily email. You can turn this off
+            anytime from your account settings or by using the unsubscribe link in any Morning
+            Boost email.
           </p>
           <p>
             If you opt in to marketing emails, we may send you updates about new content and
