@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/email";
 import { enrollInJourneys } from "@/lib/automation";
 import { awardPoints, POINTS } from "@/lib/loyalty";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp, isRateLimitBypassed } from "@/lib/rate-limit";
 
 const RegisterSchema = z.object({
   name: z.string().min(1).max(100),
@@ -21,9 +21,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const rl = await checkRateLimit(`reg:${getClientIp(req)}`, 10, 60 * 60 * 1000);
-  if (!rl.allowed) {
-    return res.status(429).json({ error: "Too many attempts. Please try again later." });
+  if (!isRateLimitBypassed(req)) {
+    const rl = await checkRateLimit(`reg:${getClientIp(req)}`, 10, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return res.status(429).json({ error: "Too many attempts. Please try again later." });
+    }
   }
 
   const parsed = RegisterSchema.safeParse(req.body);

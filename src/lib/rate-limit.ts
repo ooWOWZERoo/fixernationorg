@@ -27,6 +27,21 @@ export function getClientIp(req: NextApiRequest): string {
   return req.socket.remoteAddress ?? "unknown";
 }
 
+// -- e2e test bypass (registration rate limit only) --------------------------
+//
+// The e2e suite registers real accounts through /api/auth/register across
+// three spec files. Repeated full-suite runs within the same hour exhaust
+// the shared 10/hour per-IP budget for the test runner's IP, causing
+// intermittent 429s that look like app bugs but are just test volume. This
+// lets pre-provisioned e2e runs skip the registration rate limit specifically
+// via a shared secret header, without weakening the limit for real traffic.
+export function isRateLimitBypassed(req: NextApiRequest): boolean {
+  const secret = process.env.E2E_TEST_BYPASS_SECRET;
+  if (!secret) return false;
+  const header = req.headers["x-e2e-bypass-secret"];
+  return typeof header === "string" && header === secret;
+}
+
 export async function checkRateLimit(
   key: string,
   maxHits: number,

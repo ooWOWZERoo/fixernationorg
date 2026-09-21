@@ -20,6 +20,7 @@ test.afterAll(async () => {
 test("register -> check-your-email state -> duplicate email doesn't create a second account", async ({ page }) => {
   test.setTimeout(30000);
 
+  await page.setExtraHTTPHeaders({ "x-e2e-bypass-secret": process.env.E2E_TEST_BYPASS_SECRET ?? "" });
   await page.goto("/register");
   await page.getByLabel("Full name").fill(TEST_NAME);
   await page.getByLabel("Email address").fill(TEST_EMAIL);

@@ -22,6 +22,7 @@ test("admin changes a member's role -> persists; own row and staff access stay l
 
   const res = await page.request.post("/api/auth/register", {
     data: { name: "QA Admin Users Target", email: TARGET_EMAIL, password: "Target-Test-Pw!23" },
+    headers: { "x-e2e-bypass-secret": process.env.E2E_TEST_BYPASS_SECRET ?? "" },
   });
   expect(res.ok()).toBe(true);
 
@@ -74,6 +75,7 @@ test("super admin CAN change another user's staff access -> persists", async ({ 
 
   const res = await page.request.post("/api/auth/register", {
     data: { name: "QA Admin Users Super Target", email: SUPER_TARGET_EMAIL, password: "Target-Test-Pw!23" },
+    headers: { "x-e2e-bypass-secret": process.env.E2E_TEST_BYPASS_SECRET ?? "" },
   });
   expect(res.ok()).toBe(true);
 

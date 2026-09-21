@@ -158,6 +158,7 @@ test("loop 3: ambassador referral link attribution credits the ambassador on reg
   const referredEmail = `qa-loop-referred-${STAMP}@fixernation-e2e.test`;
 
   try {
+    await page.setExtraHTTPHeaders({ "x-e2e-bypass-secret": process.env.E2E_TEST_BYPASS_SECRET ?? "" });
     await page.goto(`/register?ref=${referralCode}`);
     await page.getByLabel("Full name").fill("QA Loop Referred User");
     await page.getByLabel("Email address").fill(referredEmail);
