@@ -11,6 +11,7 @@ import {
 } from "@/lib/emails/application-submitted";
 import { applyApplicationTags } from "@/lib/application-crm";
 import { isEmailBlocked, isSubmissionThrottled } from "@/lib/rate-limit";
+import { isTestEmail } from "@/lib/testContacts";
 
 const schema = z.object({
   _hp:               z.string().max(200).optional(),
@@ -186,9 +187,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }).catch((err) => console.error("[application/provider] CRM sync failed:", err));
 
   const notifyEmail = process.env.ADMIN_NOTIFY_EMAIL ?? process.env.SMTP_FROM;
+  if (notifyEmail && isTestEmail(d.email)) {
+    console.warn("[application/provider] Skipping admin-notify for QA test submission:", d.email);
+  }
   const [submittedEmail, adminEmail] = await Promise.allSettled([
     sendEmail({ to: d.email, ...buildApplicationSubmittedEmail(d.firstName, "PROVIDER", emailVerifyToken) }),
-    notifyEmail
+    notifyEmail && !isTestEmail(d.email)
       ? sendEmail({ to: notifyEmail, ...buildApplicationAdminNotifyEmail(`${d.firstName} ${d.lastName}`, "PROVIDER", application.id) })
       : Promise.resolve(),
   ]);

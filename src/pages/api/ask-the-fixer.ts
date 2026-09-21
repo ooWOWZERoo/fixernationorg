@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { isTestEmail } from "@/lib/testContacts";
 
 const bodySchema = z.object({
   name: z.string().min(2),
@@ -38,7 +39,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   const adminEmail = process.env.SMTP_FROM ?? process.env.SMTP_USER;
-  if (adminEmail) {
+  if (adminEmail && isTestEmail(email)) {
+    console.warn("[ask-the-fixer] Skipping admin-notify for QA test submission:", email);
+  } else if (adminEmail) {
     try {
       await sendEmail({
         to: adminEmail,
