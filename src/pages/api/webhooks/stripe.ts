@@ -11,6 +11,7 @@ import {
   buildMembershipCanceledEmail,
 } from "@/lib/emails/membership";
 import { enrollInJourneys } from "@/lib/automation";
+import { ensureContactForUser, ensureDefaultMorningBoostConsent } from "@/lib/contacts";
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
@@ -244,6 +245,15 @@ export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
     const price = await db.price.findUnique({ where: { id: priceId }, select: { membershipRole: true } });
     if (price?.membershipRole) {
       await db.user.update({ where: { id: userId }, data: { role: price.membershipRole } });
+
+      // Establish the Morning Boost opt-in default on first grant only --
+      // ensureDefaultMorningBoostConsent is a no-op if the contact already
+      // has consent history, so this is safe to run on renewals too.
+      const grantedUser = await db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+      if (grantedUser?.email) {
+        const contactId = await ensureContactForUser(userId, grantedUser.email, grantedUser.name, "stripe_subscription");
+        await ensureDefaultMorningBoostConsent(contactId, "stripe_subscription");
+      }
     }
   }
 

@@ -70,6 +70,22 @@ export async function ensureContactForUser(
   return contact.id;
 }
 
+// Establishes the Morning Boost opt-in default the first time a contact
+// becomes eligible for it (Stripe subscription purchase, gift-code
+// redemption) -- but only when the contact has no consent history at all.
+// If a row already exists (opted in OR out), that's the user's own choice
+// and must never be overridden, e.g. re-opting them in on a renewal after
+// they explicitly unsubscribed.
+export async function ensureDefaultMorningBoostConsent(contactId: string, source: string): Promise<void> {
+  const existing = await db.contactConsent.findUnique({
+    where: { contactId_topic: { contactId, topic: "MORNING_BOOST" } },
+    select: { contactId: true },
+  });
+  if (existing) return;
+
+  await setConsent(contactId, "MORNING_BOOST", true, source);
+}
+
 export async function setConsent(
   contactId: string,
   topic: ContactConsentTopic,

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enrollInJourneys } from "@/lib/automation";
+import { ensureContactForUser, ensureDefaultMorningBoostConsent } from "@/lib/contacts";
 
 const schema = z.object({
   code: z.string().min(1).max(40).transform((s) => s.trim().toUpperCase()),
@@ -97,6 +98,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     });
 
+    // Establish the Morning Boost opt-in default -- outside the transaction
+    // since Contact/ContactConsent rows aren't part of the atomic
+    // membership-grant invariants above.
+    const redeemer = await db.user.findUnique({ where: { id: session.user.id }, select: { email: true, name: true } });
+    if (redeemer?.email) {
+      const contactId = await ensureContactForUser(session.user.id, redeemer.email, redeemer.name, "gift_code");
+      await ensureDefaultMorningBoostConsent(contactId, "gift_code");
+    }
+
     // `source: "GIFT_CODE"` lets a journey scope itself to specifically
     // this gift-membership redemption path (currently only the free
     // 90-day book promo) without also firing on every other ROLE_CHANGE
@@ -116,6 +126,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: { role: giftCode.grantedRole },
     }),
   ]);
+
+  const adhocRedeemer = await db.user.findUnique({ where: { id: session.user.id }, select: { email: true, name: true } });
+  if (adhocRedeemer?.email) {
+    const contactIdAdhoc = await ensureContactForUser(session.user.id, adhocRedeemer.email, adhocRedeemer.name, "gift_code");
+    await ensureDefaultMorningBoostConsent(contactIdAdhoc, "gift_code");
+  }
 
   enrollInJourneys({ trigger: "ROLE_CHANGE", userId: session.user.id, triggerConfig: { role: giftCode.grantedRole } }).catch(() => {});
   return res.json({ grantedRole: giftCode.grantedRole });
