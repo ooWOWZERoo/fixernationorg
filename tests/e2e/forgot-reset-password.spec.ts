@@ -17,6 +17,8 @@ test("forgot-password shows the same confirmation for an existing and a nonexist
   // responding. Wait on the actual response rather than guessing a UI
   // timeout, since this session has sent a lot of test email traffic and
   // the SMTP provider may be throttling.
+  await page.setExtraHTTPHeaders({ "x-e2e-bypass-secret": process.env.E2E_TEST_BYPASS_SECRET ?? "" });
+
   await page.goto("/forgot-password");
   await page.getByLabel("Email address").fill(process.env.TEST_MFA_EMAIL!);
   const respPromise = page.waitForResponse(
