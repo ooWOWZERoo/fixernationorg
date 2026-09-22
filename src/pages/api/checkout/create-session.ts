@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, isMissingStripeCustomer } from "@/lib/stripe";
+import Stripe from "stripe";
 
 const bodySchema = z.object({
   priceId: z.string().min(1),
@@ -11,7 +12,7 @@ const bodySchema = z.object({
 
 type MembershipDb = {
   userMembership: {
-    findUnique: (a: unknown) => Promise<{ stripeSubscriptionId: string | null } | null>;
+    findUnique: (a: unknown) => Promise<{ stripeSubscriptionId: string | null; status: string } | null>;
   };
 };
 
@@ -63,43 +64,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const existing = await membershipDb.userMembership.findUnique({
     where: { userId: user.id } as unknown as Record<string, unknown>,
   });
-  if (existing?.stripeSubscriptionId) {
+  if (existing && (existing.status === "ACTIVE" || existing.status === "TRIALING")) {
     return res.status(409).json({ error: "You already have an active membership. Manage it from your billing page." });
   }
 
   const stripe = getStripe();
   const baseUrl = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
+  const nnUser = user;
+  const nnPrice = price;
 
-  // Create or reuse Stripe Customer
-  let stripeCustomerId = user.stripeCustomerId;
-  if (!stripeCustomerId) {
+  async function createFreshCustomer(): Promise<string> {
     const customer = await stripe.customers.create({
-      email: user.email ?? undefined,
-      metadata: { userId: user.id },
+      email: nnUser.email ?? undefined,
+      metadata: { userId: nnUser.id },
     });
-    stripeCustomerId = customer.id;
-    await db.user.update({
-      where: { id: user.id },
-      data: { stripeCustomerId },
-    });
+    await db.user.update({ where: { id: nnUser.id }, data: { stripeCustomerId: customer.id } });
+    return customer.id;
   }
 
   const isSubscription = price.interval === "MONTHLY" || price.interval === "ANNUAL";
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    customer: stripeCustomerId,
-    mode: isSubscription ? "subscription" : "payment",
-    payment_method_types: ["card"],
-    line_items: [{ price: price.stripePriceId, quantity: 1 }],
-    ...(isSubscription && price.trialDays
-      ? { subscription_data: { trial_period_days: price.trialDays, metadata: { userId: user.id, priceId: price.id } } }
-      : isSubscription
-      ? { subscription_data: { metadata: { userId: user.id, priceId: price.id } } }
-      : {}),
-    metadata: { userId: user.id, priceId: price.id },
-    success_url: `${baseUrl}/account/billing?checkout=success`,
-    cancel_url: `${baseUrl}/join`,
-  });
+  function buildSessionParams(customerId: string): Stripe.Checkout.SessionCreateParams {
+    return {
+      customer: customerId,
+      mode: isSubscription ? "subscription" : "payment",
+      payment_method_types: ["card"],
+      line_items: [{ price: nnPrice.stripePriceId!, quantity: 1 }],
+      ...(isSubscription && nnPrice.trialDays
+        ? { subscription_data: { trial_period_days: nnPrice.trialDays, metadata: { userId: nnUser.id, priceId: nnPrice.id } } }
+        : isSubscription
+        ? { subscription_data: { metadata: { userId: nnUser.id, priceId: nnPrice.id } } }
+        : {}),
+      metadata: { userId: nnUser.id, priceId: nnPrice.id },
+      success_url: `${baseUrl}/account/billing?checkout=success`,
+      cancel_url: `${baseUrl}/join`,
+    };
+  }
 
-  return res.status(200).json({ url: checkoutSession.url });
+  try {
+    // Create or reuse Stripe Customer
+    let stripeCustomerId = nnUser.stripeCustomerId ?? (await createFreshCustomer());
+
+    let checkoutSession: Stripe.Checkout.Session;
+    try {
+      checkoutSession = await stripe.checkout.sessions.create(buildSessionParams(stripeCustomerId));
+    } catch (err) {
+      // A customer ID saved under a different Stripe mode (e.g. a leftover
+      // test-mode ID after a live-mode key rotation) doesn't exist from the
+      // live API's point of view -- self-heal by minting a fresh customer
+      // and retrying once, instead of leaving the user stuck permanently.
+      if (!isMissingStripeCustomer(err)) throw err;
+      stripeCustomerId = await createFreshCustomer();
+      checkoutSession = await stripe.checkout.sessions.create(buildSessionParams(stripeCustomerId));
+    }
+
+    return res.status(200).json({ url: checkoutSession.url });
+  } catch (err) {
+    console.error("[checkout/create-session] Stripe error:", err);
+    return res.status(500).json({ error: "Something went wrong starting checkout. Please try again or contact support." });
+  }
 }

@@ -14,3 +14,11 @@ export function getStripe(): Stripe {
     typescript: true,
   });
 }
+
+// A stripeCustomerId saved under a different Stripe mode (e.g. a leftover
+// test-mode ID after a live-mode key rotation) doesn't exist from the
+// current API's point of view -- callers use this to self-heal by minting
+// a fresh customer, rather than crashing on an uncaught Stripe error.
+export function isMissingStripeCustomer(err: unknown): boolean {
+  return err instanceof Stripe.errors.StripeError && err.code === "resource_missing" && (err as Stripe.errors.StripeInvalidRequestError).param === "customer";
+}
