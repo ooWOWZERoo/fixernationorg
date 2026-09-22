@@ -1,6 +1,6 @@
 ---
 name: fno-verify
-description: Push fixernation.org changes to Vercel and confirm the deployment reaches ● Ready. Use this after every git commit on the FixerNationOrg project. Handles push, polls for deploy status, runs the Playwright e2e smoke suite against the live site, reports the live URL on success, and surfaces build logs or test failures on failure. Never use preview_start or run a local dev server for this project — Vercel is the only runtime.
+description: Push fixernation.org changes to Vercel and confirm the deployment reaches ● Ready. Use this after every git commit on the FixerNationOrg project. Handles push, polls for deploy status, runs Playwright e2e tests SCOPED to the spec(s) relevant to the change (never the full suite by default — this is a live production site now, and full-suite runs trigger real campaign-email volume that has repeatedly gotten the production mailbox suspended), reports the live URL on success, and surfaces build logs or test failures on failure. Never use preview_start or run a local dev server for this project — Vercel is the only runtime.
 model: haiku
 ---
 
@@ -74,15 +74,23 @@ If the loop hit the 40-iteration bound without seeing Ready or Error, treat that
 
 ---
 
-## Step 3 — Run the Playwright e2e smoke suite
+## Step 3 — Run the Playwright e2e suite, SCOPED to the change
 
 Only run this once the deployment shows ● Ready. Skip it entirely on ● Error — go straight to Step 4b.
 
+**Default to scoped, not full-suite.** As of 2026-09-22 this project is live with real members and real Stripe transactions flowing through the one production mailbox (`campaigns@fixernation.org`). Several specs (`admin-campaign`, `admin-recurring-campaigns`, `closed-loop-journeys`, and others that exercise campaign sends) intentionally fire real SMTP traffic — by design, to prove the pipeline, using non-resolving `*.test`-domain recipients. That's correct behavior for those specs individually, but running the *full* 114-test suite as one burst is what has repeatedly tripped hosting.com's abuse detection and suspended the mailbox (5 occurrences now, most recently 2026-09-22, right after a routine full-suite verify run).
+
+The orchestrator invoking you must tell you which spec file(s) are relevant to the change being verified. Run only those:
+
 ```bash
-npm run test:e2e
+npx playwright test tests/e2e/<relevant-spec>.spec.ts
 ```
 
-This runs against the live production URL (`https://fixernation.org` by default, from `playwright.config.ts` / `.env.test`) — no local dev server involved, consistent with the no-local-preview constraint for this project. It signs in as the dedicated QA test member (`qa-member@fixernation.org`) and checks core pages load and render correctly, including regression coverage for the AccountNav grouping.
+If the orchestrator invokes you without naming a spec, do not default to the full suite — ask which spec(s) correspond to the change, or fall back to the smallest spec that plausibly covers the touched code path (e.g. a pure layout change to one admin page → that page's own spec if one exists, otherwise skip e2e and say so explicitly rather than running everything).
+
+**Only run the full suite (`npm run test:e2e`) when the orchestrator explicitly asks for a full-suite/regression run** — e.g. before a phase-complete milestone, or when a change plausibly has wide blast radius (schema migration, shared lib/auth change, dependency bump). Even then, flag to the user beforehand that campaign-send specs will generate real mailbox traffic, since a second suspension is a real cost now, not just a test-hygiene annoyance.
+
+Whichever scope you run, it goes against the live production URL (`https://fixernation.org` by default, from `playwright.config.ts` / `.env.test`) — no local dev server involved, consistent with the no-local-preview constraint for this project. Most specs sign in as one of the dedicated QA test accounts (`qa-member@fixernation.org`, etc.).
 
 **If `.env.test` is missing** (fresh clone, new machine), the run will fail immediately with a clear "TEST_MEMBER_EMAIL / TEST_MEMBER_PASSWORD not set" error. Report this distinctly from a real test failure — it's a local setup gap, not a deploy regression — and tell the user to recreate `.env.test` (credentials are not committed, by design).
 
