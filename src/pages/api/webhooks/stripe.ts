@@ -12,6 +12,7 @@ import {
 } from "@/lib/emails/membership";
 import { enrollInJourneys } from "@/lib/automation";
 import { ensureContactForUser, ensureDefaultMorningBoostConsent } from "@/lib/contacts";
+import { attributeAffiliateCommission } from "@/lib/commission";
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
@@ -434,6 +435,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Refresh subscription state on successful renewal
       const sub = await stripe.subscriptions.retrieve(subId);
       await handleSubscriptionUpsert(sub);
+
+      // Affiliate commission fires on the first invoice that actually
+      // collects money. Deliberately NOT gated on billing_reason: a
+      // non-trial membership's first-ever charge is also
+      // "subscription_create", so billing_reason can't tell a first charge
+      // from a renewal. amount_paid > 0 skips the $0 trial-start invoice,
+      // and the sourceRef lookup skips every renewal after the first.
+      if ((inv.amount_paid ?? 0) > 0) {
+        const promoCode = sub.metadata?.promoCode;
+        const affiliateId = sub.metadata?.affiliateId;
+        if (promoCode && affiliateId) {
+          try {
+            const already = await db.commissionLedger.findFirst({
+              where: { sourceType: "PROMO_CODE", sourceRef: sub.id },
+            });
+            if (!already) {
+              await attributeAffiliateCommission({ sub, inv, affiliateId, promoCode });
+            }
+          } catch (err) {
+            console.error("[stripe-webhook] affiliate commission attribution failed:", err);
+          }
+        }
+      }
 
       // Only a true renewal cycle gets a receipt email — the first invoice
       // on a new subscription (billing_reason "subscription_create") is

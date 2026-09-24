@@ -1484,6 +1484,7 @@ model PromoCode {
   validFrom     DateTime        @default(now())
   validUntil    DateTime?
   notes         String?
+  stripeCouponId String?
   createdAt     DateTime        @default(now())
 
   affiliate     AffiliateAssignment @relation(fields: [affiliateId], references: [id])

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateUniquePromoCode } from "@/lib/affiliate";
+import { getStripe } from "@/lib/stripe";
 import { logAction, getClientIp } from "@/lib/audit";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
@@ -172,6 +173,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         code = await generateUniquePromoCode(user?.name);
       }
 
+      // Mint the real Stripe Coupon up front so checkout has something to
+      // apply. `duration: "once"` discounts only the invoice it's attached
+      // to, not every future renewal.
+      let stripeCouponId: string;
+      try {
+        const coupon = await getStripe().coupons.create(
+          discountType === "PERCENTAGE"
+            ? { percent_off: discountValue, duration: "once", name: code }
+            : { amount_off: Math.round(discountValue * 100), currency: "usd", duration: "once", name: code }
+        );
+        stripeCouponId = coupon.id;
+      } catch (err) {
+        console.error("[admin/affiliates] Stripe coupon create failed:", err);
+        return res.status(502).json({
+          error: "Couldn't create the discount in Stripe, so the promo code wasn't saved. Please try again.",
+        });
+      }
+
       const promo = await db.promoCode.create({
         data: {
           code,
@@ -181,6 +200,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           maxUses: maxUses ?? null,
           validUntil: validUntil ? new Date(validUntil) : null,
           notes: notes?.trim() ?? null,
+          stripeCouponId,
         },
       });
       return res.status(201).json(promo);

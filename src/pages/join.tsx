@@ -48,6 +48,7 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership,
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
 
   const monthlyPrice = consumerMembership?.prices.find((p) => p.interval === "MONTHLY");
   const annualPrice = consumerMembership?.prices.find((p) => p.interval === "ANNUAL");
@@ -79,7 +80,7 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership,
       const res = await fetch("/api/checkout/create-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId: selectedPrice.id }),
+        body: JSON.stringify({ priceId: selectedPrice.id, promoCode: promoCode.trim() || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -207,6 +208,24 @@ const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership,
                     </li>
                   ))}
                 </ul>
+
+                <div className="mt-6">
+                  <label htmlFor="promoCode" className="block text-xs font-bold text-navy">
+                    Promo code (optional)
+                  </label>
+                  <input
+                    id="promoCode"
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    autoComplete="off"
+                    placeholder="Got a code? Add it here"
+                    className="mt-2 w-full rounded-[10px] border border-ink/15 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-amber focus:outline-none focus:ring-2 focus:ring-amber/30"
+                  />
+                  <p className="mt-1.5 text-xs text-ink-soft">
+                    We'll take the discount off at checkout.
+                  </p>
+                </div>
 
                 {checkoutError && (
                   <p className="mt-4 text-xs text-red-600">{checkoutError}</p>

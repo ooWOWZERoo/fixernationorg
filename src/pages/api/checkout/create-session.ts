@@ -8,6 +8,7 @@ import Stripe from "stripe";
 
 const bodySchema = z.object({
   priceId: z.string().min(1),
+  promoCode: z.string().max(40).optional(),
 });
 
 type MembershipDb = {
@@ -53,6 +54,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "This plan is not yet available for purchase. Please contact support." });
   }
 
+  // A promo code either resolves to a usable Stripe coupon or the whole
+  // checkout is refused — never send someone to Stripe without the discount
+  // they typed in.
+  let promo: { code: string; stripeCouponId: string; affiliateId: string } | null = null;
+  const rawPromo = parsed.data.promoCode?.trim().toUpperCase();
+  if (rawPromo) {
+    const found = await db.promoCode.findUnique({ where: { code: rawPromo } });
+    const couponId = (found as unknown as { stripeCouponId: string | null } | null)?.stripeCouponId ?? null;
+    const now = new Date();
+    const usable =
+      found &&
+      couponId &&
+      found.status === "ACTIVE" &&
+      (!found.validUntil || found.validUntil > now) &&
+      (found.maxUses === null || found.usedCount < found.maxUses);
+
+    if (!usable) {
+      return res.status(400).json({ error: "This promo code is invalid or has expired." });
+    }
+    promo = { code: rawPromo, stripeCouponId: couponId!, affiliateId: found!.affiliateId };
+  }
+
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, email: true, stripeCustomerId: true },
@@ -72,6 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const baseUrl = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
   const nnUser = user;
   const nnPrice = price;
+  const nnPromo = promo;
 
   async function createFreshCustomer(): Promise<string> {
     const customer = await stripe.customers.create({
@@ -85,15 +109,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const isSubscription = price.interval === "MONTHLY" || price.interval === "ANNUAL";
 
   function buildSessionParams(customerId: string): Stripe.Checkout.SessionCreateParams {
+    // Affiliate attribution rides on subscription_data.metadata — the
+    // top-level metadata bag is already used for other lookups.
+    const subMetadata = {
+      userId: nnUser.id,
+      priceId: nnPrice.id,
+      ...(nnPromo ? { promoCode: nnPromo.code, affiliateId: nnPromo.affiliateId } : {}),
+    };
+
     return {
       customer: customerId,
       mode: isSubscription ? "subscription" : "payment",
       payment_method_types: ["card"],
       line_items: [{ price: nnPrice.stripePriceId!, quantity: 1 }],
+      ...(nnPromo ? { discounts: [{ coupon: nnPromo.stripeCouponId }] } : {}),
       ...(isSubscription && nnPrice.trialDays
-        ? { subscription_data: { trial_period_days: nnPrice.trialDays, metadata: { userId: nnUser.id, priceId: nnPrice.id } } }
+        ? { subscription_data: { trial_period_days: nnPrice.trialDays, metadata: subMetadata } }
         : isSubscription
-        ? { subscription_data: { metadata: { userId: nnUser.id, priceId: nnPrice.id } } }
+        ? { subscription_data: { metadata: subMetadata } }
         : {}),
       metadata: { userId: nnUser.id, priceId: nnPrice.id },
       success_url: `${baseUrl}/account/billing?checkout=success`,
