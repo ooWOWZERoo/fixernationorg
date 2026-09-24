@@ -16,7 +16,7 @@ const STAFF_ROLES = ["ADMIN", "SUPER_ADMIN"];
 // branch must never be able to set them (that's what the adminRole branch,
 // below, is for).
 const membershipSchema = z.object({
-  role: z.enum(["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR"]),
+  role: z.enum(["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR", "AFFILIATE"]),
 });
 
 const adminRoleSchema = z.object({

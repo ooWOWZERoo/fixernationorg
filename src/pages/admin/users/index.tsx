@@ -15,7 +15,7 @@ type UsersMembershipDb = {
   };
 };
 
-const MEMBERSHIP_ROLES = ["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR"] as const;
+const MEMBERSHIP_ROLES = ["CONSUMER", "MEMBER", "PROVIDER", "AMBASSADOR", "AFFILIATE"] as const;
 const ADMIN_ROLE_OPTIONS = ["NONE", "ADMIN", "SUPER_ADMIN"] as const;
 
 const MEMBERSHIP_LABEL: Record<string, string> = {
@@ -23,6 +23,7 @@ const MEMBERSHIP_LABEL: Record<string, string> = {
   MEMBER: "Member",
   PROVIDER: "Service Provider",
   AMBASSADOR: "Brand Ambassador",
+  AFFILIATE: "Affiliate",
 };
 
 const ADMIN_LABEL: Record<string, string> = {
