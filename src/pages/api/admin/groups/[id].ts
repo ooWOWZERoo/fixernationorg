@@ -22,6 +22,7 @@ const updateBody = z.object({
   autoMember: z.boolean().optional(),
   autoAmbassador: z.boolean().optional(),
   autoProvider: z.boolean().optional(),
+  autoAffiliate: z.boolean().optional(),
   visibility: z.nativeEnum(GroupVisibility).optional(),
 });
 
@@ -60,6 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...(rest.autoMember !== undefined ? { autoMember: rest.autoMember } : {}),
         ...(rest.autoAmbassador !== undefined ? { autoAmbassador: rest.autoAmbassador } : {}),
         ...(rest.autoProvider !== undefined ? { autoProvider: rest.autoProvider } : {}),
+        ...(rest.autoAffiliate !== undefined ? { autoAffiliate: rest.autoAffiliate } : {}),
         ...(rest.visibility ? { visibility: rest.visibility } : {}),
       },
     });

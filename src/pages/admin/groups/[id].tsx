@@ -17,6 +17,7 @@ interface Props {
     autoMember: boolean;
     autoAmbassador: boolean;
     autoProvider: boolean;
+    autoAffiliate: boolean;
     visibility: string;
   };
   pendingCount: number;
@@ -50,6 +51,7 @@ const AdminGroupEditPage: NextPageWithLayout<Props> = ({ group, pendingCount }) 
         autoMember: group.autoMember,
         autoAmbassador: group.autoAmbassador,
         autoProvider: group.autoProvider,
+        autoAffiliate: group.autoAffiliate,
         visibility: group.visibility,
       }}
     />
@@ -82,6 +84,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         autoMember: group.autoMember,
         autoAmbassador: group.autoAmbassador,
         autoProvider: group.autoProvider,
+        autoAffiliate: group.autoAffiliate,
         visibility: group.visibility,
       },
       pendingCount: group.requests.length,

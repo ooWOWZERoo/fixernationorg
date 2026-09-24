@@ -21,6 +21,7 @@ const createBody = z.object({
   autoMember: z.boolean().optional(),
   autoAmbassador: z.boolean().optional(),
   autoProvider: z.boolean().optional(),
+  autoAffiliate: z.boolean().optional(),
   visibility: z.nativeEnum(GroupVisibility).optional(),
 });
 
@@ -45,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid data." });
     }
 
-    const { name, slug, description, coverUrl, autoMember, autoAmbassador, autoProvider, visibility } = parsed.data;
+    const { name, slug, description, coverUrl, autoMember, autoAmbassador, autoProvider, autoAffiliate, visibility } = parsed.data;
 
     const slugTaken = await db.socialGroup.findUnique({ where: { slug } });
     if (slugTaken) return res.status(409).json({ error: "Slug already in use." });
@@ -59,6 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         autoMember: autoMember ?? false,
         autoAmbassador: autoAmbassador ?? false,
         autoProvider: autoProvider ?? false,
+        autoAffiliate: autoAffiliate ?? false,
         visibility: visibility ?? "PUBLIC",
       },
     });

@@ -14,6 +14,7 @@ type GroupRow = {
   autoMember: boolean;
   autoAmbassador: boolean;
   autoProvider: boolean;
+  autoAffiliate: boolean;
   memberCount: number;
   postCount: number;
   pendingRequests: number;
@@ -26,11 +27,12 @@ interface Props {
 
 const VISIBILITY_LABEL: Record<string, string> = { PUBLIC: "Public", PRIVATE: "Private" };
 
-function autoJoinLabel(g: Pick<GroupRow, "autoMember" | "autoAmbassador" | "autoProvider">) {
+function autoJoinLabel(g: Pick<GroupRow, "autoMember" | "autoAmbassador" | "autoProvider" | "autoAffiliate">) {
   const tags = [
     g.autoMember && "Consumers",
     g.autoAmbassador && "Brand Ambassadors",
     g.autoProvider && "Service Providers",
+    g.autoAffiliate && "Affiliates",
   ].filter(Boolean) as string[];
   return tags.length ? tags.join(", ") : null;
 }
@@ -161,6 +163,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         autoMember: g.autoMember,
         autoAmbassador: g.autoAmbassador,
         autoProvider: g.autoProvider,
+        autoAffiliate: g.autoAffiliate,
         memberCount: g._count.members,
         postCount: g._count.posts,
         pendingRequests: g.requests.length,

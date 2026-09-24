@@ -9,11 +9,12 @@ type GroupFormValues = {
   autoMember: boolean;
   autoAmbassador: boolean;
   autoProvider: boolean;
+  autoAffiliate: boolean;
   visibility: string;
 };
 
 interface Props {
-  initial?: Partial<GroupFormValues> & { autoMember?: boolean; autoAmbassador?: boolean; autoProvider?: boolean };
+  initial?: Partial<GroupFormValues> & { autoMember?: boolean; autoAmbassador?: boolean; autoProvider?: boolean; autoAffiliate?: boolean };
   groupId?: string;
   mode: "create" | "edit";
 }
@@ -35,6 +36,7 @@ export function GroupForm({ initial, groupId, mode }: Props) {
     autoMember: initial?.autoMember ?? false,
     autoAmbassador: initial?.autoAmbassador ?? false,
     autoProvider: initial?.autoProvider ?? false,
+    autoAffiliate: initial?.autoAffiliate ?? false,
     visibility: initial?.visibility ?? "PUBLIC",
   });
   const [slugManual, setSlugManual] = useState(mode === "edit");
@@ -50,7 +52,7 @@ export function GroupForm({ initial, groupId, mode }: Props) {
     setValues((v) => ({ ...v, [field]: e.target.value }));
   };
 
-  const toggle = (field: "autoMember" | "autoAmbassador" | "autoProvider") => () => {
+  const toggle = (field: "autoMember" | "autoAmbassador" | "autoProvider" | "autoAffiliate") => () => {
     setValues((v) => ({ ...v, [field]: !v[field] }));
   };
 
@@ -174,6 +176,7 @@ export function GroupForm({ initial, groupId, mode }: Props) {
               { field: "autoMember", label: "Consumers" },
               { field: "autoAmbassador", label: "Brand Ambassadors" },
               { field: "autoProvider", label: "Service Providers" },
+              { field: "autoAffiliate", label: "Affiliates" },
             ] as const
           ).map(({ field, label }) => (
             <label key={field} className="flex cursor-pointer items-center gap-3">

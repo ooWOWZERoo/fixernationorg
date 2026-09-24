@@ -1,9 +1,10 @@
 import { db } from "./db";
 
-const AUTO_JOIN_FLAG: Partial<Record<string, "autoMember" | "autoProvider" | "autoAmbassador">> = {
+const AUTO_JOIN_FLAG: Partial<Record<string, "autoMember" | "autoProvider" | "autoAmbassador" | "autoAffiliate">> = {
   MEMBER: "autoMember",
   PROVIDER: "autoProvider",
   AMBASSADOR: "autoAmbassador",
+  AFFILIATE: "autoAffiliate",
 };
 
 export async function autoJoinGroups(userId: string, role: string): Promise<void> {

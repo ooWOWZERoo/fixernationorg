@@ -1,0 +1,1 @@
+ALTER TABLE "SocialGroup" ADD COLUMN IF NOT EXISTS "autoAffiliate" BOOLEAN NOT NULL DEFAULT false;
