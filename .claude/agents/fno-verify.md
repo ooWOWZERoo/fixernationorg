@@ -173,7 +173,7 @@ The code is live but a UI regression shipped. Investigate before treating this s
 After confirming ● Ready, surface the following checklist to the orchestrator. The orchestrator presents it to the user — these are manual admin steps needed to make new features usable in production.
 
 ### Database migrations
-Vercel runs `prisma migrate deploy` as part of the build step. If the deploy reached ● Ready, migrations are applied. No manual migration step needed.
+Vercel runs `prisma migrate deploy` as part of the build step. A ● Ready deploy strongly implies migrations applied — but you have no direct database access in your sandbox (`.env.neon.local`/`DATABASE_URL` aren't reachable here), so this is inference from build success, not a query result. **Never report a migration as "confirmed applied" or "verified" — say "inferred from a green build; not directly queried" instead**, and if the orchestrator asked you to confirm a schema-changing migration specifically, say plainly that you cannot do that from this sandbox and that it needs a direct DB check (a throwaway script with `dotenv.config()` loaded before any `src/lib` import, `$queryRawUnsafe` against `information_schema.columns`/`pg_enum` with explicit `::text` casts, run from the project directory).
 
 If a deploy fails at the Prisma step, the error log will contain:
 ```
