@@ -48,17 +48,36 @@ export async function attributeAffiliateCommission({
   });
   const rule = pickRule(rules, productType);
 
+  const grossAmount = (inv.amount_paid ?? 0) / 100;
+
   // The discount was genuinely redeemed even when no rule can price a
-  // commission, so the redemption still counts against maxUses.
+  // commission, so the redemption still counts against maxUses. The
+  // zero-amount CANCELLED row is what makes that increment happen exactly
+  // once: the webhook decides "attribution already ran" by looking for a
+  // PROMO_CODE ledger row on this subscription, so without a marker row
+  // every later renewal would re-run attribution and inflate usedCount.
   if (!rule) {
-    await db.promoCode.updateMany({
-      where: { code: promoCode },
-      data: { usedCount: { increment: 1 } },
+    await db.$transaction(async (tx) => {
+      await tx.commissionLedger.create({
+        data: {
+          affiliateId,
+          sourceType: "PROMO_CODE",
+          sourceRef: sub.id,
+          description: `Promo code ${promoCode} redeemed — no active commission rule matched at time of first charge`,
+          grossAmount,
+          commissionRate: null,
+          commissionAmount: 0,
+          status: "CANCELLED",
+        },
+      });
+      await tx.promoCode.updateMany({
+        where: { code: promoCode },
+        data: { usedCount: { increment: 1 } },
+      });
     });
     return;
   }
 
-  const grossAmount = (inv.amount_paid ?? 0) / 100;
   const rate = Number(rule.rate);
   const commissionAmount = rule.type === "PERCENTAGE" ? grossAmount * rate : rate;
   const pendingUntil =
