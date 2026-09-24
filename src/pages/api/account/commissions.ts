@@ -17,10 +17,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session) return res.status(401).json({ error: "Unauthorized" });
   if (!COMMISSION_ROLES.includes(session.user.role)) return res.status(403).json({ error: "Forbidden" });
 
-  const affiliate = await db.affiliateAssignment.findFirst({
-    where: { userId: session.user.id },
-    select: { id: true, status: true, payoutCycle: true, payoutThreshold: true },
-  });
+  // A user can end up with more than one AffiliateAssignment (e.g. an old
+  // Ambassador application plus a later standalone Affiliate application) --
+  // prefer their ACTIVE one, falling back to the most recent, rather than an
+  // arbitrary unordered row.
+  const affiliateSelect = { id: true, status: true, payoutCycle: true, payoutThreshold: true } as const;
+  const affiliate =
+    (await db.affiliateAssignment.findFirst({
+      where: { userId: session.user.id, status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+      select: affiliateSelect,
+    })) ??
+    (await db.affiliateAssignment.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: affiliateSelect,
+    }));
 
   if (!affiliate) return res.status(404).json({ error: "No affiliate account found." });
 
