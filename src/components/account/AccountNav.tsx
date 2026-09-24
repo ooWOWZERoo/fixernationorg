@@ -77,11 +77,12 @@ export function AccountNav() {
         </div>
       )}
 
-      {/* Affiliate — commissions only, no ambassador referral tooling */}
+      {/* Affiliate — no ambassador referral tooling */}
       {isAffiliate && (
         <div>
           <span className={sectionLabel}>Affiliate</span>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            <Link href="/account/affiliate" className={cls("/account/affiliate")}>My Profile</Link>
             <Link href="/account/commissions" className={cls("/account/commissions")}>Commissions</Link>
           </div>
         </div>

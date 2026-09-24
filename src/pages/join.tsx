@@ -1,6 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/router";
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -45,10 +46,15 @@ const FAQS = [
 ];
 
 const JoinPage: NextPageWithLayout<Props> = ({ freeWithBook, consumerMembership, isSignedIn }) => {
+  const router = useRouter();
   const [billing, setBilling] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [promoCode, setPromoCode] = useState("");
+  // Seeded from a shareable affiliate/ambassador promo link (?promo=CODE),
+  // but stays a normal controlled input the user can edit afterward.
+  const [promoCode, setPromoCode] = useState(() =>
+    typeof router.query.promo === "string" ? router.query.promo : ""
+  );
 
   const monthlyPrice = consumerMembership?.prices.find((p) => p.interval === "MONTHLY");
   const annualPrice = consumerMembership?.prices.find((p) => p.interval === "ANNUAL");

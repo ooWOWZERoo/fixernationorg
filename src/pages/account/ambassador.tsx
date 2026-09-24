@@ -7,6 +7,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateUniqueReferralCode } from "@/lib/referral";
+import { getAffiliateAccountSnapshot } from "@/lib/affiliate";
+import {
+  AffiliateSnapshotSections,
+  type PromoCodeData,
+  type TerritoryAssignmentData,
+  type CommissionRuleData,
+} from "@/components/account/AffiliateSnapshotSections";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -19,9 +26,18 @@ interface Props {
     referralCode: string;
   };
   siteUrl: string;
+  promoCodes: PromoCodeData[];
+  territoryAssignments: TerritoryAssignmentData[];
+  commissionRules: CommissionRuleData[];
 }
 
-const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) => {
+const AmbassadorProfilePage: NextPageWithLayout<Props> = ({
+  initial,
+  siteUrl,
+  promoCodes,
+  territoryAssignments,
+  commissionRules,
+}) => {
   const [territory, setTerritory] = useState(initial.territory ?? "");
   const [bio, setBio] = useState(initial.bio ?? "");
   const [website, setWebsite] = useState(initial.website ?? "");
@@ -174,6 +190,13 @@ const AmbassadorProfilePage: NextPageWithLayout<Props> = ({ initial, siteUrl }) 
               {saving ? "Saving..." : "Save profile"}
             </button>
           </form>
+
+          <AffiliateSnapshotSections
+            promoCodes={promoCodes}
+            territoryAssignments={territoryAssignments}
+            commissionRules={commissionRules}
+            siteUrl={siteUrl}
+          />
         </div>
       </section>
     </>
@@ -207,6 +230,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   }
 
   const siteUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://fixernation.org";
+  const snapshot = await getAffiliateAccountSnapshot(session.user.id);
 
   return {
     props: {
@@ -218,6 +242,37 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         referralCode: profile.referralCode,
       },
       siteUrl,
+      promoCodes: snapshot.promoCodes.map((pc) => ({
+        id: pc.id,
+        code: pc.code,
+        status: pc.status,
+        discountType: pc.discountType,
+        discountValue: parseFloat(String(pc.discountValue)),
+        usedCount: pc.usedCount,
+        maxUses: pc.maxUses,
+      })),
+      territoryAssignments: snapshot.territoryAssignments.map((ta) => ({
+        id: ta.id,
+        status: ta.status,
+        territory: {
+          name: ta.territory.name,
+          type: ta.territory.type,
+          scope: ta.territory.scope,
+          county: ta.territory.county,
+          city: ta.territory.city,
+          state: ta.territory.state,
+          zip: ta.territory.zip,
+          region: ta.territory.region,
+          isExclusive: ta.territory.isExclusive,
+        },
+      })),
+      commissionRules: snapshot.commissionRules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        rate: parseFloat(String(r.rate)),
+        appliesTo: r.appliesTo,
+        active: r.active,
+      })),
     },
   };
 };

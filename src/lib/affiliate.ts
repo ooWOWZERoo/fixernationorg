@@ -55,3 +55,45 @@ export async function provisionAffiliate({
     },
   });
 }
+
+// SP-71 — read-only self-service snapshot (promo codes, territory, commission
+// rate) for the account pages of any affiliate-capable role.
+export async function getAffiliateAccountSnapshot(userId: string) {
+  // A user can end up with more than one AffiliateAssignment (e.g. an old
+  // Ambassador application plus a later standalone Affiliate application) --
+  // prefer their ACTIVE one, falling back to the most recent, rather than an
+  // arbitrary unordered row. Mirrors src/pages/api/account/commissions.ts.
+  const assignment =
+    (await db.affiliateAssignment.findFirst({
+      where: { userId, status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+    })) ??
+    (await db.affiliateAssignment.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    }));
+
+  if (!assignment) {
+    return { assignment: null, promoCodes: [], territoryAssignments: [], commissionRules: [] };
+  }
+
+  const [promoCodes, commissionRules, territoryAssignments] = await Promise.all([
+    db.promoCode.findMany({
+      where: { affiliateId: assignment.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.commissionRule.findMany({
+      where: { affiliateId: assignment.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    // TerritoryAssignment has no relation to AffiliateAssignment -- it links
+    // straight to User -- so this is looked up by userId, not affiliateId.
+    db.territoryAssignment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: { territory: true },
+    }),
+  ]);
+
+  return { assignment, promoCodes, territoryAssignments, commissionRules };
+}

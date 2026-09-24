@@ -6,6 +6,13 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getAffiliateAccountSnapshot } from "@/lib/affiliate";
+import {
+  AffiliateSnapshotSections,
+  type PromoCodeData,
+  type TerritoryAssignmentData,
+  type CommissionRuleData,
+} from "@/components/account/AffiliateSnapshotSections";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -18,9 +25,19 @@ interface Props {
     phone: string | null;
     serviceArea: string | null;
   };
+  siteUrl: string;
+  promoCodes: PromoCodeData[];
+  territoryAssignments: TerritoryAssignmentData[];
+  commissionRules: CommissionRuleData[];
 }
 
-const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
+const BusinessProfilePage: NextPageWithLayout<Props> = ({
+  initial,
+  siteUrl,
+  promoCodes,
+  territoryAssignments,
+  commissionRules,
+}) => {
   const [businessName, setBusinessName] = useState(initial.businessName ?? "");
   const [specialty, setSpecialty] = useState(initial.specialty ?? "");
   const [services, setServices] = useState(initial.services ?? "");
@@ -180,6 +197,14 @@ const BusinessProfilePage: NextPageWithLayout<Props> = ({ initial }) => {
               {saving ? "Saving..." : "Save profile"}
             </button>
           </form>
+
+          <AffiliateSnapshotSections
+            promoCodes={promoCodes}
+            territoryAssignments={territoryAssignments}
+            commissionRules={commissionRules}
+            siteUrl={siteUrl}
+            showCommissionsLink={false}
+          />
         </div>
       </section>
     </>
@@ -204,6 +229,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     select: { businessName: true, specialty: true, services: true, website: true, phone: true, serviceArea: true },
   });
 
+  const siteUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://fixernation.org";
+  const snapshot = await getAffiliateAccountSnapshot(session.user.id);
+
   return {
     props: {
       initial: {
@@ -214,6 +242,38 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         phone: profile?.phone ?? null,
         serviceArea: profile?.serviceArea ?? null,
       },
+      siteUrl,
+      promoCodes: snapshot.promoCodes.map((pc) => ({
+        id: pc.id,
+        code: pc.code,
+        status: pc.status,
+        discountType: pc.discountType,
+        discountValue: parseFloat(String(pc.discountValue)),
+        usedCount: pc.usedCount,
+        maxUses: pc.maxUses,
+      })),
+      territoryAssignments: snapshot.territoryAssignments.map((ta) => ({
+        id: ta.id,
+        status: ta.status,
+        territory: {
+          name: ta.territory.name,
+          type: ta.territory.type,
+          scope: ta.territory.scope,
+          county: ta.territory.county,
+          city: ta.territory.city,
+          state: ta.territory.state,
+          zip: ta.territory.zip,
+          region: ta.territory.region,
+          isExclusive: ta.territory.isExclusive,
+        },
+      })),
+      commissionRules: snapshot.commissionRules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        rate: parseFloat(String(r.rate)),
+        appliesTo: r.appliesTo,
+        active: r.active,
+      })),
     },
   };
 };
