@@ -27,6 +27,16 @@ const NAV_LINKS = [
   { href: "/ask-the-fixer", label: "Ask The Fixer" },
 ];
 
+// One-click path into each role's own profile page from the account menu --
+// without this, reaching /account/business, /account/ambassador, or
+// /account/affiliate requires already being on /account/profile first and
+// noticing the role-specific section in AccountNav there.
+const ROLE_PROFILE_LINK: Record<string, { href: string; label: string }> = {
+  PROVIDER: { href: "/account/business", label: "Business Profile" },
+  AMBASSADOR: { href: "/account/ambassador", label: "Ambassador Profile" },
+  AFFILIATE: { href: "/account/affiliate", label: "Affiliate Profile" },
+};
+
 export function SiteHeader() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -179,6 +189,15 @@ export function SiteHeader() {
                     <Link href="/account" className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                       Account Settings
                     </Link>
+                    {ROLE_PROFILE_LINK[session.user?.role ?? ""] && (
+                      <Link
+                        href={ROLE_PROFILE_LINK[session.user?.role ?? ""].href}
+                        className="block px-4 py-3 text-sm font-semibold text-ink no-underline hover:bg-cream-panel"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        {ROLE_PROFILE_LINK[session.user?.role ?? ""].label}
+                      </Link>
+                    )}
                     {["ADMIN", "SUPER_ADMIN"].includes(session.user?.adminRole ?? "") && (
                       <Link href="/admin" className="block border-t border-navy/8 px-4 py-3 text-sm font-semibold text-navy no-underline hover:bg-cream-panel" onClick={() => setUserMenuOpen(false)}>
                         Admin Dashboard
@@ -270,6 +289,15 @@ export function SiteHeader() {
                 <Link href="/account/home" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                   My Journey
                 </Link>
+                {ROLE_PROFILE_LINK[session.user?.role ?? ""] && (
+                  <Link
+                    href={ROLE_PROFILE_LINK[session.user?.role ?? ""].href}
+                    className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {ROLE_PROFILE_LINK[session.user?.role ?? ""].label}
+                  </Link>
+                )}
                 {["ADMIN", "SUPER_ADMIN"].includes(session.user?.adminRole ?? "") && (
                   <Link href="/admin" className="rounded-lg px-3 py-2.5 text-sm font-bold text-navy no-underline hover:bg-cream-panel" onClick={() => setMenuOpen(false)}>
                     Admin Dashboard
