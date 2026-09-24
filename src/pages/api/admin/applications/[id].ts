@@ -15,9 +15,10 @@ import {
   buildInfoRequestEmail,
   buildConditionalAcceptanceEmail,
 } from "@/lib/emails/application-status";
-import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail } from "@/lib/emails/welcome";
+import { buildWelcomeProviderEmail, buildWelcomeAmbassadorEmail, buildWelcomeAffiliateEmail } from "@/lib/emails/welcome";
 import { buildApplicationExpiredEmail, buildApplicationWithdrawnEmail } from "@/lib/emails/expiration";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
 import { loadTemplate } from "@/lib/template-engine";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { recordEvent } from "@/lib/application-events";
@@ -73,6 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: {
         providerDetail: true,
         ambassadorDetail: true,
+        affiliateDetail: true,
       },
     });
     if (!application) return res.status(404).json({ error: "Not found" });
@@ -118,9 +120,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           accountInviteSentAt: new Date(),
         },
       });
-      const appType = application.type as "PROVIDER" | "AMBASSADOR";
+      const appType = application.type as ApplicationTypeKey;
       const firstName = (application.name ?? "").split(" ")[0] || "there";
-      const role = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+      const role = applicationRoleLabel(appType);
       const inviteUrl = `${APP_URL}/invite/${inviteToken}`;
       const inviteEmail =
         (await loadTemplate("account.invitation", { first_name: firstName, role, invite_url: inviteUrl }))
@@ -139,6 +141,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (ACCEPTANCE_STATUSES.has(status) && application.userId) {
       const newRole = application.type === "PROVIDER" ? "PROVIDER"
         : application.type === "AMBASSADOR" ? "AMBASSADOR"
+        : application.type === "AFFILIATE" ? "AFFILIATE"
         : null;
 
       if (newRole) {
@@ -182,6 +185,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           );
         }
 
+        if (newRole === "AFFILIATE") {
+          tasks.push(
+            provisionAffiliate({
+              userId: application.userId!,
+              applicationId: id,
+              affiliateType: "AFFILIATE",
+              assignedBy: session.user.email ?? session.user.id,
+            })
+          );
+        }
+
         await Promise.all(tasks);
       }
     }
@@ -211,10 +225,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Status-specific emails
     // Priority: customSubject/customBody from admin pre-send editor > DB template > hardcoded fallback
     try {
-      const appType = application.type as "PROVIDER" | "AMBASSADOR";
+      const appType = application.type as ApplicationTypeKey;
       const displayName = application.name;
       const firstName = (displayName ?? "").split(" ")[0] || "there";
-      const roleLabel = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+      const roleLabel = applicationRoleLabel(appType);
 
       const templateVars = {
         first_name:         firstName,
@@ -265,6 +279,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           } else if (status === "ACTIVE") {
             emailToSend = appType === "AMBASSADOR"
               ? buildWelcomeAmbassadorEmail(displayName)
+              : appType === "AFFILIATE"
+              ? buildWelcomeAffiliateEmail(displayName)
               : buildWelcomeProviderEmail(displayName);
           } else if (status === "EXPIRED") {
             emailToSend = buildApplicationExpiredEmail(displayName, appType);
@@ -342,7 +358,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const application = await db.userApplication.findUnique({
       where: { id },
-      include: { providerDetail: true, ambassadorDetail: true },
+      include: { providerDetail: true, ambassadorDetail: true, affiliateDetail: true },
     });
     if (!application) return res.status(404).json({ error: "Not found" });
 
@@ -435,6 +451,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    // Affiliate detail updates — same shared fields as the ambassador panel
+    const afd = application.affiliateDetail;
+    const afdUpdate: Record<string, unknown> = {};
+    if (afd) {
+      if (city !== undefined && city !== afd.city) {
+        changes.push({ field: "city", from: afd.city, to: city ?? null });
+        afdUpdate.city = city ?? null;
+      }
+      if (state !== undefined && state !== afd.state) {
+        changes.push({ field: "state", from: afd.state, to: state ?? null });
+        afdUpdate.state = state ?? null;
+      }
+      if (platformsUsed !== undefined) {
+        const prev = [...afd.platformsUsed].sort().join(",");
+        const next = [...platformsUsed].sort().join(",");
+        if (prev !== next) {
+          changes.push({ field: "platformsUsed", from: afd.platformsUsed, to: platformsUsed });
+          afdUpdate.platformsUsed = platformsUsed;
+        }
+      }
+    }
+
     if (changes.length === 0) {
       return res.status(200).json({ message: "No changes detected." });
     }
@@ -449,6 +487,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : Promise.resolve(),
       Object.keys(amdUpdate).length > 0 && amd
         ? db.ambassadorApplicationDetail.update({ where: { applicationId: id }, data: amdUpdate })
+        : Promise.resolve(),
+      Object.keys(afdUpdate).length > 0 && afd
+        ? db.affiliateApplicationDetail.update({ where: { applicationId: id }, data: afdUpdate })
         : Promise.resolve(),
     ]);
 
@@ -469,7 +510,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Return the full updated application so the client can sync state
     const refreshed = await db.userApplication.findUnique({
       where: { id },
-      include: { providerDetail: true, ambassadorDetail: true },
+      include: { providerDetail: true, ambassadorDetail: true, affiliateDetail: true },
     });
     return res.status(200).json(refreshed);
   }

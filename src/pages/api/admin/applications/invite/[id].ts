@@ -8,6 +8,7 @@ import { sendEmail } from "@/lib/email";
 import { loadTemplate } from "@/lib/template-engine";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { recordEvent } from "@/lib/application-events";
+import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const INVITE_STATUSES = new Set([
@@ -66,9 +67,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const inviteUrl = `${APP_URL}/invite/${token}`;
-    const appType = application.type as "PROVIDER" | "AMBASSADOR";
+    const appType = application.type as ApplicationTypeKey;
     const firstName = (application.name ?? "").split(" ")[0] || "there";
-    const role = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+    const role = applicationRoleLabel(appType);
 
     let emailToSend: { subject: string; html: string; text: string };
     const templateResult = await loadTemplate("account.invitation", {

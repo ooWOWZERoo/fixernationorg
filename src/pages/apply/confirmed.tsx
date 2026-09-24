@@ -7,6 +7,7 @@ import type { NextPageWithLayout } from "@/types/next";
 const TYPE_LABEL: Record<string, string> = {
   provider: "Service Provider",
   ambassador: "Brand Ambassador",
+  affiliate: "Affiliate",
 };
 
 const ConfirmedPage: NextPageWithLayout = () => {

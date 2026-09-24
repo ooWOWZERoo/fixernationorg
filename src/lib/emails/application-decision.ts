@@ -2,11 +2,18 @@ const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 const BRAND_NAVY = "#0f2460";
 const BRAND_ORANGE = "#E8620A";
 
-type ApplicationType = "PROVIDER" | "AMBASSADOR";
+type ApplicationType = "PROVIDER" | "AMBASSADOR" | "AFFILIATE";
 
 const TYPE_LABEL: Record<ApplicationType, string> = {
   PROVIDER: "Provider",
   AMBASSADOR: "Ambassador",
+  AFFILIATE: "Affiliate",
+};
+
+const TYPE_ARTICLE: Record<ApplicationType, string> = {
+  PROVIDER: "a",
+  AMBASSADOR: "an",
+  AFFILIATE: "an",
 };
 
 export function buildApplicationApprovedEmail(
@@ -14,6 +21,7 @@ export function buildApplicationApprovedEmail(
   type: ApplicationType
 ): { subject: string; html: string; text: string } {
   const label = TYPE_LABEL[type];
+  const article = TYPE_ARTICLE[type];
   const dashboardUrl = `${BASE_URL}/dashboard`;
   const first = (name ?? "").split(" ")[0] || "there";
 
@@ -34,7 +42,7 @@ export function buildApplicationApprovedEmail(
 
         <tr>
           <td style="background-color:#ffffff;padding:32px 32px 8px 32px;">
-            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.7;color:#1e293b;">We went through your application and we'd love to have you as a ${label} in Fixer Nation. Your account has been upgraded, so sign in and take a look around.</p>
+            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.7;color:#1e293b;">We went through your application and we'd love to have you as ${article} ${label} in Fixer Nation. Your account has been upgraded, so sign in and take a look around.</p>
             <p style="margin:0 0 28px 0;font-size:16px;line-height:1.7;color:#1e293b;">If you have questions about what's next, just reply to this email.</p>
           </td>
         </tr>
@@ -61,7 +69,7 @@ export function buildApplicationApprovedEmail(
 
   const textBody = `You're in, ${first}.
 
-We went through your application and we'd love to have you as a ${label} in Fixer Nation. Your account has been upgraded, so sign in and take a look around.
+We went through your application and we'd love to have you as ${article} ${label} in Fixer Nation. Your account has been upgraded, so sign in and take a look around.
 
 If you have questions about what's next, just reply to this email.
 

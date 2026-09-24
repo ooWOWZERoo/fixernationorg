@@ -590,6 +590,7 @@ model UserApplication {
 
   providerDetail        ProviderApplicationDetail?
   ambassadorDetail      AmbassadorApplicationDetail?
+  affiliateDetail       AffiliateApplicationDetail?
   territoryAssignments  TerritoryAssignment[]
   affiliateAssignment   AffiliateAssignment?
   onboardingRecord      OnboardingRecord?
@@ -676,6 +677,36 @@ model AmbassadorApplicationDetail {
   whyJoining           String?   @db.Text
   missionAlignment     String?   @db.Text
   referralNetwork      String?   @db.Text
+  linkedinUrl          String?
+  facebookUrl          String?
+  instagramUrl         String?
+  tiktokUrl            String?
+  youtubeUrl           String?
+  podcastUrl           String?
+  blogUrl              String?
+  agreedToAccuracy     Boolean   @default(false)
+  agreedToPolicy       Boolean   @default(false)
+  agreedToContact      Boolean   @default(false)
+  signatureName        String?
+  agreedAt             DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  application UserApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model AffiliateApplicationDetail {
+  id                   String    @id @default(cuid())
+  applicationId        String    @unique
+  firstName            String    @default("")
+  lastName             String    @default("")
+  phone                String    @default("")
+  city                 String?
+  state                String?
+  howHeardAboutFN      String?
+  audienceSize         String?
+  platformsUsed        String[]
+  geographicFocus      String?
+  whyJoining           String?   @db.Text
   linkedinUrl          String?
   facebookUrl          String?
   instagramUrl         String?
@@ -842,6 +873,7 @@ enum UserRole {
   CONSUMER
   PROVIDER
   AMBASSADOR
+  AFFILIATE
 }
 
 enum AdminRole {
@@ -909,6 +941,7 @@ enum ContactStatus {
 enum ApplicationType {
   PROVIDER
   AMBASSADOR
+  AFFILIATE
 }
 
 enum RsvpStatus {
@@ -1404,7 +1437,7 @@ model AffiliateAssignment {
   id            String          @id @default(cuid())
   userId        String
   applicationId String?         @unique
-  affiliateType String          // "AMBASSADOR" | "PROVIDER"
+  affiliateType String          // "AMBASSADOR" | "PROVIDER" | "AFFILIATE"
   status        AffiliateStatus @default(PENDING)
 
   // Attribution

@@ -36,7 +36,7 @@ export async function provisionAffiliate({
 }: {
   userId: string;
   applicationId: string;
-  affiliateType: "AMBASSADOR" | "PROVIDER";
+  affiliateType: "AMBASSADOR" | "PROVIDER" | "AFFILIATE";
   assignedBy: string;
 }) {
   // Idempotent — return existing if already provisioned for this application

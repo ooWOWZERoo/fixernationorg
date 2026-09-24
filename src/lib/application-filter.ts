@@ -53,6 +53,7 @@ export function buildApplicationWhere(
 
   if (type === "PROVIDER") where.type = ApplicationType.PROVIDER;
   else if (type === "AMBASSADOR") where.type = ApplicationType.AMBASSADOR;
+  else if (type === "AFFILIATE") where.type = ApplicationType.AFFILIATE;
 
   const search = q.trim();
   if (search) {

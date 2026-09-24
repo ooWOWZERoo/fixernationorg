@@ -22,6 +22,7 @@ const NAV_LINKS = [
   { href: "/join", label: "Join Fixer Nation", dropdown: [
     { href: "/become-a-provider", label: "Become a Provider" },
     { href: "/become-an-ambassador", label: "Become an Ambassador" },
+    { href: "/become-an-affiliate", label: "Become an Affiliate" },
   ]},
   { href: "/ask-the-fixer", label: "Ask The Fixer" },
 ];

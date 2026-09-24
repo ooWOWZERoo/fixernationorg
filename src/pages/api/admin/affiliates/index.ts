@@ -10,7 +10,7 @@ const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const provisionSchema = z.object({
   userId: z.string(),
   applicationId: z.string(),
-  affiliateType: z.enum(["AMBASSADOR", "PROVIDER"]),
+  affiliateType: z.enum(["AMBASSADOR", "PROVIDER", "AFFILIATE"]),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

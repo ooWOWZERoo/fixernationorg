@@ -8,6 +8,7 @@ import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
+import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
 import { ensureContactForUser } from "@/lib/contacts";
 import { sendCampaignNow, continueCampaignSend, utcDayWindow } from "@/lib/send-campaign";
 import {
@@ -211,7 +212,7 @@ async function runApplicationExpiration() {
     try {
       await sendEmail({
         to: app.email,
-        ...buildApplicationExpiredEmail(app.name, app.type as "PROVIDER" | "AMBASSADOR"),
+        ...buildApplicationExpiredEmail(app.name, app.type as ApplicationTypeKey),
       });
     } catch (err) {
       console.error(`[application-expiration] Email failed for ${app.id}:`, err);
@@ -257,7 +258,7 @@ async function runApplicationExpirationReminders(): Promise<{ message: string }>
     try {
       await sendEmail({
         to: app.email,
-        ...buildExpirationReminderEmail(app.name, app.type as "PROVIDER" | "AMBASSADOR", daysLeft),
+        ...buildExpirationReminderEmail(app.name, app.type as ApplicationTypeKey, daysLeft),
       });
       await db.userApplication.update({
         where: { id: app.id },
@@ -301,9 +302,9 @@ async function runAccountInvitationReminders(): Promise<{ message: string }> {
       },
     });
 
-    const appType = app.type as "PROVIDER" | "AMBASSADOR";
+    const appType = app.type as ApplicationTypeKey;
     const firstName = (app.name ?? "").split(" ")[0] || "there";
-    const role = appType === "PROVIDER" ? "service provider" : "brand ambassador";
+    const role = applicationRoleLabel(appType);
     const inviteUrl = `${APP_URL}/invite/${newToken}`;
 
     const email =

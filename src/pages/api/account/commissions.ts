@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
+// Providers intentionally have no commissions view, even when they hold an
+// affiliate assignment.
+const COMMISSION_ROLES: string[] = ["AMBASSADOR", "AFFILIATE"];
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -11,10 +15,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: "Unauthorized" });
-  if (session.user.role !== "AMBASSADOR") return res.status(403).json({ error: "Forbidden" });
+  if (!COMMISSION_ROLES.includes(session.user.role)) return res.status(403).json({ error: "Forbidden" });
 
   const affiliate = await db.affiliateAssignment.findFirst({
-    where: { userId: session.user.id, affiliateType: "AMBASSADOR" },
+    where: { userId: session.user.id },
     select: { id: true, status: true, payoutCycle: true, payoutThreshold: true },
   });
 

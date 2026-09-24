@@ -4,16 +4,19 @@ import { db } from "@/lib/db";
 const TYPE_TAG: Record<string, string> = {
   PROVIDER: "PROVIDER_APPLICANT",
   AMBASSADOR: "AMBASSADOR_APPLICANT",
+  AFFILIATE: "AFFILIATE_APPLICANT",
 };
 
 const ACCEPTED_TAG: Record<string, string> = {
   PROVIDER: "PROVIDER_ACCEPTED",
   AMBASSADOR: "AMBASSADOR_ACCEPTED",
+  AFFILIATE: "AFFILIATE_ACCEPTED",
 };
 
 const ACTIVE_TAG: Record<string, string> = {
   PROVIDER: "ACTIVE_PROVIDER",
   AMBASSADOR: "ACTIVE_AMBASSADOR",
+  AFFILIATE: "ACTIVE_AFFILIATE",
 };
 
 // Tags removed when an application reaches a terminal or transitional state

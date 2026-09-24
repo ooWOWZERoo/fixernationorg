@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { applicationRoleLabel } from "@/lib/application-labels";
 
 type InviteState =
   | { phase: "loading" }
   | { phase: "invalid"; message: string }
   | { phase: "expired"; message: string }
   | { phase: "claimed" }
-  | { phase: "form"; name: string; email: string; type: "PROVIDER" | "AMBASSADOR" }
+  | { phase: "form"; name: string; email: string; type: "PROVIDER" | "AMBASSADOR" | "AFFILIATE" }
   | { phase: "success" };
 
 export default function InvitePage() {
@@ -75,8 +76,6 @@ export default function InvitePage() {
   };
 
   const email = state.phase === "form" ? state.email : null;
-  const type = state.phase === "form" ? state.type : null;
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -153,7 +152,7 @@ export default function InvitePage() {
                 <h1 className="text-xl font-bold text-slate-900">Create your account</h1>
                 <p className="mt-1 text-sm text-slate-500">
                   You've been invited to join as a{" "}
-                  <strong>{type === "PROVIDER" ? "service provider" : "brand ambassador"}</strong>.
+                  <strong>{applicationRoleLabel(state.type)}</strong>.
                 </p>
               </div>
 

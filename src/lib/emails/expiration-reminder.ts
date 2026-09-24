@@ -1,3 +1,5 @@
+import { applicationApplyPath, applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
+
 type Email = { subject: string; html: string; text: string };
 
 function display(name: string | null | undefined): string {
@@ -6,13 +8,13 @@ function display(name: string | null | undefined): string {
 
 export function buildExpirationReminderEmail(
   name: string | null | undefined,
-  type: "PROVIDER" | "AMBASSADOR",
+  type: ApplicationTypeKey,
   daysLeft: number
 ): Email {
   const n = display(name);
-  const role = type === "PROVIDER" ? "service provider" : "brand ambassador";
+  const role = applicationRoleLabel(type);
   const deadline = daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
-  const applyPath = type === "PROVIDER" ? "/become-a-provider" : "/become-an-ambassador";
+  const applyPath = applicationApplyPath(type);
 
   return {
     subject: `Your Fixer Nation application expires ${deadline}`,

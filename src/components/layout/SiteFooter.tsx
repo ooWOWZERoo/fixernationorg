@@ -22,6 +22,7 @@ const FOOTER_LINKS: Record<string, FooterLink[]> = {
     { href: "/ambassadors", label: "Find an Ambassador" },
     { href: "/become-a-provider", label: "Become a Provider" },
     { href: "/become-an-ambassador", label: "Become an Ambassador" },
+    { href: "/become-an-affiliate", label: "Become an Affiliate" },
   ],
   Membership: [
     { href: "/join", label: "Plans & Pricing" },

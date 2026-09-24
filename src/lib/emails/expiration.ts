@@ -1,3 +1,5 @@
+import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
+
 type Email = { subject: string; html: string; text: string };
 
 function display(name: string | null | undefined): string {
@@ -6,10 +8,10 @@ function display(name: string | null | undefined): string {
 
 export function buildApplicationExpiredEmail(
   name: string | null | undefined,
-  type: "PROVIDER" | "AMBASSADOR"
+  type: ApplicationTypeKey
 ): Email {
   const n = display(name);
-  const role = type === "PROVIDER" ? "service provider" : "brand ambassador";
+  const role = applicationRoleLabel(type);
   return {
     subject: "Your Fixer Nation application has expired",
     html: `
@@ -35,10 +37,10 @@ export function buildApplicationExpiredEmail(
 
 export function buildApplicationWithdrawnEmail(
   name: string | null | undefined,
-  type: "PROVIDER" | "AMBASSADOR"
+  type: ApplicationTypeKey
 ): Email {
   const n = display(name);
-  const role = type === "PROVIDER" ? "service provider" : "brand ambassador";
+  const role = applicationRoleLabel(type);
   return {
     subject: "Your Fixer Nation application has been withdrawn",
     html: `

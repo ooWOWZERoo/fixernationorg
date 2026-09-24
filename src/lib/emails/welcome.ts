@@ -99,3 +99,35 @@ export function buildWelcomeAmbassadorEmail(name: string | null | undefined): We
     ].join("\n"),
   };
 }
+
+export function buildWelcomeAffiliateEmail(name: string | null | undefined): WelcomeEmail {
+  const n = display(name);
+  return {
+    subject: "Your Fixer Nation affiliate account is live",
+    html: `
+      <p>Hi ${n},</p>
+      <p>Your affiliate account is active. Anyone who joins Fixer Nation through your link or promo code earns you a commission.</p>
+      <p>Two things to square away before your first payout:</p>
+      <ul>
+        <li>Grab your referral link and promo code from your account</li>
+        <li>Finish tax and payout onboarding so we can actually pay you</li>
+      </ul>
+      <p>Your commissions page tracks everything as it comes in. If you asked about a territory, we'll follow up separately.</p>
+      <p>Questions? Just reply here.<br/>The Fixer Nation Team</p>
+    `.trim(),
+    text: [
+      `Hi ${n},`,
+      "",
+      "Your affiliate account is active. Anyone who joins Fixer Nation through your link or promo code earns you a commission.",
+      "",
+      "Two things to square away before your first payout:",
+      "- Grab your referral link and promo code from your account",
+      "- Finish tax and payout onboarding so we can actually pay you",
+      "",
+      "Your commissions page tracks everything as it comes in. If you asked about a territory, we'll follow up separately.",
+      "",
+      "Questions? Just reply here.",
+      "The Fixer Nation Team",
+    ].join("\n"),
+  };
+}

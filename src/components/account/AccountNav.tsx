@@ -8,6 +8,7 @@ export function AccountNav() {
   const role = session?.user?.role ?? "CONSUMER";
   const isProvider = role === "PROVIDER";
   const isAmbassador = role === "AMBASSADOR";
+  const isAffiliate = role === "AFFILIATE";
 
   const cls = (href: string) => {
     const active =
@@ -71,6 +72,16 @@ export function AccountNav() {
             <Link href="/account/ambassador" className={cls("/account/ambassador")}>My Profile</Link>
             <Link href="/account/ambassador/materials" className={cls("/account/ambassador/materials")}>Campaign Materials</Link>
             <Link href="/account/referrals" className={cls("/account/referrals")}>Referrals</Link>
+            <Link href="/account/commissions" className={cls("/account/commissions")}>Commissions</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Affiliate — commissions only, no ambassador referral tooling */}
+      {isAffiliate && (
+        <div>
+          <span className={sectionLabel}>Affiliate</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
             <Link href="/account/commissions" className={cls("/account/commissions")}>Commissions</Link>
           </div>
         </div>

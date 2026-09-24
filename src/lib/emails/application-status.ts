@@ -2,11 +2,12 @@ const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 const BRAND_NAVY = "#0f2460";
 const BRAND_ORANGE = "#E8620A";
 
-type ApplicationType = "PROVIDER" | "AMBASSADOR";
+type ApplicationType = "PROVIDER" | "AMBASSADOR" | "AFFILIATE";
 
 const TYPE_LABEL: Record<ApplicationType, string> = {
   PROVIDER: "Service Provider",
   AMBASSADOR: "Brand Ambassador",
+  AFFILIATE: "Affiliate",
 };
 
 function firstName(name: string | null | undefined): string {

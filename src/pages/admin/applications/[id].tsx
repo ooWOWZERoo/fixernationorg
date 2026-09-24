@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { applicationRoleLabel } from "@/lib/application-labels";
 import type { NextPageWithLayout } from "@/types/next";
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -70,9 +71,34 @@ type AmbassadorDetail = {
   agreedAt: string | null;
 };
 
+type AffiliateDetail = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  city: string | null;
+  state: string | null;
+  howHeardAboutFN: string | null;
+  audienceSize: string | null;
+  platformsUsed: string[];
+  geographicFocus: string | null;
+  whyJoining: string | null;
+  linkedinUrl: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
+  tiktokUrl: string | null;
+  youtubeUrl: string | null;
+  podcastUrl: string | null;
+  blogUrl: string | null;
+  agreedToAccuracy: boolean;
+  agreedToPolicy: boolean;
+  agreedToContact: boolean;
+  signatureName: string | null;
+  agreedAt: string | null;
+};
+
 type Application = {
   id: string;
-  type: "PROVIDER" | "AMBASSADOR";
+  type: "PROVIDER" | "AMBASSADOR" | "AFFILIATE";
   status: string;
   name: string | null;
   email: string;
@@ -98,6 +124,7 @@ type Application = {
   markedSpamAt: string | null;
   providerDetail: ProviderDetail | null;
   ambassadorDetail: AmbassadorDetail | null;
+  affiliateDetail: AffiliateDetail | null;
   territoryAssignments: TerritoryAssignmentRow[];
 };
 
@@ -252,6 +279,33 @@ const AMBASSADOR_CHECKLIST: ChecklistDef[] = [
   { key: "payment", label: "Payment completed or waived" },
   { key: "activation", label: "Final activation criteria satisfied" },
 ];
+
+const AFFILIATE_CHECKLIST: ChecklistDef[] = [
+  { key: "identity", label: "Identity reviewed" },
+  { key: "promotion-channels", label: "Promotion channels reviewed" },
+  { key: "territory-requested", label: "Requested territory reviewed" },
+  { key: "territory-assignment", label: "Territory assignment(s) established or deferred" },
+  { key: "affiliate-assignment", label: "Affiliate assignment created" },
+  { key: "referral-link", label: "Referral link/promo code provisioning prepared" },
+  { key: "commission-rule", label: "Commission rule assigned" },
+  { key: "tax-payout", label: "Tax/payout requirements determined" },
+  { key: "activation", label: "Final activation criteria satisfied" },
+];
+
+// Types that can hold a territory and an affiliate assignment.
+const AFFILIATE_CAPABLE_TYPES = ["AMBASSADOR", "PROVIDER", "AFFILIATE"];
+
+const TYPE_BADGE: Record<string, string> = {
+  PROVIDER: "bg-navy/10 text-navy",
+  AMBASSADOR: "bg-purple-100 text-purple-700",
+  AFFILIATE: "bg-teal-100 text-teal-700",
+};
+
+const TYPE_ACTIVE_LABEL: Record<string, string> = {
+  PROVIDER: "Service provider",
+  AMBASSADOR: "Ambassador",
+  AFFILIATE: "Affiliate",
+};
 
 const STATUS_DOT: Record<string, string> = {
   PENDING: "bg-slate-300",
@@ -542,9 +596,9 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     businessType: initial.providerDetail?.businessType ?? "",
     licenseNumber: initial.providerDetail?.licenseNumber ?? "",
     website: initial.providerDetail?.website ?? "",
-    city: initial.ambassadorDetail?.city ?? "",
-    state: initial.ambassadorDetail?.state ?? "",
-    platformsUsed: initial.ambassadorDetail?.platformsUsed.join(", ") ?? "",
+    city: (initial.ambassadorDetail ?? initial.affiliateDetail)?.city ?? "",
+    state: (initial.ambassadorDetail ?? initial.affiliateDetail)?.state ?? "",
+    platformsUsed: (initial.ambassadorDetail ?? initial.affiliateDetail)?.platformsUsed.join(", ") ?? "",
   });
   const [editReason, setEditReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -563,9 +617,9 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       businessType: application.providerDetail?.businessType ?? "",
       licenseNumber: application.providerDetail?.licenseNumber ?? "",
       website: application.providerDetail?.website ?? "",
-      city: application.ambassadorDetail?.city ?? "",
-      state: application.ambassadorDetail?.state ?? "",
-      platformsUsed: application.ambassadorDetail?.platformsUsed.join(", ") ?? "",
+      city: (application.ambassadorDetail ?? application.affiliateDetail)?.city ?? "",
+      state: (application.ambassadorDetail ?? application.affiliateDetail)?.state ?? "",
+      platformsUsed: (application.ambassadorDetail ?? application.affiliateDetail)?.platformsUsed.join(", ") ?? "",
     });
     setEditReason("");
     setEditResult(null);
@@ -595,7 +649,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
           licenseNumber: editForm.licenseNumber.trim() || null,
           website: editForm.website.trim() || null,
         } : {}),
-        ...(application.ambassadorDetail ? {
+        ...(application.ambassadorDetail || application.affiliateDetail ? {
           city: editForm.city.trim() || null,
           state: editForm.state.trim() || null,
           platformsUsed: editForm.platformsUsed.split(",").map((s) => s.trim()).filter(Boolean),
@@ -651,7 +705,11 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
     onboarding?.paymentStatus === "COMPLETED" || onboarding?.paymentStatus === "WAIVED";
   const pd = application.providerDetail;
   const ad = application.ambassadorDetail;
-  const checklistDefs = application.type === "PROVIDER" ? PROVIDER_CHECKLIST : AMBASSADOR_CHECKLIST;
+  const afd = application.affiliateDetail;
+  const checklistDefs = application.type === "PROVIDER" ? PROVIDER_CHECKLIST
+    : application.type === "AFFILIATE" ? AFFILIATE_CHECKLIST
+    : AMBASSADOR_CHECKLIST;
+  const isAffiliateCapable = AFFILIATE_CAPABLE_TYPES.includes(application.type);
   const checkedCount = Object.values(checklist).filter(
     (s) => s === "PASSED" || s === "NOT_APPLICABLE"
   ).length;
@@ -912,7 +970,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
       const data = await res.json();
       if (res.ok && data.subject) {
         const firstName = (application.name ?? "").split(" ")[0] || "there";
-        const role = application.type === "PROVIDER" ? "service provider" : "brand ambassador";
+        const role = applicationRoleLabel(application.type);
         const substitute = (str: string) =>
           str
             .replace(/\{\{first_name\}\}/g, firstName)
@@ -999,7 +1057,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-900">{displayName}</h1>
-            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${application.type === "PROVIDER" ? "bg-navy/10 text-navy" : "bg-purple-100 text-purple-700"}`}>
+            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${TYPE_BADGE[application.type] ?? "bg-slate-100 text-slate-600"}`}>
               {application.type}
             </span>
             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[application.status] ?? "bg-slate-100 text-slate-500"}`}>
@@ -1182,10 +1240,12 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
                   </fieldset>
                 )}
 
-                {/* Ambassador-specific fields */}
-                {application.ambassadorDetail && (
+                {/* Ambassador / affiliate shared fields */}
+                {(application.ambassadorDetail || application.affiliateDetail) && (
                   <fieldset className="space-y-3">
-                    <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Ambassador details</legend>
+                    <legend className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">
+                      {application.ambassadorDetail ? "Ambassador details" : "Affiliate details"}
+                    </legend>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-500">City</label>
@@ -1398,8 +1458,51 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
             </>
           )}
 
+          {/* Affiliate sections */}
+          {afd && (
+            <>
+              <Section title="Background">
+                <Row label="City / State" value={[afd.city, afd.state].filter(Boolean).join(", ") || null} />
+                <Row label="How they found FN" value={afd.howHeardAboutFN} />
+              </Section>
+
+              <Section title="How they'll promote">
+                <Row label="Channels" value={afd.platformsUsed.join(", ")} />
+                <Row label="Audience size" value={afd.audienceSize} />
+                <Row label="Geographic focus" value={afd.geographicFocus} />
+                {afd.whyJoining && (
+                  <div className="py-2">
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Why affiliate (and territory interest)</p>
+                    <p className="text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{afd.whyJoining}</p>
+                  </div>
+                )}
+              </Section>
+
+              <Section title="Online presence">
+                {afd.linkedinUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.linkedinUrl} label="LinkedIn" /></div>}
+                {afd.facebookUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.facebookUrl} label="Facebook" /></div>}
+                {afd.instagramUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.instagramUrl} label="Instagram" /></div>}
+                {afd.tiktokUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.tiktokUrl} label="TikTok" /></div>}
+                {afd.youtubeUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.youtubeUrl} label="YouTube" /></div>}
+                {afd.podcastUrl && <div className="py-1.5 border-b border-slate-100"><ExternalLink href={afd.podcastUrl} label="Podcast" /></div>}
+                {afd.blogUrl && <div className="py-1.5"><ExternalLink href={afd.blogUrl} label="Blog / Website" /></div>}
+                {!afd.linkedinUrl && !afd.facebookUrl && !afd.instagramUrl && !afd.tiktokUrl && !afd.youtubeUrl && !afd.podcastUrl && !afd.blogUrl && (
+                  <p className="py-2 text-sm text-slate-400">No links provided.</p>
+                )}
+              </Section>
+
+              <Section title="Agreements">
+                <Row label="Accuracy confirmed" value={afd.agreedToAccuracy} />
+                <Row label="Policy agreed" value={afd.agreedToPolicy} />
+                <Row label="Contact agreed" value={afd.agreedToContact} />
+                <Row label="Signature" value={afd.signatureName} />
+                <Row label="Signed at" value={afd.agreedAt ? new Date(afd.agreedAt).toLocaleString() : null} />
+              </Section>
+            </>
+          )}
+
           {/* Legacy applications with no detail model */}
-          {!pd && !ad && application.message && (
+          {!pd && !ad && !afd && application.message && (
             <Section title="Application message">
               <p className="py-2 text-sm leading-relaxed text-slate-800 whitespace-pre-wrap">{application.message}</p>
             </Section>
@@ -1799,7 +1902,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
                   </div>
                 )}
 
-                {application.type === "AMBASSADOR" && !affiliate && (
+                {isAffiliateCapable && !affiliate && (
                   <p className="text-xs text-amber-600 font-semibold">No affiliate record yet — provision one before activating.</p>
                 )}
 
@@ -1833,7 +1936,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               <div className="text-center space-y-1">
                 <p className="text-sm font-bold text-green-800">Active</p>
                 <p className="text-xs text-green-600">
-                  {application.type === "PROVIDER" ? "Service provider" : "Ambassador"} account is live.
+                  {TYPE_ACTIVE_LABEL[application.type] ?? application.type} account is live.
                 </p>
                 {application.reviewedBy && (
                   <p className="text-xs text-green-600">
@@ -1936,8 +2039,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
             </div>
           )}
 
-          {/* Territory assignment — ambassador only */}
-          {application.type === "AMBASSADOR" && (
+          {/* Territory assignment — ambassador, provider, and affiliate */}
+          {isAffiliateCapable && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-800">Territory</p>
@@ -2032,8 +2135,8 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
             </div>
           )}
 
-          {/* Affiliate panel — ambassador only */}
-          {application.type === "AMBASSADOR" && (
+          {/* Affiliate panel — ambassador, provider, and affiliate */}
+          {isAffiliateCapable && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-800">Affiliate</p>
@@ -2104,7 +2207,7 @@ const ApplicationDetailPage: NextPageWithLayout<Props> = ({
               {priorApplications.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-2">
                   <div>
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide mr-1.5 ${p.type === "PROVIDER" ? "bg-navy/10 text-navy" : "bg-purple-100 text-purple-700"}`}>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide mr-1.5 ${TYPE_BADGE[p.type] ?? "bg-slate-100 text-slate-600"}`}>
                       {p.type}
                     </span>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[p.status] ?? "bg-slate-100 text-slate-500"}`}>
@@ -2164,6 +2267,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       include: {
         providerDetail: true,
         ambassadorDetail: true,
+        affiliateDetail: true,
         territoryAssignments: {
           include: {
             territory: {

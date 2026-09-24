@@ -1,12 +1,14 @@
+import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
+
 type Email = { subject: string; html: string; text: string };
 
 export function buildAccountInviteEmail(
   name: string | null | undefined,
-  type: "PROVIDER" | "AMBASSADOR",
+  type: ApplicationTypeKey,
   inviteUrl: string
 ): Email {
   const firstName = (name ?? "").split(" ")[0] || "there";
-  const role = type === "PROVIDER" ? "service provider" : "brand ambassador";
+  const role = applicationRoleLabel(type);
 
   const subject = "Set up your Fixer Nation account";
 

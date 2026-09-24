@@ -11,7 +11,7 @@ import { buildApplicationWhere, PAGE_SIZE, TAB_STATUS_MAP, type ExtraFilters } f
 
 interface AppRow {
   id: string;
-  type: "PROVIDER" | "AMBASSADOR";
+  type: "PROVIDER" | "AMBASSADOR" | "AFFILIATE";
   status: string;
   name: string | null;
   email: string;
@@ -113,6 +113,24 @@ const REVIEW_ACTIONS: { label: string; status: string; style: string }[] = [
 ];
 
 type FilterTab = "QUEUE" | "ACTIVE" | "ACCEPTED" | "CLOSED" | "ALL";
+
+const TYPE_BADGE: Record<string, string> = {
+  PROVIDER: "bg-navy/10 text-navy",
+  AMBASSADOR: "bg-purple-100 text-purple-700",
+  AFFILIATE: "bg-teal-100 text-teal-700",
+};
+
+const TYPE_FILTER_ACTIVE: Record<string, string> = {
+  ALL: "bg-slate-200 text-slate-700",
+  ...TYPE_BADGE,
+};
+
+const TYPE_FILTER_LABEL: Record<string, string> = {
+  ALL: "All types",
+  PROVIDER: "Providers",
+  AMBASSADOR: "Ambassadors",
+  AFFILIATE: "Affiliates",
+};
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: "QUEUE", label: "Needs review" },
@@ -405,22 +423,18 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
           </button>
         ))}
         <div className="ml-auto flex gap-2">
-          {(["ALL", "PROVIDER", "AMBASSADOR"] as const).map((t) => (
+          {(["ALL", "PROVIDER", "AMBASSADOR", "AFFILIATE"] as const).map((t) => (
             <button
               key={t}
               onClick={() => pushFilter({ type: t, page: 1 })}
               className={[
                 "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
                 type === t
-                  ? t === "PROVIDER"
-                    ? "bg-navy/10 text-navy"
-                    : t === "AMBASSADOR"
-                    ? "bg-purple-100 text-purple-700"
-                    : "bg-slate-200 text-slate-700"
+                  ? TYPE_FILTER_ACTIVE[t]
                   : "bg-white border border-slate-200 text-slate-500 hover:text-slate-700",
               ].join(" ")}
             >
-              {t === "ALL" ? "All types" : t === "PROVIDER" ? "Providers" : "Ambassadors"}
+              {TYPE_FILTER_LABEL[t]}
             </button>
           ))}
         </div>
@@ -462,9 +476,7 @@ const AdminApplicationsPage: NextPageWithLayout<Props> = ({
                       <p className="font-semibold text-slate-900 truncate">{displayName}</p>
                       <span
                         className={`shrink-0 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
-                          app.type === "PROVIDER"
-                            ? "bg-navy/10 text-navy"
-                            : "bg-purple-100 text-purple-700"
+                          TYPE_BADGE[app.type] ?? "bg-slate-100 text-slate-600"
                         }`}
                       >
                         {app.type}

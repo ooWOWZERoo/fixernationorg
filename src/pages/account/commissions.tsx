@@ -32,6 +32,10 @@ interface Props {
   entries: EntryRow[];
 }
 
+// Providers intentionally have no commissions view, even when they hold an
+// affiliate assignment.
+const COMMISSION_ROLES: string[] = ["AMBASSADOR", "AFFILIATE"];
+
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-amber/20 text-amber-dark",
   APPROVED: "bg-blue-100 text-blue-700",
@@ -164,7 +168,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (!session) {
     return { redirect: { destination: `/signin?callbackUrl=${encodeURIComponent("/account/commissions")}`, permanent: false } };
   }
-  if (session.user.role !== "AMBASSADOR") {
+  if (!COMMISSION_ROLES.includes(session.user.role)) {
     return { redirect: { destination: "/dashboard", permanent: false } };
   }
 
@@ -173,7 +177,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   });
 
   if (!res.ok) {
-    return { redirect: { destination: "/account/ambassador", permanent: false } };
+    const fallback = session.user.role === "AMBASSADOR" ? "/account/ambassador" : "/dashboard";
+    return { redirect: { destination: fallback, permanent: false } };
   }
 
   const data = await res.json();

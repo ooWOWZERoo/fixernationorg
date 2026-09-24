@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getTotalPoints } from "@/lib/loyalty";
+import { applicationRoleLabel } from "@/lib/application-labels";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 
@@ -45,7 +46,7 @@ interface Props {
   email: string;
   role: string;
   adminRole: string;
-  pendingApplication: { type: "PROVIDER" | "AMBASSADOR"; submittedAt: string } | null;
+  pendingApplication: { type: "PROVIDER" | "AMBASSADOR" | "AFFILIATE"; submittedAt: string } | null;
   totalPoints: number;
   ambassadorData: AmbassadorData | null;
   hasFocusAreas: boolean;
@@ -57,6 +58,7 @@ const ROLE_LABEL: Record<string, string> = {
   MEMBER: "Member",
   PROVIDER: "Service Provider",
   AMBASSADOR: "Brand Ambassador",
+  AFFILIATE: "Affiliate",
   CONSUMER: "Consumer",
 };
 
@@ -389,7 +391,7 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole
               Application pending
             </p>
             <p className="font-bold text-navy">
-              Your {pendingApplication.type === "PROVIDER" ? "service provider" : "ambassador"} application is under review
+              Your {applicationRoleLabel(pendingApplication.type)} application is under review
             </p>
             <p className="mt-1 text-sm text-ink-soft">
               We review every application personally. We'll email you at {email} once a decision is made.
@@ -609,7 +611,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       role: session.user.role,
       adminRole: session.user.adminRole,
       pendingApplication: pendingApp
-        ? { type: pendingApp.type as "PROVIDER" | "AMBASSADOR", submittedAt: pendingApp.createdAt.toISOString() }
+        ? { type: pendingApp.type as "PROVIDER" | "AMBASSADOR" | "AFFILIATE", submittedAt: pendingApp.createdAt.toISOString() }
         : null,
       totalPoints,
       ambassadorData,

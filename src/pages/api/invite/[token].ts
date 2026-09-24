@@ -96,6 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (existing) {
       const newRole = application.type === "PROVIDER" ? "PROVIDER"
         : application.type === "AMBASSADOR" ? "AMBASSADOR"
+        : application.type === "AFFILIATE" ? "AFFILIATE"
         : null;
 
       const ops: Promise<unknown>[] = [
@@ -132,6 +133,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             })
           );
         }
+
+        if (newRole === "AFFILIATE") {
+          ops.push(
+            provisionAffiliate({
+              userId: existing.id,
+              applicationId: application.id,
+              affiliateType: "AFFILIATE",
+              assignedBy: "invite-claim",
+            })
+          );
+        }
       }
 
       await Promise.all(ops);
@@ -149,6 +161,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const passwordHash = await bcrypt.hash(password, 10);
     const newRole = application.type === "PROVIDER" ? "PROVIDER"
       : application.type === "AMBASSADOR" ? "AMBASSADOR"
+      : application.type === "AFFILIATE" ? "AFFILIATE"
       : "MEMBER";
 
     const user = await db.user.create({
@@ -156,7 +169,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: application.email,
         name: name.trim(),
         passwordHash,
-        role: newRole as "PROVIDER" | "AMBASSADOR" | "MEMBER",
+        role: newRole as "PROVIDER" | "AMBASSADOR" | "AFFILIATE" | "MEMBER",
         emailVerified: new Date(),
       },
       select: { id: true },
@@ -176,7 +189,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       role: newRole,
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
 
-    if (newRole === "PROVIDER" || newRole === "AMBASSADOR") {
+    if (newRole === "PROVIDER" || newRole === "AMBASSADOR" || newRole === "AFFILIATE") {
       enrollMorningBoost(user.id, application.email, name.trim());
     }
 
@@ -195,6 +208,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userId: user.id,
         applicationId: application.id,
         affiliateType: "AMBASSADOR",
+        assignedBy: "invite-claim",
+      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
+    }
+
+    // Standalone affiliate — commissions only, no ambassador profile
+    if (newRole === "AFFILIATE") {
+      provisionAffiliate({
+        userId: user.id,
+        applicationId: application.id,
+        affiliateType: "AFFILIATE",
         assignedBy: "invite-claim",
       }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
     }

@@ -11,6 +11,7 @@ const STATIC_PATHS = [
   "/ambassadors",
   "/ask-the-fixer",
   "/become-a-provider",
+  "/become-an-affiliate",
   "/become-an-ambassador",
   "/blog",
   "/books",

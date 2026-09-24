@@ -7,6 +7,8 @@ import { recordEvent } from "@/lib/application-events";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
+const TERRITORY_ELIGIBLE_TYPES: string[] = ["AMBASSADOR", "PROVIDER", "AFFILIATE"];
+
 // Sentinel thrown inside the assign transaction so the exclusive-territory
 // conflict can unwind out of db.$transaction and become a 409 response,
 // without db.$transaction's return type absorbing the error case.
@@ -89,14 +91,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(409).json({ error: "This territory is locked and cannot be assigned." });
         }
 
-        // Verify application exists and is AMBASSADOR type
+        // Verify application exists and is a territory-eligible type
         const application = await db.userApplication.findUnique({
           where: { id: applicationId },
           select: { id: true, type: true, userId: true },
         });
         if (!application) return res.status(404).json({ error: "Application not found" });
-        if (application.type !== "AMBASSADOR") {
-          return res.status(400).json({ error: "Territory assignment is only for ambassador applications" });
+        if (!TERRITORY_ELIGIBLE_TYPES.includes(application.type)) {
+          return res.status(400).json({
+            error: "Territory assignment is only for ambassador, provider, and affiliate applications",
+          });
         }
 
         const resolvedUserId = userId ?? application.userId ?? undefined;
