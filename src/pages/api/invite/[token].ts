@@ -7,7 +7,7 @@ import { recordEvent } from "@/lib/application-events";
 import { enrollInJourneys } from "@/lib/automation";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { provisionAffiliate } from "@/lib/affiliate";
-import { ensureContactForUser, setConsent } from "@/lib/contacts";
+import { ensureContactForUser, setConsent, ensureAffiliateListMembership } from "@/lib/contacts";
 
 async function enrollMorningBoost(userId: string, email: string, name: string | null) {
   try {
@@ -15,6 +15,15 @@ async function enrollMorningBoost(userId: string, email: string, name: string | 
     await setConsent(contactId, "MORNING_BOOST", true, "signup");
   } catch (err) {
     console.error("[invite] Morning Boost auto-enroll failed:", err);
+  }
+}
+
+async function enrollAffiliateList(userId: string, email: string, name: string | null) {
+  try {
+    const contactId = await ensureContactForUser(userId, email, name, "signup");
+    await ensureAffiliateListMembership(contactId);
+  } catch (err) {
+    console.error("[invite] Affiliates list auto-enroll failed:", err);
   }
 }
 
@@ -143,6 +152,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               assignedBy: "invite-claim",
             })
           );
+          ops.push(enrollAffiliateList(existing.id, application.email, application.name));
         }
       }
 
@@ -220,6 +230,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         affiliateType: "AFFILIATE",
         assignedBy: "invite-claim",
       }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
+      enrollAffiliateList(user.id, application.email, name.trim());
     }
 
     // Auto-join role-based groups and fire automation triggers

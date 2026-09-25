@@ -76,6 +76,8 @@ type AffiliateDetail = {
 
 interface Props {
   affiliate: AffiliateDetail;
+  totalOwed: number;
+  totalPaid: number;
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ function pct(rate: string | null | undefined) {
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) => {
+const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial, totalOwed, totalPaid }) => {
   const [affiliate, setAffiliate] = useState(initial);
   const [activeTab, setActiveTab] = useState<"promo" | "rules" | "ledger" | "settings">("promo");
 
@@ -831,6 +833,20 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial }) 
             </div>
           </div>
 
+          {/* Running balance */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Balance</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">Owed</span>
+              <span className="text-lg font-bold text-amber-700">{fmt(String(totalOwed))}</span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-sm text-slate-500">Paid out</span>
+              <span className="text-sm font-semibold text-slate-600">{fmt(String(totalPaid))}</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">Owed = APPROVED entries awaiting payout. Mark an entry Paid on the Ledger tab to move it here.</p>
+          </div>
+
           {/* Metadata */}
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-400 space-y-1">
             <div className="flex justify-between"><span>Attribution window</span><span>{affiliate.attributionWindowDays}d</span></div>
@@ -874,8 +890,20 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   if (!affiliate) return { notFound: true };
 
+  // Computed from the full ledger, not the capped 50-row `ledgerEntries`
+  // included above -- an affiliate with more history than that would
+  // otherwise get a silently wrong lifetime total.
+  const [owedAgg, paidAgg] = await Promise.all([
+    db.commissionLedger.aggregate({ where: { affiliateId: id, status: "APPROVED" }, _sum: { commissionAmount: true } }),
+    db.commissionLedger.aggregate({ where: { affiliateId: id, status: "PAID" }, _sum: { commissionAmount: true } }),
+  ]);
+
   return {
-    props: { affiliate: JSON.parse(JSON.stringify(affiliate)) },
+    props: {
+      affiliate: JSON.parse(JSON.stringify(affiliate)),
+      totalOwed: parseFloat(String(owedAgg._sum.commissionAmount ?? 0)),
+      totalPaid: parseFloat(String(paidAgg._sum.commissionAmount ?? 0)),
+    },
   };
 };
 

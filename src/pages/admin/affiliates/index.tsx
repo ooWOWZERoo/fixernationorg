@@ -24,6 +24,7 @@ type AffiliateRow = {
   };
   application: { id: string; type: string } | null;
   _count: { promoCodes: number; ledgerEntries: number };
+  totalOwed: number;
   totalPaid: number;
 };
 
@@ -90,6 +91,7 @@ const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates: allAffiliates })
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Status</th>
                 <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Territory</th>
                 <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Referrals</th>
+                <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Owed</th>
                 <th className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 lg:table-cell">Paid out</th>
                 <th className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 sm:table-cell">Setup</th>
                 <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
@@ -121,6 +123,11 @@ const AffiliatePage: NextPageWithLayout<Props> = ({ affiliates: allAffiliates })
                     <td className="hidden px-4 py-3.5 text-right text-slate-600 sm:table-cell">
                       {a.affiliateType === "AMBASSADOR" && a.user.ambassadorProfile
                         ? a.user.ambassadorProfile._count.referrals
+                        : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="hidden px-4 py-3.5 text-right font-semibold text-amber-700 lg:table-cell">
+                      {a.totalOwed > 0
+                        ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(a.totalOwed)
                         : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="hidden px-4 py-3.5 text-right text-slate-600 lg:table-cell">
@@ -170,7 +177,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     };
   }
 
-  const [affiliates, paidTotals] = await Promise.all([
+  const [affiliates, paidTotals, owedTotals] = await Promise.all([
     db.affiliateAssignment.findMany({
       include: {
         user: {
@@ -196,7 +203,19 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       where: { status: "PAID" },
       _sum: { commissionAmount: true },
     }),
+    // "Owed" = APPROVED only, matching exactly what the "mark as paid" action
+    // operates on (PENDING/ON_HOLD haven't cleared review yet, so they're not
+    // counted as a confirmed balance due).
+    db.commissionLedger.groupBy({
+      by: ["affiliateId"],
+      where: { status: "APPROVED" },
+      _sum: { commissionAmount: true },
+    }),
   ]);
+
+  const owedMap = new Map(
+    owedTotals.map((o) => [o.affiliateId, parseFloat(String(o._sum.commissionAmount ?? 0))])
+  );
 
   const paidMap = new Map(
     paidTotals.map((p) => [p.affiliateId, parseFloat(String(p._sum.commissionAmount ?? 0))])
@@ -204,6 +223,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   const rows = affiliates.map((a) => ({
     ...a,
+    totalOwed: owedMap.get(a.id) ?? 0,
     totalPaid: paidMap.get(a.id) ?? 0,
   }));
 

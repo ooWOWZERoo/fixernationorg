@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { ContactConsent, ContactConsentTopic } from "@prisma/client";
 
 const MORNING_BOOST_LIST_NAME = "Morning Boost";
+const AFFILIATE_LIST_NAME = "Affiliates";
 
 // Keeps the "Morning Boost" ContactList (the one admins manage by hand at
 // /admin/lists) mirroring MORNING_BOOST consent -- opted in adds a contact,
@@ -35,6 +36,23 @@ export async function syncMorningBoostList(contactIds: string[]): Promise<void> 
   if (toRemove.length > 0) {
     await db.contactListMember.deleteMany({ where: { listId: list.id, contactId: { in: toRemove } } });
   }
+}
+
+// Adds a contact to the admin-managed "Affiliates" list on approval -- a
+// one-way, additive join (no consent topic backs "being an affiliate", so
+// there's no opt-out/re-sync case to handle the way Morning Boost has).
+// No-ops if the list has been deleted, same convention as syncMorningBoostList.
+export async function ensureAffiliateListMembership(contactId: string): Promise<void> {
+  const list = await db.contactList.findFirst({
+    where: { name: AFFILIATE_LIST_NAME, ownerType: "FN_ADMIN" },
+    select: { id: true },
+  });
+  if (!list) return;
+
+  await db.contactListMember.createMany({
+    data: [{ listId: list.id, contactId }],
+    skipDuplicates: true,
+  });
 }
 
 // Shared find-or-create so every enrollment path (registration verification,
