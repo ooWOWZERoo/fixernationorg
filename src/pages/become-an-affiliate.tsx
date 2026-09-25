@@ -49,6 +49,35 @@ const AUDIENCE_SIZES = [
 
 const GEO_FOCUS = ["Mostly local", "Regional", "National", "International"];
 
+const BENEFITS = [
+  {
+    icon: "💸",
+    label: "Real commissions, tracked automatically",
+    description: "Every sale through your link creates a commission in your account the moment the customer's first payment clears. No spreadsheets, no chasing anyone down.",
+  },
+  {
+    icon: "🔗",
+    label: "Your own promo code",
+    description: "Share a link or a code, whichever's easier for your audience. Either way, it's tied to you.",
+  },
+  {
+    icon: "⏱️",
+    label: "Fits around your life",
+    description: "Post about it, send it in a text, or bring it up next time you're talking to someone who needs this. There's no quota and no schedule. Affiliates earn on their own time.",
+  },
+  {
+    icon: "📊",
+    label: "Watch it add up",
+    description: "Log into your own affiliate dashboard anytime and see your code, what you've earned so far, and what's still pending payout.",
+  },
+];
+
+const HOW_IT_WORKS = [
+  { title: "Apply in a few minutes", description: "Tell us who you are and how you'll share Fixer Nation." },
+  { title: "Get approved and get your code", description: "We review applications quickly, then set you up with a link and a promo code." },
+  { title: "Share it and get paid", description: "Every signup through your link earns you a commission, tracked automatically, no extra steps on your end." },
+];
+
 const PLATFORMS = [
   "Facebook",
   "Instagram",
@@ -381,13 +410,43 @@ const BecomeAnAffiliatePage: NextPageWithLayout<Props> = ({ prefillEmail, prefil
         <div className="mx-auto max-w-2xl">
           <span className="eyebrow">Affiliates</span>
           <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-navy lg:text-5xl">
-            Share your link. Get paid when people join.
+            Get paid for who you already know.
           </h1>
           <p className="mt-5 text-lg leading-relaxed text-ink-soft">
-            Affiliates get a referral link and a promo code, and earn a commission on everyone
-            who signs up through them. You don&apos;t need a business or a territory for this one.
-            If you do want a territory tied to your name, say so on the form and we&apos;ll talk.
+            You don&apos;t need a business, a service listing, or a territory. Just a network.
+            Share your link, and everyone who joins through it puts money in your pocket automatically.
           </p>
+        </div>
+      </section>
+
+      <section className="px-6 pb-14 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {BENEFITS.map((b) => (
+              <div key={b.label} className="rounded-2xl border border-navy/10 bg-white p-6 shadow-[0_10px_26px_-20px_rgba(20,40,56,0.25)]">
+                <span className="text-2xl">{b.icon}</span>
+                <h3 className="mt-3 text-base font-bold text-navy">{b.label}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{b.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-cream-panel px-6 py-14 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-center text-2xl font-extrabold text-navy">How it works</h2>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+            {HOW_IT_WORKS.map((s, i) => (
+              <div key={s.title} className="text-center">
+                <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-navy text-sm font-bold text-white">
+                  {i + 1}
+                </div>
+                <h3 className="mt-3 text-sm font-bold text-navy">{s.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{s.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
