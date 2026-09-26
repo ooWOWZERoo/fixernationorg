@@ -158,10 +158,11 @@ export default function InvitePage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  <label htmlFor="invite-name" className="mb-1.5 block text-xs font-semibold text-slate-600">
                     Full name
                   </label>
                   <input
+                    id="invite-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -171,10 +172,11 @@ export default function InvitePage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  <label htmlFor="invite-email" className="mb-1.5 block text-xs font-semibold text-slate-600">
                     Email
                   </label>
                   <input
+                    id="invite-email"
                     type="email"
                     value={email ?? ""}
                     readOnly
@@ -184,10 +186,11 @@ export default function InvitePage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  <label htmlFor="invite-password" className="mb-1.5 block text-xs font-semibold text-slate-600">
                     Password
                   </label>
                   <input
+                    id="invite-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -199,10 +202,11 @@ export default function InvitePage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  <label htmlFor="invite-confirm-password" className="mb-1.5 block text-xs font-semibold text-slate-600">
                     Confirm password
                   </label>
                   <input
+                    id="invite-confirm-password"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

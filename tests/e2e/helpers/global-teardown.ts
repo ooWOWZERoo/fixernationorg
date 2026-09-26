@@ -55,15 +55,43 @@ export default async function globalTeardown() {
       run: async () => {
         const qaApps = await db.userApplication.findMany({
           where: { createdAt: { gte: startedAt }, OR: TEST_CONTACT_EMAIL_OR },
-          select: { id: true },
+          select: { id: true, userId: true },
         });
         const qaAppIds = qaApps.map((a) => a.id);
+        // AffiliateAssignment.applicationId is ON DELETE RESTRICT from
+        // UserApplication (SP-69/70/71 affiliate program -- e.g.
+        // affiliate-closed-loop.spec.ts provisions one via a real invite
+        // claim), and PromoCode/CommissionRule/CommissionLedger are
+        // themselves RESTRICT from AffiliateAssignment -- all three must be
+        // cleared before the assignment, and the assignment before the
+        // application, all within this one task so cleanup order can't race
+        // against the other tasks running concurrently below.
+        const qaAssignments = await db.affiliateAssignment.findMany({
+          where: { applicationId: { in: qaAppIds } },
+          select: { id: true },
+        });
+        const qaAssignmentIds = qaAssignments.map((a) => a.id);
+        await db.commissionLedger.deleteMany({ where: { affiliateId: { in: qaAssignmentIds } } });
+        await db.promoCode.deleteMany({ where: { affiliateId: { in: qaAssignmentIds } } });
+        await db.commissionRule.deleteMany({ where: { affiliateId: { in: qaAssignmentIds } } });
+        await db.affiliateAssignment.deleteMany({ where: { id: { in: qaAssignmentIds } } });
         // TerritoryAssignment has no cascade from UserApplication -- must go first.
         await db.territoryAssignment.deleteMany({ where: { applicationId: { in: qaAppIds } } });
         // OnboardingRecord/ChecklistItem are ON DELETE RESTRICT from UserApplication -- must go first too.
         await db.onboardingRecord.deleteMany({ where: { applicationId: { in: qaAppIds } } });
         await db.checklistItem.deleteMany({ where: { applicationId: { in: qaAppIds } } });
-        return (await db.userApplication.deleteMany({ where: { id: { in: qaAppIds } } })).count;
+        const count = (await db.userApplication.deleteMany({ where: { id: { in: qaAppIds } } })).count;
+
+        // A claimed invite creates a real User account (e.g. the AFFILIATE
+        // role grant in affiliate-closed-loop.spec.ts) -- clean those up
+        // too, best-effort so an unrelated leftover FK elsewhere can't cost
+        // this task the application-row count already achieved above.
+        const qaUserIds = qaApps.map((a) => a.userId).filter((id): id is string => Boolean(id));
+        if (qaUserIds.length > 0) {
+          await db.user.deleteMany({ where: { id: { in: qaUserIds } } }).catch(() => {});
+        }
+
+        return count;
       },
     },
     {

@@ -343,6 +343,96 @@ export async function resetRateLimit(prefix: string): Promise<void> {
   await client().rateLimitEntry.deleteMany({ where: { key: { startsWith: `${prefix}:` } } });
 }
 
+// ── Affiliate program (SP-69/70/71) ──────────────────────────────────────────
+
+export async function getApplicationByEmail(
+  email: string,
+  type: "PROVIDER" | "AMBASSADOR" | "AFFILIATE"
+): Promise<{ id: string; status: string; userId: string | null; accountInviteToken: string | null } | null> {
+  const row = await client().userApplication.findFirst({
+    where: { email, type },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, userId: true, accountInviteToken: true },
+  });
+  return row ?? null;
+}
+
+// AffiliateAssignment.applicationId is unique, so this is a direct lookup —
+// provisionAffiliate() (src/lib/affiliate.ts) is idempotent per application.
+export async function getAffiliateAssignmentByApplicationId(
+  applicationId: string
+): Promise<{ id: string; userId: string; affiliateType: string; status: string } | null> {
+  const row = await client().affiliateAssignment.findUnique({
+    where: { applicationId },
+    select: { id: true, userId: true, affiliateType: true, status: true },
+  });
+  return row ?? null;
+}
+
+export async function getContactByUserId(userId: string): Promise<{ id: string } | null> {
+  const row = await client().contact.findUnique({ where: { userId }, select: { id: true } });
+  return row ?? null;
+}
+
+// The "Affiliates" ContactList is admin-managed (src/lib/contacts.ts's
+// ensureAffiliateListMembership) -- checks membership by list name rather
+// than a hardcoded id since no e2e fixture pins one.
+export async function isContactInNamedList(contactId: string, listName: string): Promise<boolean> {
+  const list = await client().contactList.findFirst({
+    where: { name: listName, ownerType: "FN_ADMIN" },
+    select: { id: true },
+  });
+  if (!list) return false;
+  const member = await client().contactListMember.findUnique({
+    where: { listId_contactId: { listId: list.id, contactId } },
+    select: { id: true },
+  });
+  return !!member;
+}
+
+export async function getConsentOptIn(contactId: string, topic: "MORNING_BOOST"): Promise<boolean | null> {
+  const row = await client().contactConsent.findUnique({
+    where: { contactId_topic: { contactId, topic } },
+    select: { optedIn: true },
+  });
+  return row?.optedIn ?? null;
+}
+
+export async function getPromoCodeByCode(
+  code: string
+): Promise<{ id: string; affiliateId: string; stripeCouponId: string | null; usedCount: number; maxUses: number | null } | null> {
+  const row = await client().promoCode.findUnique({
+    where: { code },
+    select: { id: true, affiliateId: true, stripeCouponId: true, usedCount: true, maxUses: true },
+  });
+  return row ?? null;
+}
+
+// Best-effort deep delete for an AffiliateAssignment created directly by a
+// test (not through provisionAffiliate's normal application-approval path,
+// or when a test wants to clean up before the global teardown sweep runs) --
+// PromoCode/CommissionRule/CommissionLedger are all ON DELETE RESTRICT from
+// AffiliateAssignment, so they must go first.
+export async function deleteAffiliateAssignmentDeep(assignmentId: string): Promise<void> {
+  const db_ = client();
+  await db_.commissionLedger.deleteMany({ where: { affiliateId: assignmentId } });
+  await db_.promoCode.deleteMany({ where: { affiliateId: assignmentId } });
+  await db_.commissionRule.deleteMany({ where: { affiliateId: assignmentId } });
+  await db_.affiliateAssignment.deleteMany({ where: { id: assignmentId } });
+}
+
+// A real, active Price with a live Stripe Price attached -- used by
+// checkout-promo-code.spec.ts to hit /api/checkout/create-session the same
+// way /join does, without hardcoding a price id that could go stale.
+export async function getActivePriceId(): Promise<string | null> {
+  const row = await client().price.findFirst({
+    where: { active: true, stripePriceId: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
 export async function closeTestDb(): Promise<void> {
   if (prisma) {
     await prisma.$disconnect();
