@@ -88,7 +88,10 @@ test("submit application -> admin accepts -> invite claim grants AFFILIATE role,
   await signInAsTestAdmin(page);
   await page.goto("/admin/applications");
   await page.getByPlaceholder("Search by name, email, phone, business, or category…").fill(EMAIL);
-  await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(EMAIL)}`));
+  // The search box debounces 400ms before pushing the filtered URL -- give
+  // this more room than the 5s default, since this test does a lot of
+  // network round-tripping beforehand.
+  await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(EMAIL)}`), { timeout: 10000 });
 
   const row = page.getByRole("button").filter({ hasText: EMAIL });
   await expect(row).toBeVisible();
@@ -114,7 +117,7 @@ test("submit application -> admin accepts -> invite claim grants AFFILIATE role,
   // Confirm the UI agrees, on the Accepted tab.
   await page.goto("/admin/applications?tab=ACCEPTED");
   await page.getByPlaceholder("Search by name, email, phone, business, or category…").fill(EMAIL);
-  await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(EMAIL)}`));
+  await expect(page).toHaveURL(new RegExp(`q=${encodeURIComponent(EMAIL)}`), { timeout: 10000 });
   const acceptedRow = page.getByRole("button").filter({ hasText: EMAIL });
   await expect(acceptedRow).toBeVisible();
   await expect(acceptedRow.getByText("Accepted")).toBeVisible();
