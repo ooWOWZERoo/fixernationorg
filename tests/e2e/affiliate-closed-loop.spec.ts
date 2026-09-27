@@ -135,8 +135,16 @@ test("submit application -> admin accepts -> invite claim grants AFFILIATE role,
   // Verify the grant chain directly via DB -- list/consent membership have
   // no UI surface at all today, and re-deriving role via another sign-in
   // here would just duplicate the dedicated self-service test below.
-  const assignment = await getAffiliateAssignmentByApplicationId(applicationId);
-  expect(assignment, "AffiliateAssignment should be provisioned on invite claim").toBeTruthy();
+  // provisionAffiliate (src/pages/api/invite/[token].ts) is also
+  // fire-and-forget, same race as enrollAffiliateList/enrollMorningBoost
+  // below -- poll instead of assuming it's already committed.
+  let assignment: Awaited<ReturnType<typeof getAffiliateAssignmentByApplicationId>> = null;
+  await expect
+    .poll(async () => {
+      assignment = await getAffiliateAssignmentByApplicationId(applicationId);
+      return assignment;
+    }, { timeout: 15000 })
+    .not.toBeNull();
   expect(assignment!.affiliateType).toBe("AFFILIATE");
   assignmentId = assignment!.id;
 
@@ -197,7 +205,9 @@ test("the new affiliate's self-service page shows the promo code, join link, and
   await expect(page).not.toHaveURL(/\/signin/, { timeout: 15000 });
 
   await page.goto("/account/affiliate");
-  await expect(page.getByText(PROMO_CODE)).toBeVisible();
+  // exact:true -- the join-link <code> block also contains PROMO_CODE as a
+  // substring of the full URL, so a loose match resolves to both elements.
+  await expect(page.getByText(PROMO_CODE, { exact: true })).toBeVisible();
   await expect(page.getByText(`/join?promo=${PROMO_CODE}`)).toBeVisible();
   await expect(page.getByText("You earn 15% on all products.")).toBeVisible();
 });
