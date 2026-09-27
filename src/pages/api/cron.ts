@@ -257,7 +257,7 @@ async function runApplicationExpirationReminders(): Promise<{ message: string }>
     if (daysLeft <= 0) continue;
 
     try {
-      await sendEmail({
+      await sendTransactionalEmail({
         to: app.email,
         ...buildExpirationReminderEmail(app.name, app.type as ApplicationTypeKey, daysLeft),
       });

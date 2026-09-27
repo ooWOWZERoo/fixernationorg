@@ -7,11 +7,17 @@ import { db } from "@/lib/db";
 // it's tripped (confirmed with their support after four separate incidents,
 // every one of them naming campaigns@fixernation.org in the bounce text).
 //
-// This module is the single choke point for every path that sends through the
-// bulk mailbox (SMTP_USER — campaigns@). Transactional mail now authenticates
-// as a different mailbox (TRANSACTIONAL_SMTP_USER — noreply@) and therefore
-// has its own independent 100/hr allowance at the host, which is why it
-// deliberately does NOT go through this counter.
+// This module is the single choke point for every path that sends bulk-shaped
+// mail, and it meters each sending mailbox separately because the host's limit
+// is per mailbox:
+//
+//   campaigns@    (SMTP_USER)              CRM campaigns, provider campaigns,
+//                                          automation-tick mail
+//   morningboost@ (MORNING_BOOST_SMTP_USER) the Daily Morning Boost only
+//
+// Transactional mail (TRANSACTIONAL_SMTP_USER — noreply@) deliberately does
+// NOT go through this counter at all: it's low-volume, latency-sensitive, and
+// has its own allowance, so there's nothing to ration.
 //
 // It replaces the previous count-rows-in-the-last-hour approach, which was a
 // read-once snapshot rather than an atomic reservation: campaign-scheduler,
@@ -22,9 +28,10 @@ const DEFAULT_BULK_HOURLY_CAP = 70;
 
 // Runtime-tunable through the existing generic Setting key/value editor at
 // /admin/settings, same key as before, so the cap can still be adjusted
-// without a redeploy if the host's real limit turns out to differ. Memoized
-// briefly because this is now consulted once per individual send attempt
-// rather than once per batch.
+// without a redeploy if the host's real limit turns out to differ. Applies to
+// every metered mailbox, since the host's 100/hr limit is the same for each.
+// Memoized briefly because this is now consulted once per individual send
+// attempt rather than once per batch.
 const CAP_SETTING_KEY = "smtp_hourly_send_cap";
 const CAP_CACHE_MS = 60_000;
 let capCache: { value: number; readAt: number } | null = null;
@@ -41,17 +48,32 @@ export function bulkMailbox(): string {
   return process.env.SMTP_USER ?? "unknown-mailbox";
 }
 
+/**
+ * The Daily Morning Boost's own mailbox, which carries its own independent
+ * hourly allowance at the host.
+ *
+ * Falls back to the bulk mailbox when MORNING_BOOST_SMTP_USER isn't set,
+ * because sendMorningBoostEmail() falls back to the bulk transporter in
+ * exactly that case. These two have to agree: metering a separate bucket
+ * while the mail actually leaves as campaigns@ would let the two paths
+ * together spend well past the real limit on one mailbox — the precise
+ * failure this whole mechanism exists to prevent.
+ */
+export function morningBoostMailbox(): string {
+  return process.env.MORNING_BOOST_SMTP_USER ?? bulkMailbox();
+}
+
 // UTC so every serverless region agrees on which hour a send belongs to —
 // "2026-09-26T18".
 export function utcHourKey(at: Date = new Date()): string {
   return at.toISOString().slice(0, 13);
 }
 
-export function bulkBudgetKey(at: Date = new Date()): string {
-  return `${bulkMailbox()}:${utcHourKey(at)}`;
+export function budgetKey(mailbox: string, at: Date = new Date()): string {
+  return `${mailbox}:${utcHourKey(at)}`;
 }
 
-async function getBulkHourlyCap(): Promise<number> {
+async function getHourlyCap(): Promise<number> {
   if (capCache && Date.now() - capCache.readAt < CAP_CACHE_MS) return capCache.value;
   const row = await db.setting.findUnique({ where: { key: CAP_SETTING_KEY } }).catch(() => null);
   const parsed = row ? Number.parseInt(row.value, 10) : NaN;
@@ -65,19 +87,23 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
- * Atomically claims one slot in the current hour's budget for the bulk
- * mailbox. Returns false when this hour's budget is spent — callers must then
+ * Atomically claims one slot in the given mailbox's budget for the current
+ * hour. Returns false when that mailbox's budget is spent — callers must then
  * stop sending and leave their remaining work queued for the next hourly tick.
+ *
+ * Buckets are per (mailbox, hour) because the host's limit is per mailbox, so
+ * splitting a sending identity out (morningboost@) genuinely buys it a fresh
+ * allowance rather than dividing an existing one.
  *
  * Deliberately called BEFORE the send attempt, and never refunded on failure:
  * a bounced or rejected message still burned a real delivery attempt against
  * the host's counter, so it has to cost us a slot too.
  */
-export async function reserveBulkSendSlot(at: Date = new Date()): Promise<boolean> {
-  const cap = await getBulkHourlyCap();
+export async function reserveSendSlot(mailbox: string, at: Date = new Date()): Promise<boolean> {
+  const cap = await getHourlyCap();
   if (cap <= 0) return false;
 
-  const key = bulkBudgetKey(at);
+  const key = budgetKey(mailbox, at);
   const cdb = db as never as MailboxSendCounterDb;
 
   // The whole point: the conditional increment is evaluated by Postgres, so
@@ -96,7 +122,7 @@ export async function reserveBulkSendSlot(at: Date = new Date()): Promise<boolea
   // update is the authoritative answer.
   try {
     await cdb.mailboxSendCounter.create({
-      data: { key, mailbox: bulkMailbox(), hourKey: utcHourKey(at), count: 1 },
+      data: { key, mailbox, hourKey: utcHourKey(at), count: 1 },
     });
     return true;
   } catch (err) {
@@ -108,6 +134,11 @@ export async function reserveBulkSendSlot(at: Date = new Date()): Promise<boolea
     data: { count: { increment: 1 } },
   });
   return retried.count === 1;
+}
+
+/** Claims a slot on the bulk mailbox (campaigns@) — the common case. */
+export function reserveBulkSendSlot(at: Date = new Date()): Promise<boolean> {
+  return reserveSendSlot(bulkMailbox(), at);
 }
 
 /**
@@ -130,10 +161,10 @@ export function nextBudgetWindow(at: Date = new Date()): Date {
   return new Date(next.getTime() + 60 * 60 * 1000);
 }
 
-/** Slots already spent this hour — read-only, for diagnostics. */
-export async function bulkSlotsUsed(at: Date = new Date()): Promise<number> {
+/** Slots already spent this hour by one mailbox — read-only, for diagnostics. */
+export async function slotsUsed(mailbox: string, at: Date = new Date()): Promise<number> {
   const cdb = db as never as MailboxSendCounterDb;
-  const row = await cdb.mailboxSendCounter.findUnique({ where: { key: bulkBudgetKey(at) } });
+  const row = await cdb.mailboxSendCounter.findUnique({ where: { key: budgetKey(mailbox, at) } });
   return row?.count ?? 0;
 }
 

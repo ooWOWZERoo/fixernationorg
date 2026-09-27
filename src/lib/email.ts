@@ -1,8 +1,10 @@
 import nodemailer from "nodemailer";
 import { db } from "@/lib/db";
 
-// Both mailboxes live on the same cPanel mail server, so host/port/secure are
-// shared; only the authenticating mailbox and its password differ.
+// All three mailboxes live on the same cPanel mail server, so host/port/secure
+// are shared; only the authenticating mailbox and its password differ. The
+// host's rate limit is enforced per mailbox, which is the whole reason for
+// splitting them.
 function createMailTransport(user: string | undefined, pass: string | undefined) {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? "localhost",
@@ -35,8 +37,17 @@ const transactionalTransporter = process.env.TRANSACTIONAL_SMTP_USER
   ? createMailTransport(process.env.TRANSACTIONAL_SMTP_USER, process.env.TRANSACTIONAL_SMTP_PASS)
   : null;
 
+// Daily Morning Boost identity (morningboost@). The highest-volume single
+// recurring send on the site, so it gets its own mailbox and therefore its own
+// independent hourly allowance at the host rather than competing with the rest
+// of the CRM's campaign traffic for campaigns@'s budget.
+const morningBoostTransporter = process.env.MORNING_BOOST_SMTP_USER
+  ? createMailTransport(process.env.MORNING_BOOST_SMTP_USER, process.env.MORNING_BOOST_SMTP_PASS)
+  : null;
+
 const FROM = process.env.SMTP_FROM ?? "Fixer Nation <noreply@fixernation.org>";
 const TRANSACTIONAL_FROM = process.env.TRANSACTIONAL_SMTP_FROM ?? FROM;
+const MORNING_BOOST_FROM = process.env.MORNING_BOOST_SMTP_FROM ?? FROM;
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
 // A handful of fixed e2e test accounts (qa-member, qa-mfa-test, qa-admin,
@@ -140,9 +151,27 @@ export async function sendTransactionalEmail(args: SendArgs) {
   return deliver(transactionalTransporter, TRANSACTIONAL_FROM, args);
 }
 
+/**
+ * The Daily Morning Boost campaign only. Authenticates as morningboost@ so
+ * that send draws on its own hourly allowance at the host — see
+ * morningBoostMailbox() in mailbox-budget.ts, which must stay in agreement
+ * with this function about which mailbox is actually in use, including the
+ * fallback below. Falls back to the bulk sender when the credentials aren't
+ * configured, so a missing env var degrades to today's behaviour instead of
+ * silently dropping the day's Boost.
+ */
+export async function sendMorningBoostEmail(args: SendArgs) {
+  if (!morningBoostTransporter) return sendEmail(args);
+  if (isQaAccountOnRealDomain(args.to)) {
+    console.warn("[email] Skipping send to fixed QA test account on the real domain:", args.to);
+    return;
+  }
+  return deliver(morningBoostTransporter, MORNING_BOOST_FROM, args);
+}
+
 export async function sendVerificationEmail(to: string, token: string) {
   const url = `${BASE_URL}/api/auth/verify-email?token=${token}`;
-  await sendEmail({
+  await sendTransactionalEmail({
     to,
     subject: "Verify your Fixer Nation email",
     html: `
@@ -156,7 +185,7 @@ export async function sendVerificationEmail(to: string, token: string) {
 
 export async function sendPasswordResetEmail(to: string, token: string) {
   const url = `${BASE_URL}/reset-password?token=${token}`;
-  await sendEmail({
+  await sendTransactionalEmail({
     to,
     subject: "Reset your Fixer Nation password",
     html: `

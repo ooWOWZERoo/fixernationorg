@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, sendMorningBoostEmail } from "@/lib/email";
 import { buildCampaignEmail } from "@/lib/campaign-email";
 import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
 import { webpush } from "@/lib/web-push";
-import { reserveBulkSendSlot, isInfrastructureSendError } from "@/lib/mailbox-budget";
+import { reserveSendSlot, bulkMailbox, morningBoostMailbox, isInfrastructureSendError } from "@/lib/mailbox-budget";
 
 // Extracted from the admin "send now" API route so the cron-driven paths
 // (one-time SCHEDULED campaigns, recurring campaign occurrences) reuse the
@@ -65,6 +65,40 @@ type EmailContent = { subject: string; fromName: string; fromEmail: string; html
 const TIME_BUDGET_MS = Number(process.env.SEND_TIME_BUDGET_MS ?? 45_000);
 const BATCH = 20;
 
+// ─── Which mailbox a campaign sends as ───────────────────────────────────────
+//
+// The Daily Morning Boost has its own provisioned mailbox (morningboost@) and
+// therefore its own independent hourly allowance at the host; every other
+// campaign keeps sending as campaigns@. Nothing else about the send differs —
+// same batching, same retry/bounce rules, same queue semantics.
+type SenderProfile = { deliver: typeof sendEmail; mailbox: string };
+
+// Built on demand rather than as module-level constants: the mailbox names
+// come from env, and freezing them at import time would read stale values in
+// any harness that populates env after modules load.
+const bulkSender = (): SenderProfile => ({ deliver: sendEmail, mailbox: bulkMailbox() });
+const morningBoostSender = (): SenderProfile => ({ deliver: sendMorningBoostEmail, mailbox: morningBoostMailbox() });
+
+// recurrenceSource lives ONLY on the recurring template (isRecurring=true,
+// parentCampaignId=null). The campaign that actually sends each morning is a
+// fresh child occurrence created by runCampaignRecurringDispatch, and that
+// child does NOT carry recurrenceSource -- so checking the field on the
+// campaign in hand would silently never match the very send this routing
+// exists for. Resolve through the parent when there is one. The direct check
+// still matters for an admin "Send now" on the template itself.
+async function resolveSender(campaign: {
+  recurrenceSource: string | null;
+  parentCampaignId: string | null;
+}): Promise<SenderProfile> {
+  if (campaign.recurrenceSource === "MORNING_BOOST") return morningBoostSender();
+  if (!campaign.parentCampaignId) return bulkSender();
+  const parent = await db.campaign.findUnique({
+    where: { id: campaign.parentCampaignId },
+    select: { recurrenceSource: true },
+  });
+  return parent?.recurrenceSource === "MORNING_BOOST" ? morningBoostSender() : bulkSender();
+}
+
 // Marking a failed send as BOUNCED (not leaving it QUEUED) matters more than
 // it looks: the continuation loop below re-queries "status: QUEUED" every
 // pass, so a row that stays QUEUED after a permanent failure (bad address,
@@ -75,6 +109,7 @@ async function sendQueuedEmailBatches(
   fallbackContent: EmailContent,
   variantById: Map<string, EmailContent>,
   deadline: number,
+  sender: SenderProfile,
 ): Promise<{ done: boolean; sent: number; failed: number; hourlyCapReached: boolean }> {
   let sent = 0;
   let failed = 0;
@@ -92,19 +127,19 @@ async function sendQueuedEmailBatches(
 
     await Promise.allSettled(
       queued.map(async (row) => {
-        // One atomic claim per individual attempt against the account-wide
+        // One atomic claim per individual attempt against this mailbox's
         // hourly budget (mailbox-budget.ts). Claimed before the send and
         // never refunded, because a failed attempt still burned a real
         // delivery slot at the host. A denial leaves this row QUEUED for the
         // next hourly resume tick.
-        if (!(await reserveBulkSendSlot())) {
+        if (!(await reserveSendSlot(sender.mailbox))) {
           hourlyCapReached = true;
           return;
         }
         try {
           const content = row.variantId ? (variantById.get(row.variantId) ?? fallbackContent) : fallbackContent;
           const { subject, html, text } = buildCampaignEmail(content, row.contactId, row.contact.firstName, row.id);
-          await sendEmail({ to: row.contact.email, subject, html, text, from: `${content.fromName} <${content.fromEmail}>` });
+          await sender.deliver({ to: row.contact.email, subject, html, text, from: `${content.fromName} <${content.fromEmail}>` });
           await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
           sent++;
         } catch (err) {
@@ -249,7 +284,7 @@ export async function continueCampaignSend(campaignId: string): Promise<{ done: 
   }
 
   const deadline = Date.now() + TIME_BUDGET_MS;
-  const result = await sendQueuedEmailBatches(campaignId, campaign, variantById, deadline);
+  const result = await sendQueuedEmailBatches(campaignId, campaign, variantById, deadline, await resolveSender(campaign));
 
   if (result.done) {
     await db.campaign.update({ where: { id: campaignId }, data: { status: "SENT", sentAt: new Date() } });
@@ -422,6 +457,10 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
 
   await db.campaign.update({ where: { id }, data: { status: "SENDING" } });
 
+  // Resolved once per send rather than per recipient — the answer can't change
+  // mid-send. Unused by the PUSH branch, which has no SMTP involvement.
+  const sender = await resolveSender(campaign);
+
   let sent = 0;
   let failed = 0;
   const now = new Date();
@@ -516,7 +555,7 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
 
     const variantById = new Map<string, EmailContent>(variants.map((v) => [v.id, v]));
     const deadline = Date.now() + TIME_BUDGET_MS;
-    const result = await sendQueuedEmailBatches(id, campaign, variantById, deadline);
+    const result = await sendQueuedEmailBatches(id, campaign, variantById, deadline, sender);
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
@@ -530,7 +569,7 @@ export async function sendCampaignNow(campaignId: string): Promise<SendCampaignR
     });
 
     const deadline = Date.now() + TIME_BUDGET_MS;
-    const result = await sendQueuedEmailBatches(id, campaign, new Map<string, EmailContent>(), deadline);
+    const result = await sendQueuedEmailBatches(id, campaign, new Map<string, EmailContent>(), deadline, sender);
     sent = result.sent;
     failed = result.failed;
     if (!result.done) {
