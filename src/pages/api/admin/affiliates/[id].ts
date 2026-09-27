@@ -43,7 +43,10 @@ const addRuleSchema = z.object({
   type: z.enum(["PERCENTAGE", "FLAT"]).default("PERCENTAGE"),
   rate: z.number().positive(),
   pendingDays: z.number().int().min(0).max(365).default(30),
-  appliesTo: z.string().max(80).optional(),
+  // Fixed set, not free text -- matched by exact string equality in pickRule()
+  // (src/lib/commission.ts), so an arbitrary string could silently never match
+  // anything. Only MEMBERSHIP/BOOK are wired to an actual attribution path today.
+  appliesTo: z.enum(["MEMBERSHIP", "BOOK"]).optional(),
 });
 
 const deactivateRuleSchema = z.object({

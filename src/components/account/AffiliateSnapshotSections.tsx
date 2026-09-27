@@ -145,7 +145,7 @@ export function AffiliateSnapshotSections({
           <ul className="mt-3 space-y-1.5">
             {activeRules.map((r) => (
               <li key={r.id} className="text-sm text-ink">
-                You earn {formatRate(r.rate)} on {r.appliesTo ?? "all products"}.
+                You earn {formatRate(r.rate)} on {r.appliesTo ?? "all products except Book"}.
               </li>
             ))}
           </ul>

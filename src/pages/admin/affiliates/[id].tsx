@@ -506,7 +506,17 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial, to
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Applies to</label>
-                      <input value={ruleForm.appliesTo} onChange={(e) => setRuleForm((f) => ({ ...f, appliesTo: e.target.value }))} placeholder="All products (blank)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy" />
+                      {/* Fixed set, not free text -- appliesTo is matched by exact string
+                          equality in pickRule() (src/lib/commission.ts), so a typo here
+                          (e.g. "Book" vs "BOOK") would silently produce $0 commission with
+                          no error. Only MEMBERSHIP and BOOK are wired to an actual
+                          attribution path today; DIGITAL/PHYSICAL exist as ProductType
+                          values but nothing computes them for commission purposes yet. */}
+                      <select value={ruleForm.appliesTo} onChange={(e) => setRuleForm((f) => ({ ...f, appliesTo: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy">
+                        <option value="">All products except Book (catch-all)</option>
+                        <option value="MEMBERSHIP">Membership</option>
+                        <option value="BOOK">Book</option>
+                      </select>
                     </div>
                   </div>
                   <button type="submit" disabled={addingRule || !ruleForm.name || !ruleForm.rate} className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy/90 disabled:opacity-40">
@@ -525,7 +535,7 @@ const AffiliateDetailPage: NextPageWithLayout<Props> = ({ affiliate: initial, to
                         <p className={`font-semibold text-sm ${r.active ? "text-slate-900" : "text-slate-400 line-through"}`}>{r.name}</p>
                         <p className="text-xs text-slate-500 mt-0.5">
                           {r.type === "PERCENTAGE" ? pct(r.rate) : fmt(r.rate)} &middot; {r.pendingDays}d pending
-                          {r.appliesTo ? ` · ${r.appliesTo}` : " · all products"}
+                          {r.appliesTo ? ` · ${r.appliesTo}` : " · all products except Book"}
                         </p>
                       </div>
                       {r.active && (
