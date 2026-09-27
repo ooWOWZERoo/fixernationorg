@@ -6,6 +6,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { US_STATES } from "@/lib/us-states";
 import type { NextPageWithLayout } from "@/types/next";
 
 const DRAFT_KEY = "fn_ambassador_draft";
@@ -18,13 +19,6 @@ const STEP_TITLES = [
   "Why ambassador",
   "Online presence",
   "Review and sign",
-];
-
-const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
-  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
-  "VA","WA","WV","WI","WY","DC",
 ];
 
 const HOW_HEARD = [

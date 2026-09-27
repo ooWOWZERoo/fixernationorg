@@ -13,8 +13,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e": "prisma generate && playwright test",
+    "test:e2e:ui": "prisma generate && playwright test --ui"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

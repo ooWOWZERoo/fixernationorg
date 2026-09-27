@@ -68,6 +68,7 @@ function eyebrowForKey(key: string, vars: Record<string, string>): string {
   if (category === "application") return `${vars.role ?? "Fixer Nation"} Application`;
   if (category === "membership") return "Membership";
   if (category === "activation") return "Welcome";
+  if (category === "territory") return "Territory Request";
   return "Fixer Nation";
 }
 

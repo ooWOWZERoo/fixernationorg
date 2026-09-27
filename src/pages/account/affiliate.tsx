@@ -8,6 +8,7 @@ import {
   AffiliateSnapshotSections,
   type PromoCodeData,
   type TerritoryAssignmentData,
+  type TerritoryRequestData,
   type CommissionRuleData,
 } from "@/components/account/AffiliateSnapshotSections";
 import { SiteLayout } from "@/components/layout/SiteLayout";
@@ -17,6 +18,7 @@ interface Props {
   enrolled: boolean;
   promoCodes: PromoCodeData[];
   territoryAssignments: TerritoryAssignmentData[];
+  territoryRequests: TerritoryRequestData[];
   commissionRules: CommissionRuleData[];
   siteUrl: string;
 }
@@ -25,6 +27,7 @@ const AffiliateProfilePage: NextPageWithLayout<Props> = ({
   enrolled,
   promoCodes,
   territoryAssignments,
+  territoryRequests,
   commissionRules,
   siteUrl,
 }) => {
@@ -55,6 +58,7 @@ const AffiliateProfilePage: NextPageWithLayout<Props> = ({
             <AffiliateSnapshotSections
               promoCodes={promoCodes}
               territoryAssignments={territoryAssignments}
+              territoryRequests={territoryRequests}
               commissionRules={commissionRules}
               siteUrl={siteUrl}
             />
@@ -107,6 +111,16 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           region: ta.territory.region,
           isExclusive: ta.territory.isExclusive,
         },
+      })),
+      territoryRequests: snapshot.territoryRequests.map((r) => ({
+        id: r.id,
+        requestType: r.requestType,
+        requestedState: r.requestedState,
+        requestedCounty: r.requestedCounty,
+        status: r.status,
+        existingAssignmentId: r.existingAssignmentId,
+        adminNotes: r.adminNotes,
+        createdAt: r.createdAt.toISOString(),
       })),
       commissionRules: snapshot.commissionRules.map((r) => ({
         id: r.id,

@@ -135,13 +135,90 @@ export default async function globalTeardown() {
     },
     {
       // TerritoryAssignment.territoryId is ON DELETE RESTRICT from Territory
-      // -- must go first, even for assignments that are already REVOKED.
+      // -- must go first, even for assignments that are already REVOKED or
+      // TRANSFERRED. TerritoryRequest.existingAssignmentId is ON DELETE SET
+      // NULL (SP-74), so a leftover request row can't block the assignment
+      // delete here -- but the request rows themselves still need clearing,
+      // which the territoryRequests task below handles.
       name: "territories",
       run: async () => {
         const qaTerritories = await db.territory.findMany({ where: { createdAt: { gte: startedAt }, name: QA_NAME }, select: { id: true } });
         const qaTerritoryIds = qaTerritories.map((t) => t.id);
         await db.territoryAssignment.deleteMany({ where: { territoryId: { in: qaTerritoryIds } } });
         return (await db.territory.deleteMany({ where: { id: { in: qaTerritoryIds } } })).count;
+      },
+    },
+    {
+      // SP-74 territory requests. Two sources to clean: requests submitted by
+      // the persistent named fixtures (qa-ambassador/qa-provider sign in and
+      // submit real ones, and those accounts must survive the run), and
+      // requests belonging to throwaway QA users -- the latter cascade from
+      // User, but the applications task only deletes users best-effort, so
+      // they're matched by email pattern here too rather than assumed gone.
+      //
+      // Approving a request also creates a Territory named "<County>, <ST>",
+      // which does NOT carry the QA_NAME marker and so is invisible to the
+      // territories task above. Any assignment created by an approval is
+      // cleared here and the auto-created Territory with it, but only when
+      // nothing outside this run still references it.
+      name: "territoryRequests",
+      run: async () => {
+        const qaUsers = await db.user.findMany({
+          where: { OR: TEST_CONTACT_EMAIL_OR },
+          select: { id: true },
+        });
+        const qaUserIds = qaUsers.map((u) => u.id);
+        if (qaUserIds.length === 0) return 0;
+
+        // Reached through a cast rather than by importing
+        // src/lib/territory-requests (which uses an "@/" path alias
+        // Playwright wouldn't resolve here).
+        //
+        // The cast satisfies the compiler but says nothing about runtime: a
+        // Prisma client generated before TerritoryRequest existed simply has
+        // no such delegate, and the property access would fail with an
+        // opaque "cannot read properties of undefined". `npm run test:e2e`
+        // runs `prisma generate` first so that can't happen -- this check is
+        // for anyone invoking `playwright test` directly with a stale
+        // client, so the reported failure names the actual fix instead of
+        // looking like a bug in the delete itself.
+        const dbx = db as never as {
+          territoryRequest?: { deleteMany: (args: { where: object }) => Promise<{ count: number }> };
+        };
+        if (!dbx.territoryRequest) {
+          throw new Error(
+            "Prisma client has no TerritoryRequest delegate, so QA territory requests were NOT cleaned up. " +
+              "Run `prisma generate` (or use `npm run test:e2e`, which does it for you) and re-run."
+          );
+        }
+
+        const count = (
+          await dbx.territoryRequest.deleteMany({
+            where: { createdAt: { gte: startedAt }, userId: { in: qaUserIds } },
+          })
+        ).count;
+
+        // Assignments this run's approvals created for QA users, plus the
+        // territories those approvals auto-created.
+        const qaAssignments = await db.territoryAssignment.findMany({
+          where: { createdAt: { gte: startedAt }, userId: { in: qaUserIds } },
+          select: { id: true, territoryId: true },
+        });
+        if (qaAssignments.length > 0) {
+          await db.territoryAssignment.deleteMany({ where: { id: { in: qaAssignments.map((a) => a.id) } } });
+          await db.territory
+            .deleteMany({
+              where: {
+                id: { in: Array.from(new Set(qaAssignments.map((a) => a.territoryId))) },
+                createdAt: { gte: startedAt },
+                description: "Created on approval of a territory request.",
+                assignments: { none: {} },
+              },
+            })
+            .catch(() => {});
+        }
+
+        return count;
       },
     },
     {

@@ -58,6 +58,7 @@ model User {
   loyaltyPoints            LoyaltyPoint[]
   crmContact               Contact?
   territoryAssignments     TerritoryAssignment[]
+  territoryRequests        TerritoryRequest[]
   affiliateAssignments     AffiliateAssignment[]
   pushSubscriptions        PushSubscription[]
   stripeCustomerId         String?
@@ -624,6 +625,7 @@ model UserApplication {
   ambassadorDetail      AmbassadorApplicationDetail?
   affiliateDetail       AffiliateApplicationDetail?
   territoryAssignments  TerritoryAssignment[]
+  territoryRequests     TerritoryRequest[]
   affiliateAssignment   AffiliateAssignment?
   onboardingRecord      OnboardingRecord?
   checklistItems        ChecklistItem[]
@@ -1428,10 +1430,57 @@ model TerritoryAssignment {
   user        User?            @relation(fields: [userId], references: [id])
   application UserApplication? @relation(fields: [applicationId], references: [id])
 
+  changeRequests TerritoryRequest[] @relation("TerritoryRequestExistingAssignment")
+
   @@index([userId])
   @@index([territoryId])
   @@index([applicationId])
   @@index([status])
+}
+
+// ─── Territory Requests (SP-74) ──────────────────────────────────────────────
+
+enum TerritoryRequestType {
+  INITIAL
+  ADD
+  CHANGE
+}
+
+enum TerritoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Self-service territory requests from ambassadors, providers and affiliates.
+// The admin's own direct assign/reassign on /admin/territories stays
+// immediate and never creates a row here — this model only covers the
+// request-then-approve path.
+model TerritoryRequest {
+  id                   String                 @id @default(cuid())
+  userId               String
+  applicationId        String?
+  requestType          TerritoryRequestType
+  requestedState       String
+  requestedCounty      String
+  // Set only for CHANGE requests: the currently ACTIVE assignment the
+  // requester wants moved. On approval that row is marked TRANSFERRED and
+  // pointed at the new assignment, never revoked or deleted.
+  existingAssignmentId String?
+  status               TerritoryRequestStatus @default(PENDING)
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  adminNotes           String?                @db.Text
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application        UserApplication?     @relation(fields: [applicationId], references: [id])
+  existingAssignment TerritoryAssignment? @relation("TerritoryRequestExistingAssignment", fields: [existingAssignmentId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([existingAssignmentId])
 }
 
 // ─── Affiliate Integration (SP-4) ────────────────────────────────────────────

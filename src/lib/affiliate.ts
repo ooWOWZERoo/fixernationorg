@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { withTerritoryRequests } from "@/lib/territory-requests";
 
 const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -73,11 +74,31 @@ export async function getAffiliateAccountSnapshot(userId: string) {
       orderBy: { createdAt: "desc" },
     }));
 
+  // Territory hangs off User, not AffiliateAssignment, so it's fetched
+  // regardless of whether the user has an affiliate assignment at all. It
+  // used to sit inside the has-an-assignment branch, which meant an
+  // ambassador who held a real territory but had never been provisioned as
+  // an affiliate saw "No territory assigned" on their account page -- and
+  // with SP-74 would have been offered a first-territory request for a
+  // territory they already had.
+  const [territoryAssignments, territoryRequests] = await Promise.all([
+    db.territoryAssignment.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: { territory: true },
+    }),
+    withTerritoryRequests(db).territoryRequest.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+  ]);
+
   if (!assignment) {
-    return { assignment: null, promoCodes: [], territoryAssignments: [], commissionRules: [] };
+    return { assignment: null, promoCodes: [], territoryAssignments, territoryRequests, commissionRules: [] };
   }
 
-  const [promoCodes, commissionRules, territoryAssignments] = await Promise.all([
+  const [promoCodes, commissionRules] = await Promise.all([
     db.promoCode.findMany({
       where: { affiliateId: assignment.id },
       orderBy: { createdAt: "desc" },
@@ -86,14 +107,7 @@ export async function getAffiliateAccountSnapshot(userId: string) {
       where: { affiliateId: assignment.id },
       orderBy: { createdAt: "desc" },
     }),
-    // TerritoryAssignment has no relation to AffiliateAssignment -- it links
-    // straight to User -- so this is looked up by userId, not affiliateId.
-    db.territoryAssignment.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      include: { territory: true },
-    }),
   ]);
 
-  return { assignment, promoCodes, territoryAssignments, commissionRules };
+  return { assignment, promoCodes, territoryAssignments, territoryRequests, commissionRules };
 }

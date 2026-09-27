@@ -90,8 +90,22 @@ test("admin creates a territory, assigns it, and revokes it", async ({ page }) =
   await page.goto("/admin/territories");
 
   await page.getByRole("button", { name: "+ New territory" }).click();
+  const newForm = page.locator("form").filter({ hasText: "New territory" });
   await page.getByPlaceholder("e.g. Atlanta Metro — North Fulton County").fill(TERRITORY_NAME);
-  await page.getByPlaceholder("e.g. Fulton County").fill(`QA County ${STAMP}`);
+
+  // SP-74 replaced the free-text county input with a state -> county cascade
+  // off the shared US reference dataset. County stays disabled until a state
+  // is picked, then carries that state's counties.
+  const countySelect = newForm.getByLabel("County");
+  await expect(countySelect).toBeDisabled();
+  await newForm.getByLabel("State").selectOption("WY");
+  await expect(countySelect).toBeEnabled();
+  await expect(countySelect.locator("option", { hasText: "Niobrara County" })).toHaveCount(1);
+
+  // Deliberately left unselected: a QA territory that resolved to a real
+  // county would be matchable by a production territory-request approval if
+  // it ever outlived teardown, and an exclusive one would then block that
+  // approval outright. The state alone is enough for this test.
   await page.getByLabel("Exclusive territory").check();
   await page.getByRole("button", { name: "Create territory" }).click();
   const territoryRow = page.locator("tbody tr").filter({ hasText: TERRITORY_NAME });

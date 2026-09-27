@@ -4,15 +4,11 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordEvent } from "@/lib/application-events";
+import { assertTerritoryAssignable, TerritoryNotAssignableError } from "@/lib/territories";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const TERRITORY_ELIGIBLE_TYPES: string[] = ["AMBASSADOR", "PROVIDER", "AFFILIATE"];
-
-// Sentinel thrown inside the assign transaction so the exclusive-territory
-// conflict can unwind out of db.$transaction and become a 409 response,
-// without db.$transaction's return type absorbing the error case.
-class ExclusiveTerritoryConflictError extends Error {}
 
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -87,10 +83,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (parsed.data.action === "assign") {
         const { applicationId, userId, notes, endDate, autoRenew } = parsed.data;
 
-        if (territory.status === "LOCKED") {
-          return res.status(409).json({ error: "This territory is locked and cannot be assigned." });
-        }
-
         // Verify application exists and is a territory-eligible type
         const application = await db.userApplication.findUnique({
           where: { id: applicationId },
@@ -105,21 +97,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const resolvedUserId = userId ?? application.userId ?? undefined;
 
-        // Wrap the exclusive-territory check and the create in one transaction
-        // so two concurrent "assign" requests can't both pass the count check
-        // before either write lands (the count-then-create sequence was
+        // Wrap the assignability checks and the create in one transaction so
+        // two concurrent "assign" requests can't both pass the exclusivity
+        // count before either write lands (the count-then-create sequence was
         // previously two separate statements with a race window between them).
+        // Both gates now live in assertTerritoryAssignable so the SP-74
+        // request-approval path runs the exact same rules.
         let assignment;
         try {
           assignment = await db.$transaction(async (tx) => {
-            if (territory.isExclusive) {
-              const activeCount = await tx.territoryAssignment.count({
-                where: { territoryId: id, status: "ACTIVE" },
-              });
-              if (activeCount > 0) {
-                throw new ExclusiveTerritoryConflictError();
-              }
-            }
+            await assertTerritoryAssignable(tx, territory);
 
             return tx.territoryAssignment.create({
               data: {
@@ -138,8 +125,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
           });
         } catch (err) {
-          if (err instanceof ExclusiveTerritoryConflictError) {
-            return res.status(409).json({ error: "This territory is exclusive and already has an active assignment." });
+          if (err instanceof TerritoryNotAssignableError) {
+            return res.status(409).json({ error: err.message });
           }
           throw err;
         }

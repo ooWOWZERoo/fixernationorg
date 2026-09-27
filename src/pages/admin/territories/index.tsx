@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { StateCountySelect } from "@/components/territory/StateCountySelect";
+import { US_STATES } from "@/lib/us-geo";
 import type { NextPageWithLayout } from "@/types/next";
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -62,13 +64,6 @@ const TYPE_LABEL: Record<string, string> = {
   ORGANIZATION: "Organization",
   CUSTOM: "Custom",
 };
-
-const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
-  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
-  "VA","WA","WV","WI","WY","DC",
-];
 
 const BLANK_FORM = {
   name: "",
@@ -227,23 +222,34 @@ const TerritoriesPage: NextPageWithLayout<Props> = ({ territories: initial }) =>
 
             {form.type === "GEOGRAPHIC" && (
               <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
-                  <select value={form.state} onChange={(e) => set("state", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy">
-                    <option value="">— select —</option>
-                    {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-
-                {(form.scope === "COUNTY" || form.scope === "CITY") && (
+                {/* County scope gets the paired state -> county dropdowns from
+                    the shared US dataset, so a territory can't be created
+                    against a county name that doesn't exist. Every other
+                    scope keeps the standalone state select. */}
+                {form.scope === "COUNTY" ? (
+                  <StateCountySelect
+                    idPrefix="new-territory"
+                    state={form.state}
+                    county={form.county}
+                    onChange={({ state, county }) => setForm((f) => ({ ...f, state, county }))}
+                  />
+                ) : (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      {form.scope === "COUNTY" ? "County" : "City"}
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
+                    <select value={form.state} onChange={(e) => set("state", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy">
+                      <option value="">— select —</option>
+                      {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {form.scope === "CITY" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">City</label>
                     <input
-                      value={form.scope === "COUNTY" ? form.county : form.city}
-                      onChange={(e) => set(form.scope === "COUNTY" ? "county" : "city", e.target.value)}
-                      placeholder={form.scope === "COUNTY" ? "e.g. Fulton County" : "e.g. Atlanta"}
+                      value={form.city}
+                      onChange={(e) => set("city", e.target.value)}
+                      placeholder="e.g. Atlanta"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
                     />
                   </div>
