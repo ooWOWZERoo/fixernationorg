@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import AffiliateCoverageMap, { type StateAffiliate } from "@/components/admin/AffiliateCoverageMap";
+import { normalizeStateAbbr } from "@/lib/us-states";
 import type { NextPageWithLayout } from "@/types/next";
 
 // SP-67 Stage 4 — UserMembership isn't known to the local Prisma client yet.
@@ -75,6 +77,7 @@ interface Props {
   conversion: ConversionMetrics;
   activation: ActivationSummary;
   emailHealth: EmailHealth;
+  affiliatesByState: Record<string, StateAffiliate[]>;
 }
 
 const QUICK_ACTIONS = [
@@ -101,6 +104,7 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
   conversion,
   activation,
   emailHealth,
+  affiliatesByState,
 }) => {
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const [dismissing, setDismissing] = useState(false);
@@ -325,6 +329,9 @@ const AdminDashboard: NextPageWithLayout<Props> = ({
         </div>
       </div>
 
+      {/* Affiliate coverage map */}
+      <AffiliateCoverageMap affiliatesByState={affiliatesByState} />
+
       {/* Recent sign-ups */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -411,6 +418,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       lastFailure,
       emailBannerDismissedSetting,
       lastSuccessSetting,
+      coverageRows,
     ] = await Promise.all([
       db.user.count(),
       // Active Members now reflects real UserMembership status (paid or gift),
@@ -465,6 +473,36 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }),
       db.setting.findUnique({ where: { key: "email_failure_banner_dismissed_at" } }),
       db.setting.findUnique({ where: { key: "last_successful_send_at" } }),
+      // Coverage map source rows. "Active affiliate" here is exactly the
+      // definition the Active affiliates stat above uses —
+      // AffiliateAssignment.status ACTIVE — joined with an ACTIVE
+      // TerritoryAssignment for the territory side. Pending and rejected
+      // TerritoryRequests never create a TerritoryAssignment at all, and an
+      // approved cross-state change marks the old row TRANSFERRED rather
+      // than leaving it ACTIVE, so this filter drops the previous state's
+      // count on its own.
+      db.territoryAssignment.findMany({
+        where: {
+          status: "ACTIVE",
+          user: { affiliateAssignments: { some: { status: "ACTIVE" } } },
+        },
+        select: {
+          userId: true,
+          territory: { select: { state: true, county: true } },
+          user: {
+            select: {
+              name: true,
+              email: true,
+              affiliateAssignments: {
+                where: { status: "ACTIVE" },
+                select: { id: true, status: true },
+                orderBy: { createdAt: "asc" },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     // Dismissing hides the banner, but only until a NEW failure happens —
@@ -517,6 +555,46 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     const totalActive = countFor(["ACTIVE", "APPROVED"]);
     const avgDays = avgDurationRows[0]?.avg_days;
 
+    // Keyed state -> userId so an affiliate holding several counties in one
+    // state collapses to a single row there, while still counting separately
+    // in each state they cover.
+    const coverage = new Map<string, Map<string, StateAffiliate>>();
+
+    for (const row of coverageRows) {
+      const stateAbbr = normalizeStateAbbr(row.territory.state);
+      const affiliate = row.user?.affiliateAssignments[0];
+      // A territory scoped to a region rather than a state, or assigned to an
+      // application with no user yet, has nowhere to land on the map.
+      if (!stateAbbr || !row.userId || !affiliate) continue;
+
+      let byUser = coverage.get(stateAbbr);
+      if (!byUser) {
+        byUser = new Map<string, StateAffiliate>();
+        coverage.set(stateAbbr, byUser);
+      }
+
+      let entry = byUser.get(row.userId);
+      if (!entry) {
+        entry = {
+          assignmentId: affiliate.id,
+          name: row.user?.name?.trim() || row.user?.email || "Unnamed affiliate",
+          counties: [],
+          status: affiliate.status,
+        };
+        byUser.set(row.userId, entry);
+      }
+
+      const county = row.territory.county?.trim();
+      if (county && !entry.counties.includes(county)) entry.counties.push(county);
+    }
+
+    const affiliatesByState: Record<string, StateAffiliate[]> = {};
+    for (const [stateAbbr, byUser] of coverage) {
+      affiliatesByState[stateAbbr] = Array.from(byUser.values())
+        .map((entry) => ({ ...entry, counties: entry.counties.sort((a, b) => a.localeCompare(b)) }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     return {
       props: {
         stats: { totalUsers, activeMembers, activeProducts, newThisWeek },
@@ -542,6 +620,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           lastFailure: lastFailure ? JSON.parse(JSON.stringify(lastFailure)) : null,
           showBanner: showEmailBanner,
         },
+        affiliatesByState,
       },
     };
   } catch (e) {
@@ -559,6 +638,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         conversion: { totalSubmitted: 0, totalAccepted: 0, totalPaid: 0, totalActive: 0, avgDaysToReview: null },
         activation: { activeProviders: 0, activeAmbassadors: 0, providersWithAffiliate: 0, ambassadorsWithAffiliate: 0, ambassadorsWithTerritory: 0, totalActiveAffiliates: 0 },
         emailHealth: { failureCount24h: 0, lastFailure: null, showBanner: false },
+        affiliatesByState: {},
       },
     };
   }

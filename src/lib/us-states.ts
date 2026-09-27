@@ -68,3 +68,27 @@ export const US_STATE_NAMES: Record<string, string> = {
   DC: "District of Columbia",
 };
 
+const ABBR_BY_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATE_NAMES).map(([abbr, name]) => [name.toLowerCase(), abbr])
+);
+
+/**
+ * Normalizes a stored state value to its two-letter abbreviation, or null if
+ * it isn't one of the 51 jurisdictions.
+ *
+ * SP-74 onward writes Territory.state as an uppercase abbreviation, but rows
+ * created by the admin's own territory form before that are free text and can
+ * hold a full state name, odd casing, or a region like "Southeast" that maps
+ * to no single state.
+ */
+export function normalizeStateAbbr(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const upper = trimmed.toUpperCase();
+  if (US_STATE_NAMES[upper]) return upper;
+
+  return ABBR_BY_NAME[trimmed.toLowerCase()] ?? null;
+}
+
