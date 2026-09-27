@@ -17,6 +17,8 @@ import {
   buildRenewalReminder7Email,
   buildGiftExpiring30Email,
   buildGiftExpiring7Email,
+  buildManualGrantExpiring30Email,
+  buildManualGrantExpiring7Email,
 } from "@/lib/emails/membership";
 
 // Vercel's default execution limit (~10s) isn't enough to send a
@@ -393,8 +395,19 @@ async function runMembershipGiftRetroactiveBackfill(): Promise<{ message: string
       skipped++;
       continue;
     }
-    if (existing?.source === "STRIPE" && (existing.status === "ACTIVE" || existing.status === "TRIALING")) {
+    if (
+      existing?.source === "STRIPE" &&
+      (existing.status === "ACTIVE" || existing.status === "TRIALING")
+    ) {
       // Never let a gift-code backfill touch a real, currently-active paid subscription.
+      skipped++;
+      continue;
+    }
+    if (existing?.source === "MANUAL_GRANT" && existing.status === "ACTIVE") {
+      // Same protection, same reason (SP-77): a manual grant stands in for
+      // money already paid on the old platform. If that member later redeems
+      // a book gift code, a re-run of this backfill must not overwrite their
+      // grant with a 90-day gift row.
       skipped++;
       continue;
     }
@@ -493,7 +506,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
       renewal30ReminderSentAt: null,
       status: { in: ["ACTIVE", "TRIALING"] },
       currentPeriodEnd: { gt: in7d, lte: in30d },
-      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }],
+      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }, { source: "MANUAL_GRANT" }],
     },
     include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
   });
@@ -515,6 +528,18 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             amount,
             billing_url: billingUrl,
           })) ?? buildRenewalReminder30Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
+        await sendTransactionalEmail({ to: m.user.email, ...email });
+      } else if (m.source === "MANUAL_GRANT") {
+        // Kept off the gift-code copy on purpose: that one upsells to paid,
+        // which reads wrong for someone who already paid us elsewhere.
+        const contactUrl = `${APP_URL}/contact`;
+        const email =
+          (await loadTemplate("membership.manual_grant_expiring_30", {
+            first_name: firstName,
+            plan_name: m.price.product.name,
+            renewal_date: renewalDate,
+            contact_url: contactUrl,
+          })) ?? buildManualGrantExpiring30Email(m.user.name, m.price.product.name, renewalDate, contactUrl);
         await sendTransactionalEmail({ to: m.user.email, ...email });
       } else {
         const upgradeUrl = `${APP_URL}/join`;
@@ -543,7 +568,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
       renewal7ReminderSentAt: null,
       status: { in: ["ACTIVE", "TRIALING"] },
       currentPeriodEnd: { gt: now, lte: in7d },
-      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }],
+      OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }, { source: "MANUAL_GRANT" }],
     },
     include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
   });
@@ -566,6 +591,16 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             billing_url: billingUrl,
           })) ?? buildRenewalReminder7Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
         await sendTransactionalEmail({ to: m.user.email, ...email });
+      } else if (m.source === "MANUAL_GRANT") {
+        const contactUrl = `${APP_URL}/contact`;
+        const email =
+          (await loadTemplate("membership.manual_grant_expiring_7", {
+            first_name: firstName,
+            plan_name: m.price.product.name,
+            renewal_date: renewalDate,
+            contact_url: contactUrl,
+          })) ?? buildManualGrantExpiring7Email(m.user.name, m.price.product.name, renewalDate, contactUrl);
+        await sendTransactionalEmail({ to: m.user.email, ...email });
       } else {
         const upgradeUrl = `${APP_URL}/join`;
         const email =
@@ -587,12 +622,20 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
     }
   }
 
-  // ── Gift-code expiry enforcement ────────────────────────────────────────
+  // ── Non-Stripe expiry enforcement ───────────────────────────────────────
   // Mirrors what customer.subscription.deleted already does for the Stripe
   // path (same two writes, same role value) — this is the actual expiry
-  // enforcement for the free 90-day gift membership.
+  // enforcement for memberships with no Stripe subscription behind them: the
+  // free 90-day book gift, and (SP-77) admin manual grants. Both are told
+  // above that their access ends on currentPeriodEnd, so something has to
+  // actually end it. An open-ended grant (currentPeriodEnd null) never
+  // matches the range filter and is left alone.
   const expiredGifts = await membershipDb.userMembership.findMany({
-    where: { source: "GIFT_CODE", status: "ACTIVE", currentPeriodEnd: { lt: now } },
+    where: {
+      source: { in: ["GIFT_CODE", "MANUAL_GRANT"] },
+      status: "ACTIVE",
+      currentPeriodEnd: { lt: now },
+    },
     include: { user: { select: { email: true, name: true } }, price: { include: { product: true } } },
   });
 
@@ -610,7 +653,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
   }
 
   return {
-    message: `30-day: ${sent30} sent, 7-day: ${sent7} sent, gift expired: ${giftExpired}`,
+    message: `30-day: ${sent30} sent, 7-day: ${sent7} sent, non-Stripe expired: ${giftExpired}`,
   };
 }
 

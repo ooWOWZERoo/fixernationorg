@@ -313,6 +313,7 @@ enum SubscriptionStatus {
 enum MembershipSource {
   STRIPE
   GIFT_CODE
+  MANUAL_GRANT
 }
 
 // ─── Social Profiles (Phase 2c) ──────────────────────────────────────────────

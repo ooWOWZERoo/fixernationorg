@@ -225,3 +225,93 @@ export function buildMembershipCanceledEmail(
     ].join("\n"),
   };
 }
+
+// SP-77 — sent when an admin hand-builds an account for someone who already
+// paid on our old platform. The account has no password yet, so the whole
+// point of this email is the set-password link.
+export function buildManualGrantWelcomeEmail(
+  name: string | null | undefined,
+  planName: string,
+  setPasswordUrl: string
+): Email {
+  const n = display(name);
+  return {
+    subject: "Your Fixer Nation membership is ready",
+    html: htmlParagraphs([
+      `Hey ${n},`,
+      `Your ${planName} membership is set up and waiting on the new Fixer Nation site. We moved it over by hand, so there's one thing left for you to do: pick a password.`,
+      `<a href="${setPasswordUrl}">Set your password</a>`,
+      `That link works for the next 30 days. Once you're in, you've got Morning Boost, the full resource library, community groups, and everything else membership includes.`,
+      `Glad you're here.<br>The Fixer Nation team`,
+    ]),
+    text: [
+      `Hey ${n},`,
+      "",
+      `Your ${planName} membership is set up and waiting on the new Fixer Nation site. We moved it over by hand, so there's one thing left for you to do: pick a password.`,
+      "",
+      `Set your password: ${setPasswordUrl}`,
+      "",
+      "That link works for the next 30 days. Once you're in, you've got Morning Boost, the full resource library, community groups, and everything else membership includes.",
+      "",
+      "Glad you're here.",
+      "The Fixer Nation team",
+    ].join("\n"),
+  };
+}
+
+// SP-77 — the MANUAL_GRANT equivalent of buildGiftExpiring30Email. Kept
+// separate on purpose: the gift copy pitches an upgrade to paid, which is the
+// wrong thing to say to someone who already paid us elsewhere.
+export function buildManualGrantExpiring30Email(
+  name: string | null | undefined,
+  planName: string,
+  renewalDate: string,
+  contactUrl: string
+): Email {
+  const n = display(name);
+  return {
+    subject: "Your membership access ends in 30 days",
+    html: htmlParagraphs([
+      `Hey ${n},`,
+      `Heads up. Your ${planName} membership is set to end on ${renewalDate}. After that, Morning Boost, the resource library, and community groups go away.`,
+      `This one doesn't renew on its own, so nothing will be charged. If that end date looks wrong, or you'd rather keep going, get in touch at <a href="${contactUrl}">${contactUrl}</a> and we'll take care of it.`,
+      `The Fixer Nation team`,
+    ]),
+    text: [
+      `Hey ${n},`,
+      "",
+      `Heads up. Your ${planName} membership is set to end on ${renewalDate}. After that, Morning Boost, the resource library, and community groups go away.`,
+      "",
+      `This one doesn't renew on its own, so nothing will be charged. If that end date looks wrong, or you'd rather keep going, get in touch at ${contactUrl} and we'll take care of it.`,
+      "",
+      "The Fixer Nation team",
+    ].join("\n"),
+  };
+}
+
+export function buildManualGrantExpiring7Email(
+  name: string | null | undefined,
+  planName: string,
+  renewalDate: string,
+  contactUrl: string
+): Email {
+  const n = display(name);
+  return {
+    subject: "Your membership access ends in 7 days",
+    html: htmlParagraphs([
+      `Hey ${n},`,
+      `One week left. Your ${planName} membership ends on ${renewalDate}.`,
+      `Nothing gets charged either way — this membership doesn't auto-renew. Want to keep your access? Reach us at <a href="${contactUrl}">${contactUrl}</a> before it lapses.`,
+      `The Fixer Nation team`,
+    ]),
+    text: [
+      `Hey ${n},`,
+      "",
+      `One week left. Your ${planName} membership ends on ${renewalDate}.`,
+      "",
+      `Nothing gets charged either way — this membership doesn't auto-renew. Want to keep your access? Reach us at ${contactUrl} before it lapses.`,
+      "",
+      "The Fixer Nation team",
+    ].join("\n"),
+  };
+}

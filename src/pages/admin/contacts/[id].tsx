@@ -705,7 +705,11 @@ const AdminContactDetailPage: NextPageWithLayout<Props> = ({
                   {membership.cancelAtPeriodEnd ? " · cancels at period end" : ""}
                 </span>
                 <span className="rounded-full bg-navy/8 px-2 py-0.5 text-xs font-semibold text-navy">
-                  {membership.source === "GIFT_CODE" ? "Gift membership" : "Paid subscription"}
+                  {membership.source === "GIFT_CODE"
+                    ? "Gift membership"
+                    : membership.source === "MANUAL_GRANT"
+                      ? "Manual grant"
+                      : "Paid subscription"}
                 </span>
               </div>
               <p className="text-ink-soft">

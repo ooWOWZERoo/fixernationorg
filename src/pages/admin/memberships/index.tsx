@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -99,7 +100,15 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Memberships</h1>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-gray-900">Memberships</h1>
+        <Link
+          href="/admin/users/grant-membership"
+          className="whitespace-nowrap text-sm font-semibold text-navy hover:underline"
+        >
+          Grant a membership →
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[

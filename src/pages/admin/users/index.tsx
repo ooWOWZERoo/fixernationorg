@@ -191,6 +191,12 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
             />
             Show test/QA accounts
           </label>
+          <Link
+            href="/admin/users/grant-membership"
+            className="whitespace-nowrap text-sm font-semibold text-navy hover:underline"
+          >
+            Grant a membership →
+          </Link>
           {iAmSuperAdmin && (
             <Link
               href="/admin/team"
