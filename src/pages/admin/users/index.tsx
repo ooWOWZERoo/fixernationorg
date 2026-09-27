@@ -71,6 +71,7 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
   const [settingPassword, setSettingPassword] = useState<string | null>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
+  const [resendingVerification, setResendingVerification] = useState<string | null>(null);
   const [showTest, setShowTest] = useState(false);
 
   const iAmSuperAdmin = myAdminRole === "SUPER_ADMIN";
@@ -92,6 +93,24 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
       setPasswordFeedback({ id: userId, ok: false, msg: "Network error" });
     } finally {
       setVerifyingEmail(null);
+    }
+  }
+
+  async function resendVerification(userId: string) {
+    setResendingVerification(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/resend-verification-email`, { method: "POST" });
+      if (res.ok) {
+        setPasswordFeedback({ id: userId, ok: true, msg: "Verification email sent" });
+        setTimeout(() => setPasswordFeedback(null), 2000);
+      } else {
+        const data = await res.json();
+        setPasswordFeedback({ id: userId, ok: false, msg: data.error ?? "Failed" });
+      }
+    } catch {
+      setPasswordFeedback({ id: userId, ok: false, msg: "Network error" });
+    } finally {
+      setResendingVerification(null);
     }
   }
 
@@ -310,14 +329,24 @@ const AdminUsersPage: NextPageWithLayout<Props> = ({ users: initialUsers, myId, 
                               Unverified
                             </span>
                             {canSetPassword && (
-                              <button
-                                type="button"
-                                onClick={() => verifyEmail(user.id)}
-                                disabled={verifyingEmail === user.id}
-                                className="text-xs font-medium text-navy hover:underline disabled:opacity-50"
-                              >
-                                {verifyingEmail === user.id ? "Verifying…" : "Verify email"}
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => resendVerification(user.id)}
+                                  disabled={resendingVerification === user.id}
+                                  className="text-xs font-medium text-navy hover:underline disabled:opacity-50"
+                                >
+                                  {resendingVerification === user.id ? "Sending…" : "Resend email"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => verifyEmail(user.id)}
+                                  disabled={verifyingEmail === user.id}
+                                  className="text-xs font-medium text-navy hover:underline disabled:opacity-50"
+                                >
+                                  {verifyingEmail === user.id ? "Verifying…" : "Verify email"}
+                                </button>
+                              </>
                             )}
                           </div>
                         )}
