@@ -190,18 +190,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (notifyEmail && isTestEmail(d.email)) {
     console.warn("[application/provider] Skipping admin-notify for QA test submission:", d.email);
   }
-  const [submittedEmail, adminEmail] = await Promise.allSettled([
-    sendTransactionalEmail({ to: d.email, ...buildApplicationSubmittedEmail(d.firstName, "PROVIDER", emailVerifyToken) }),
-    notifyEmail && !isTestEmail(d.email)
-      ? sendTransactionalEmail({ to: notifyEmail, ...buildApplicationAdminNotifyEmail(`${d.firstName} ${d.lastName}`, "PROVIDER", application.id) })
-      : Promise.resolve(),
-  ]);
 
-  if (submittedEmail.status === "rejected") {
-    console.error("[application/provider] Failed to send confirmation email:", submittedEmail.reason);
-  }
-  if (adminEmail.status === "rejected") {
-    console.error("[application/provider] Failed to send admin notify email:", adminEmail.reason);
+  // Confirmation + admin-notify emails — fire and forget, don't stall the response on SMTP
+  sendTransactionalEmail({ to: d.email, ...buildApplicationSubmittedEmail(d.firstName, "PROVIDER", emailVerifyToken) })
+    .catch((err) => console.error("[application/provider] Failed to send confirmation email:", err));
+
+  if (notifyEmail && !isTestEmail(d.email)) {
+    sendTransactionalEmail({ to: notifyEmail, ...buildApplicationAdminNotifyEmail(`${d.firstName} ${d.lastName}`, "PROVIDER", application.id) })
+      .catch((err) => console.error("[application/provider] Failed to send admin notify email:", err));
   }
 
   return res.status(201).json({ id: application.id });

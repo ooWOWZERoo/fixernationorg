@@ -26,12 +26,27 @@ type BackfillResult = {
   skipped: number;
 };
 
+const AGREEMENT_SETTINGS = [
+  { key: "agreement_accuracy_text", label: "Accuracy agreement text" },
+  { key: "agreement_policy_text", label: "Program / conduct policy agreement text" },
+  { key: "agreement_contact_text", label: "Contact consent agreement text" },
+] as const;
+
 const AdminSettingsPage: NextPageWithLayout<Props> = ({
   settings: initialSettings,
   adminRole,
   currentLogoUrl,
 }) => {
   const [settings, setSettings] = useState(initialSettings);
+  const [agreementValues, setAgreementValues] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const { key } of AGREEMENT_SETTINGS) {
+      map[key] = initialSettings.find((s) => s.key === key)?.value ?? "";
+    }
+    return map;
+  });
+  const [agreementSaving, setAgreementSaving] = useState<string | null>(null);
+  const [agreementFeedback, setAgreementFeedback] = useState<{ key: string; ok: boolean; msg: string } | null>(null);
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -165,6 +180,33 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
     }
   }
 
+  async function saveAgreementText(key: string) {
+    setAgreementSaving(key);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: agreementValues[key] ?? "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAgreementFeedback({ key, ok: false, msg: data.error ?? "Failed" });
+      } else {
+        setSettings((prev) =>
+          prev.some((s) => s.key === key)
+            ? prev.map((s) => (s.key === key ? { ...s, value: data.value, updatedAt: data.updatedAt } : s))
+            : [...prev, { key: data.key, value: data.value, updatedAt: data.updatedAt }].sort((a, b) => a.key.localeCompare(b.key))
+        );
+        setAgreementFeedback({ key, ok: true, msg: "Saved" });
+      }
+    } catch {
+      setAgreementFeedback({ key, ok: false, msg: "Network error" });
+    } finally {
+      setAgreementSaving(null);
+      setTimeout(() => setAgreementFeedback(null), 2500);
+    }
+  }
+
   async function handleLogoUpload(file: File) {
     setLogoSaving(true);
     setLogoError(null);
@@ -262,6 +304,40 @@ const AdminSettingsPage: NextPageWithLayout<Props> = ({
               <p className="mt-2 text-xs text-slate-400">Logo upload requires SUPER_ADMIN role.</p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Application agreement content */}
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-1 text-sm font-semibold text-slate-700">Application Agreement Content</h2>
+        <p className="mb-4 text-xs text-slate-400">
+          Shown to applicants on the affiliate, ambassador, and provider apply forms as a &quot;Read full text&quot; disclosure next to the matching agreement checkbox. Leave a field blank to hide its disclosure until filled in.
+        </p>
+        <div className="space-y-5">
+          {AGREEMENT_SETTINGS.map(({ key, label }) => {
+            const fb = agreementFeedback?.key === key ? agreementFeedback : null;
+            return (
+              <div key={key}>
+                <label className="mb-1.5 block text-xs font-medium text-slate-500">{label}</label>
+                <textarea
+                  value={agreementValues[key] ?? ""}
+                  onChange={(e) => setAgreementValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                />
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    onClick={() => saveAgreementText(key)}
+                    disabled={agreementSaving === key}
+                    className="rounded-lg bg-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-navy-dark disabled:opacity-50"
+                  >
+                    {agreementSaving === key ? "Saving…" : "Save"}
+                  </button>
+                  {fb && <span className={`text-xs ${fb.ok ? "text-green-600" : "text-red-500"}`}>{fb.msg}</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

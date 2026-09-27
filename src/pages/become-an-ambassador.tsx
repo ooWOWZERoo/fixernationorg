@@ -1,10 +1,11 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { US_STATES } from "@/lib/us-states";
 import type { NextPageWithLayout } from "@/types/next";
@@ -102,10 +103,12 @@ const EMPTY: FormData = {
 interface Props {
   prefillEmail: string;
   prefillName: string;
+  agreementTexts: { accuracy: string; policy: string; contact: string };
 }
 
-const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefillName }) => {
+const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefillName, agreementTexts }) => {
   const router = useRouter();
+  const formSectionRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(() => ({
     ...EMPTY,
@@ -169,13 +172,13 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
     saveDraft(form);
     setStepError(null);
     setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const back = () => {
     setStepError(null);
     setStep((s) => Math.max(s - 1, 0));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleSubmit = async () => {
@@ -367,7 +370,7 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
         </dl>
         <button
           type="button"
-          onClick={() => { setStep(0); window.scrollTo({ top: 0 }); }}
+          onClick={() => { setStep(0); formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className="mt-3 text-xs font-semibold text-navy underline underline-offset-2 hover:opacity-70"
         >
           Edit
@@ -377,19 +380,27 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
       <div className="space-y-4">
         <p className="text-sm font-semibold text-ink">Agreements</p>
         {[
-          { field: "agreedToAccuracy" as const, label: "The information in this application is accurate and complete to the best of my knowledge." },
-          { field: "agreedToPolicy" as const, label: "I agree to Fixer Nation's community guidelines and ambassador conduct standards." },
-          { field: "agreedToContact" as const, label: "I agree to be contacted by Fixer Nation about this application and related opportunities." },
-        ].map(({ field: f, label }) => (
-          <label key={f} className="flex cursor-pointer gap-3">
-            <input
-              type="checkbox"
-              checked={form[f] as boolean}
-              onChange={(e) => set(f, e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-navy/30 text-navy focus:ring-navy"
-            />
-            <span className="text-sm text-ink">{label}<span className="ml-0.5 text-coral">*</span></span>
-          </label>
+          { field: "agreedToAccuracy" as const, label: "The information in this application is accurate and complete to the best of my knowledge.", text: agreementTexts.accuracy },
+          { field: "agreedToPolicy" as const, label: "I agree to Fixer Nation's community guidelines and ambassador conduct standards.", text: agreementTexts.policy },
+          { field: "agreedToContact" as const, label: "I agree to be contacted by Fixer Nation about this application and related opportunities.", text: agreementTexts.contact },
+        ].map(({ field: f, label, text }) => (
+          <div key={f}>
+            <label className="flex cursor-pointer gap-3">
+              <input
+                type="checkbox"
+                checked={form[f] as boolean}
+                onChange={(e) => set(f, e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-navy/30 text-navy focus:ring-navy"
+              />
+              <span className="text-sm text-ink">{label}<span className="ml-0.5 text-coral">*</span></span>
+            </label>
+            {text && (
+              <details className="ml-7 mt-1.5 rounded-lg border border-navy/10 bg-cream-panel px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-navy">Read full text</summary>
+                <p className="mt-2 whitespace-pre-wrap text-xs text-ink-soft">{text}</p>
+              </details>
+            )}
+          </div>
         ))}
       </div>
 
@@ -420,7 +431,7 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
       </section>
 
       <section className="px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-xl">
+        <div ref={formSectionRef} className="mx-auto max-w-xl">
           {/* Progress */}
           <div className="mb-8">
             <div className="mb-2 flex items-center justify-between">
@@ -506,13 +517,24 @@ const BecomeAnAmbassadorPage: NextPageWithLayout<Props> = ({ prefillEmail, prefi
 
 BecomeAnAmbassadorPage.getLayout = (page) => <SiteLayout>{page}</SiteLayout>;
 
+const AGREEMENT_SETTING_KEYS = ["agreement_accuracy_text", "agreement_policy_text", "agreement_contact_text"] as const;
+
 export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
   const name = session?.user?.name ?? "";
+  const agreementSettings = await db.setting.findMany({
+    where: { key: { in: [...AGREEMENT_SETTING_KEYS] } },
+  });
+  const findText = (key: string) => agreementSettings.find((s) => s.key === key)?.value ?? "";
   return {
     props: {
       prefillEmail: session?.user?.email ?? "",
       prefillName: name,
+      agreementTexts: {
+        accuracy: findText("agreement_accuracy_text"),
+        policy: findText("agreement_policy_text"),
+        contact: findText("agreement_contact_text"),
+      },
     },
   };
 };
