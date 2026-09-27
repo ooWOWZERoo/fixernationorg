@@ -2824,3 +2824,20 @@ model TbKindnessMission {
 
   @@index([userId, completedAt])
 }
+
+// ─── Outgoing-mail hourly budget ─────────────────────────────────────────────
+// One row per (mailbox, UTC hour). The count is claimed by an atomic
+// conditional increment in src/lib/mailbox-budget.ts, which is what makes it
+// safe for the three separate `0 * * * *` cron invocations to share a single
+// hourly budget — the previous "count rows sent in the last hour" check was a
+// stale snapshot each of them could spend in full.
+model MailboxSendCounter {
+  key       String   @id
+  mailbox   String
+  hourKey   String
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([hourKey])
+}

@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
 import { autoJoinGroups } from "@/lib/groups";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { provisionAffiliate } from "@/lib/affiliate";
 import { buildApplicationApprovedEmail, buildApplicationRejectedEmail } from "@/lib/emails/application-decision";
@@ -128,7 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         (await loadTemplate("account.invitation", { first_name: firstName, role, invite_url: inviteUrl }))
         ?? buildAccountInviteEmail(application.name, appType, inviteUrl);
       try {
-        await sendEmail({ to: application.email, ...inviteEmail });
+        await sendTransactionalEmail({ to: application.email, ...inviteEmail });
         recordEvent(id, "INVITE_SENT", session.user.email, {}).catch(
           (err) => console.error("[events] INVITE_SENT record failed:", err)
         );
@@ -294,7 +294,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           status === "ADDITIONAL_INFO_REQUIRED" && !infoRequestNotes?.trim() && !customBody;
 
         if (emailToSend && !skipInfoRequired) {
-          await sendEmail({ to: application.email, ...emailToSend });
+          await sendTransactionalEmail({ to: application.email, ...emailToSend });
           recordEvent(id, "EMAIL_SENT", session.user.email, {
             template: templateKey,
             subject: emailToSend.subject,

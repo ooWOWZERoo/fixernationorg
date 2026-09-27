@@ -1,27 +1,42 @@
 import nodemailer from "nodemailer";
 import { db } from "@/lib/db";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST ?? "localhost",
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  // Pooled + capped so a full 20-contact send batch (BATCH in
-  // send-campaign.ts) reuses a handful of persistent connections instead
-  // of opening one new SMTP connection per email -- that concurrent-burst
-  // pattern is a likely contributor to this hosting provider's repeated
-  // account suspensions (see project memory: recurring incidents on
-  // 2026-09-02, 09-05, 09-15, 09-17). maxConnections is set conservatively
-  // below typical shared-hosting concurrent-connection limits.
-  pool: true,
-  maxConnections: 5,
-  maxMessages: 100,
-});
+// Both mailboxes live on the same cPanel mail server, so host/port/secure are
+// shared; only the authenticating mailbox and its password differ.
+function createMailTransport(user: string | undefined, pass: string | undefined) {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? "localhost",
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: { user, pass },
+    // Pooled + capped so a full 20-contact send batch (BATCH in
+    // send-campaign.ts) reuses a handful of persistent connections instead
+    // of opening one new SMTP connection per email -- that concurrent-burst
+    // pattern is a likely contributor to this hosting provider's repeated
+    // account suspensions (see project memory: recurring incidents on
+    // 2026-09-02, 09-05, 09-15, 09-17). maxConnections is set conservatively
+    // below typical shared-hosting concurrent-connection limits.
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+  });
+}
+
+// Bulk/campaign identity (campaigns@). Everything that goes out through this
+// transporter shares one 100-messages-per-hour allowance at the host and is
+// metered by src/lib/mailbox-budget.ts.
+const transporter = createMailTransport(process.env.SMTP_USER, process.env.SMTP_PASS);
+
+// Transactional identity (noreply@). A separate mailbox means a separate
+// hourly allowance at the host, so a big campaign can no longer starve — or
+// get suspended alongside — password resets, receipts and application
+// notifications. Only built when the credentials are actually configured.
+const transactionalTransporter = process.env.TRANSACTIONAL_SMTP_USER
+  ? createMailTransport(process.env.TRANSACTIONAL_SMTP_USER, process.env.TRANSACTIONAL_SMTP_PASS)
+  : null;
 
 const FROM = process.env.SMTP_FROM ?? "Fixer Nation <noreply@fixernation.org>";
+const TRANSACTIONAL_FROM = process.env.TRANSACTIONAL_SMTP_FROM ?? FROM;
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
 // A handful of fixed e2e test accounts (qa-member, qa-mfa-test, qa-admin,
@@ -45,29 +60,23 @@ function isQaAccountOnRealDomain(to: string): boolean {
   return QA_LOCAL_PART.test(localPart) && domain === PRODUCTION_DOMAIN;
 }
 
-export async function sendEmail({
-  to,
-  subject,
-  html,
-  text,
-  from,
-}: {
+type SendArgs = {
   to: string;
   subject: string;
   html: string;
   text: string;
   from?: string;
-}) {
-  if (!process.env.SMTP_USER) {
-    console.warn("[email] SMTP_USER not set — skipping send to", to);
-    return;
-  }
-  if (isQaAccountOnRealDomain(to)) {
-    console.warn("[email] Skipping send to fixed QA test account on the real domain:", to);
-    return;
-  }
+};
+
+type MailTransport = ReturnType<typeof createMailTransport>;
+
+async function deliver(
+  transport: MailTransport,
+  defaultFrom: string,
+  { to, subject, html, text, from }: SendArgs,
+) {
   try {
-    await transporter.sendMail({ from: from ?? FROM, to, subject, html, text });
+    await transport.sendMail({ from: from ?? defaultFrom, to, subject, html, text });
     // Tracked so the admin dashboard's email-health banner can tell "still
     // broken" apart from "failed earlier, already recovered" -- a rolling
     // failure count alone can't distinguish those, and kept showing a red
@@ -102,6 +111,33 @@ export async function sendEmail({
       .catch((dbErr) => console.error("[email] Failed to record email failure:", dbErr));
     throw err;
   }
+}
+
+export async function sendEmail(args: SendArgs) {
+  if (!process.env.SMTP_USER) {
+    console.warn("[email] SMTP_USER not set — skipping send to", args.to);
+    return;
+  }
+  if (isQaAccountOnRealDomain(args.to)) {
+    console.warn("[email] Skipping send to fixed QA test account on the real domain:", args.to);
+    return;
+  }
+  return deliver(transporter, FROM, args);
+}
+
+// Password-class, receipt-class and admin-notification mail: anything a person
+// is actively waiting on. Sends as noreply@ so it draws on its own hourly
+// allowance at the host instead of competing with campaign volume. Falls back
+// to the bulk sender when the transactional credentials aren't configured —
+// degrading to "sends from the wrong mailbox" is far better than silently
+// dropping a password reset.
+export async function sendTransactionalEmail(args: SendArgs) {
+  if (!transactionalTransporter) return sendEmail(args);
+  if (isQaAccountOnRealDomain(args.to)) {
+    console.warn("[email] Skipping send to fixed QA test account on the real domain:", args.to);
+    return;
+  }
+  return deliver(transactionalTransporter, TRANSACTIONAL_FROM, args);
 }
 
 export async function sendVerificationEmail(to: string, token: string) {

@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/email";
 import { buildCampaignEmail } from "@/lib/campaign-email";
 import { resolveAudience, type AudienceDefinition } from "@/lib/audience";
 import { webpush } from "@/lib/web-push";
+import { reserveBulkSendSlot, isInfrastructureSendError } from "@/lib/mailbox-budget";
 
 // Extracted from the admin "send now" API route so the cron-driven paths
 // (one-time SCHEDULED campaigns, recurring campaign occurrences) reuse the
@@ -55,25 +56,6 @@ type PushDb = {
 
 type EmailContent = { subject: string; fromName: string; fromEmail: string; htmlBody: string | null; textBody: string | null };
 
-// This hosting provider's exact wording for a sender-side account
-// suspension (not a per-recipient rejection) -- has recurred at least 4
-// times. Treating it as a normal per-recipient BOUNCED would permanently
-// blacklist real recipients from every future send via resolveAudience's
-// bounce-suppression check, for an outage that has nothing to do with
-// whether their address is valid.
-const SENDER_MAILBOX_SUSPENDED = /outgoing mail from .* has been suspended/i;
-
-// Nodemailer's transport/connection-level error codes -- these mean we
-// never got a response from the recipient's mail server (or our own SMTP
-// auth failed) at all, so none of them can indicate anything about
-// whether the recipient's address is valid. Confirmed live: a raw
-// ESOCKET/ETIMEDOUT connection failure to the mail host happened minutes
-// after the SENDER_MAILBOX_SUSPENDED incident above, while the same host
-// was still stabilizing post-recovery, and hit the exact same real
-// recipients -- same underlying problem (infra, not the recipient), just
-// a different nodemailer error code with no matching wording.
-const TRANSPORT_LEVEL_ERROR_CODES = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNREFUSED", "EDNS", "EAUTH"]);
-
 // A single serverless invocation can't reliably finish sending a
 // large-audience campaign (thousands of contacts, ~20 at a time) before the
 // platform's execution time limit kills it. This time budget bounds each
@@ -82,32 +64,6 @@ const TRANSPORT_LEVEL_ERROR_CODES = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKE
 // it back up on its next hourly sweep — see continueCampaignSend below.
 const TIME_BUDGET_MS = Number(process.env.SEND_TIME_BUDGET_MS ?? 45_000);
 const BATCH = 20;
-const DEFAULT_HOURLY_SEND_CAP = 60;
-
-// The hosting account's outgoing-mail rate limit is a single shared budget
-// across everything the account sends (all campaigns, all channels) — not
-// per-campaign. Editable at runtime via the existing generic Setting
-// key/value editor at /admin/settings (key: "smtp_hourly_send_cap"), so it
-// can be tuned without a redeploy if the host's actual cap turns out to be
-// different from our current best guess.
-async function getHourlySendCap(): Promise<number> {
-  const row = await db.setting.findUnique({ where: { key: "smtp_hourly_send_cap" } });
-  const parsed = row ? Number.parseInt(row.value, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HOURLY_SEND_CAP;
-}
-
-// Deliberately global (no campaignId filter) — the host's cap is shared
-// account-wide, so two campaigns sending in the same hour must share one
-// budget. Counts both SENT and BOUNCED because a bounced/failed send still
-// consumed an SMTP connection attempt against the host's limit.
-async function countSendsInLastHour(): Promise<number> {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  return db.campaignSend.count({
-    where: {
-      OR: [{ sentAt: { gte: oneHourAgo } }, { bouncedAt: { gte: oneHourAgo } }],
-    },
-  });
-}
 
 // Marking a failed send as BOUNCED (not leaving it QUEUED) matters more than
 // it looks: the continuation loop below re-queries "status: QUEUED" every
@@ -123,32 +79,28 @@ async function sendQueuedEmailBatches(
   let sent = 0;
   let failed = 0;
 
-  const cap = await getHourlySendCap();
-  // Seeded once from the DB, then tracked incrementally by adding every
-  // attempt made during this invocation — re-querying countSendsInLastHour()
-  // on every loop iteration would work too, but this avoids an extra DB
-  // round-trip per batch and can't drift stale since every attempt this
-  // invocation makes is accounted for as it happens.
-  let usedThisHour = await countSendsInLastHour();
-
   while (Date.now() < deadline) {
-    const remaining = cap - usedThisHour;
-    if (remaining <= 0) {
-      return { done: false, sent, failed, hourlyCapReached: true };
-    }
-    const batchSize = Math.min(BATCH, remaining);
-
     const queued = await db.campaignSend.findMany({
       where: { campaignId, status: "QUEUED" },
-      take: batchSize,
+      take: BATCH,
       include: { contact: { select: { email: true, firstName: true } } },
     });
     if (queued.length === 0) return { done: true, sent, failed, hourlyCapReached: false };
 
     let infrastructureFailure = false;
+    let hourlyCapReached = false;
 
     await Promise.allSettled(
       queued.map(async (row) => {
+        // One atomic claim per individual attempt against the account-wide
+        // hourly budget (mailbox-budget.ts). Claimed before the send and
+        // never refunded, because a failed attempt still burned a real
+        // delivery slot at the host. A denial leaves this row QUEUED for the
+        // next hourly resume tick.
+        if (!(await reserveBulkSendSlot())) {
+          hourlyCapReached = true;
+          return;
+        }
         try {
           const content = row.variantId ? (variantById.get(row.variantId) ?? fallbackContent) : fallbackContent;
           const { subject, html, text } = buildCampaignEmail(content, row.contactId, row.contact.firstName, row.id);
@@ -156,9 +108,7 @@ async function sendQueuedEmailBatches(
           await db.campaignSend.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date() } });
           sent++;
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          const code = (err as { code?: string })?.code;
-          if (SENDER_MAILBOX_SUSPENDED.test(message) || (code && TRANSPORT_LEVEL_ERROR_CODES.has(code))) {
+          if (isInfrastructureSendError(err)) {
             // Sender-side outage or transport/connection-level failure, not a
             // per-recipient rejection -- leave the row QUEUED so
             // campaign-send-hourly-resume retries it once the underlying
@@ -175,6 +125,10 @@ async function sendQueuedEmailBatches(
       })
     );
 
+    if (hourlyCapReached) {
+      return { done: false, sent, failed, hourlyCapReached: true };
+    }
+
     if (infrastructureFailure) {
       // Every remaining attempt this invocation would hit the identical
       // infrastructure failure -- looping until the time/hourly-cap budget
@@ -182,7 +136,6 @@ async function sendQueuedEmailBatches(
       // Leave the rest of the queue QUEUED for the next hourly resume tick.
       return { done: false, sent, failed, hourlyCapReached: false };
     }
-    usedThisHour += queued.length;
   }
   return { done: false, sent, failed, hourlyCapReached: false };
 }

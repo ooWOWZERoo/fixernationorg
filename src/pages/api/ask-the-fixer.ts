@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isTestEmail } from "@/lib/testContacts";
 
@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.warn("[ask-the-fixer] Skipping admin-notify for QA test submission:", email);
   } else if (adminEmail) {
     try {
-      await sendEmail({
+      await sendTransactionalEmail({
         to: adminEmail,
         subject: `New Ask The Fixer submission — ${name}`,
         html: `

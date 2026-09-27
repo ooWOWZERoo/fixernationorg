@@ -4,7 +4,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import {
   buildApplicationSubmittedEmail,
   buildApplicationAdminNotifyEmail,
@@ -180,9 +180,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.warn("[application/affiliate] Skipping admin-notify for QA test submission:", d.email);
   }
   const [submittedEmail, adminEmail] = await Promise.allSettled([
-    sendEmail({ to: d.email, ...buildApplicationSubmittedEmail(d.firstName, "AFFILIATE", emailVerifyToken) }),
+    sendTransactionalEmail({ to: d.email, ...buildApplicationSubmittedEmail(d.firstName, "AFFILIATE", emailVerifyToken) }),
     notifyEmail && !isTestEmail(d.email)
-      ? sendEmail({ to: notifyEmail, ...buildApplicationAdminNotifyEmail(`${d.firstName} ${d.lastName}`, "AFFILIATE", application.id) })
+      ? sendTransactionalEmail({ to: notifyEmail, ...buildApplicationAdminNotifyEmail(`${d.firstName} ${d.lastName}`, "AFFILIATE", application.id) })
       : Promise.resolve(),
   ]);
 

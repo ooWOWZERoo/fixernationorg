@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { webpush } from "@/lib/web-push";
+import { reserveBulkSendSlot, BulkBudgetExhaustedError, nextBudgetWindow } from "@/lib/mailbox-budget";
 import type { AutomationEnrollment, AutomationStep, AutomationTrigger } from "@prisma/client";
 
 function substituteVars(template: string, vars: Record<string, string>): string {
@@ -145,6 +146,13 @@ async function executeStepAction(step: StepWithConfig, enrollment: AutomationEnr
       }
 
       if (subject && html) {
+        // Automation mail deliberately stays on the bulk mailbox (campaigns@)
+        // because a single tick can attempt up to `take: 100` sends with no
+        // batching of its own — bulk-shaped volume, so it has to spend from
+        // the same metered budget campaigns do. A denial unwinds to the tick
+        // loop, which defers this enrollment to the next window instead of
+        // failing it.
+        if (!(await reserveBulkSendSlot())) throw new BulkBudgetExhaustedError();
         await sendEmail({ to: recipient.email, subject, html, text });
       }
       break;
@@ -387,6 +395,21 @@ export async function tickAutomations(): Promise<{
 
       processed++;
     } catch (err) {
+      if (err instanceof BulkBudgetExhaustedError) {
+        // The mailbox's hourly budget is spent, which says nothing about this
+        // enrollment. Leave it ACTIVE on its current step and re-arm it for
+        // the next window — marking it FAILED here would silently drop the
+        // email entirely. Every enrollment behind it would hit the same wall,
+        // so stop the sweep rather than churning through the rest.
+        await db.automationEnrollment.update({
+          where: { id: enrollment.id },
+          data: { nextRunAt: nextBudgetWindow(now) },
+        }).catch(() => {});
+        console.warn(
+          `[automation-tick] Hourly send budget exhausted — deferred enrollment ${enrollment.id} and stopped this sweep`
+        );
+        break;
+      }
       console.error(`[automation-tick] Enrollment ${enrollment.id} failed:`, err);
       await db.automationEnrollment.update({
         where: { id: enrollment.id },

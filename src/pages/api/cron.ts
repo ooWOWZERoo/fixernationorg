@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { randomBytes, randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, sendTransactionalEmail } from "@/lib/email";
 import { buildMorningBoostEmail } from "@/lib/emails/morning-boost";
 import { buildApplicationExpiredEmail } from "@/lib/emails/expiration";
 import { buildExpirationReminderEmail } from "@/lib/emails/expiration-reminder";
@@ -11,6 +11,7 @@ import { applyApplicationTags } from "@/lib/application-crm";
 import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
 import { ensureContactForUser } from "@/lib/contacts";
 import { sendCampaignNow, continueCampaignSend, utcDayWindow } from "@/lib/send-campaign";
+import { continueProviderCampaignSend, findPausedProviderCampaigns } from "@/lib/send-provider-campaign";
 import {
   buildRenewalReminder30Email,
   buildRenewalReminder7Email,
@@ -210,7 +211,7 @@ async function runApplicationExpiration() {
     }).catch(() => {});
 
     try {
-      await sendEmail({
+      await sendTransactionalEmail({
         to: app.email,
         ...buildApplicationExpiredEmail(app.name, app.type as ApplicationTypeKey),
       });
@@ -312,7 +313,7 @@ async function runAccountInvitationReminders(): Promise<{ message: string }> {
       ?? buildAccountInviteEmail(app.name, appType, inviteUrl);
 
     try {
-      await sendEmail({ to: app.email, ...email });
+      await sendTransactionalEmail({ to: app.email, ...email });
       sent++;
     } catch (err) {
       console.error(`[account-invitation-reminders] Email failed for ${app.id}:`, err);
@@ -514,7 +515,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             amount,
             billing_url: billingUrl,
           })) ?? buildRenewalReminder30Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
-        await sendEmail({ to: m.user.email, ...email });
+        await sendTransactionalEmail({ to: m.user.email, ...email });
       } else {
         const upgradeUrl = `${APP_URL}/join`;
         const email =
@@ -523,7 +524,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             renewal_date: renewalDate,
             upgrade_url: upgradeUrl,
           })) ?? buildGiftExpiring30Email(m.user.name, renewalDate, upgradeUrl);
-        await sendEmail({ to: m.user.email, ...email });
+        await sendTransactionalEmail({ to: m.user.email, ...email });
       }
     } catch (err) {
       console.error(`[membership-renewal-reminders] 30-day email failed for membership ${m.id}:`, err);
@@ -564,7 +565,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             amount,
             billing_url: billingUrl,
           })) ?? buildRenewalReminder7Email(m.user.name, m.price.product.name, renewalDate, amount, billingUrl);
-        await sendEmail({ to: m.user.email, ...email });
+        await sendTransactionalEmail({ to: m.user.email, ...email });
       } else {
         const upgradeUrl = `${APP_URL}/join`;
         const email =
@@ -573,7 +574,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
             renewal_date: renewalDate,
             upgrade_url: upgradeUrl,
           })) ?? buildGiftExpiring7Email(m.user.name, renewalDate, upgradeUrl);
-        await sendEmail({ to: m.user.email, ...email });
+        await sendTransactionalEmail({ to: m.user.email, ...email });
       }
     } catch (err) {
       console.error(`[membership-renewal-reminders] 7-day email failed for membership ${m.id}:`, err);
@@ -629,7 +630,14 @@ async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
     select: { id: true },
   });
 
-  if (paused.length === 0) return { message: "No paused campaigns with queued sends" };
+  // Provider campaigns share the campaigns@ mailbox and its hourly budget, so
+  // they resume on this same tick rather than getting their own cron entry —
+  // one sweep, one budget, no two schedules racing each other for slots.
+  const pausedProvider = await findPausedProviderCampaigns();
+
+  if (paused.length === 0 && pausedProvider.length === 0) {
+    return { message: "No paused campaigns with queued sends" };
+  }
 
   let resumed = 0;
   for (const c of paused) {
@@ -641,7 +649,20 @@ async function runCampaignSendHourlyResume(): Promise<{ message: string }> {
     }
   }
 
-  return { message: `Attempted resume on ${resumed} of ${paused.length} paused campaign${paused.length !== 1 ? "s" : ""}` };
+  let providerResumed = 0;
+  for (const id of pausedProvider) {
+    try {
+      await continueProviderCampaignSend(id);
+      providerResumed++;
+    } catch (err) {
+      console.error(`[campaign-send-hourly-resume] provider campaign ${id} failed:`, err);
+    }
+  }
+
+  return {
+    message: `Attempted resume on ${resumed} of ${paused.length} paused campaign${paused.length !== 1 ? "s" : ""}`
+      + `, ${providerResumed} of ${pausedProvider.length} paused provider campaign${pausedProvider.length !== 1 ? "s" : ""}`,
+  };
 }
 
 // Standing safety net, not just a one-time backfill: every known

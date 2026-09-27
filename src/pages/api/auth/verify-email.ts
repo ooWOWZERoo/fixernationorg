@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { buildWelcomeEmail } from "@/lib/emails/welcome";
 import { ensureContactForUser, setConsent } from "@/lib/contacts";
 
@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Welcome email — fire and forget
   try {
     const email = buildWelcomeEmail(user.name);
-    await sendEmail({ to: user.email, ...email });
+    await sendTransactionalEmail({ to: user.email, ...email });
   } catch (err) {
     console.error("[email] Failed to send welcome email:", err);
   }

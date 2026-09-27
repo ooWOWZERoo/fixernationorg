@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { blocksToHtml } from "@/lib/email-blocks";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const recipient = to ?? session.user.email;
       if (!recipient) return res.status(400).json({ error: "No recipient email" });
 
-      await sendEmail({
+      await sendTransactionalEmail({
         to: recipient,
         subject: `[Test] ${template.subject}`,
         html: template.htmlBody,

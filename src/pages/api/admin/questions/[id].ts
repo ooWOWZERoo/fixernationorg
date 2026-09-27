@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { QuestionStatus } from "@prisma/client";
 
 function isAdmin(role: string) {
@@ -62,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ? `Re: ${question.subject}`
       : "Your Ask The Fixer question";
 
-    await sendEmail({
+    await sendTransactionalEmail({
       to: question.email,
       subject: subjectLine,
       html: `

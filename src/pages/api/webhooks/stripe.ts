@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { loadTemplate } from "@/lib/template-engine";
 import {
   buildMembershipThankYouEmail,
@@ -145,7 +145,7 @@ async function sendMembershipThankYouEmail(userId: string, priceId: string) {
       billing_url: billingUrl,
     })) ?? buildMembershipThankYouEmail(user.name, planName, billingUrl);
 
-  await sendEmail({ to: user.email, ...email });
+  await sendTransactionalEmail({ to: user.email, ...email });
 }
 
 export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
@@ -418,7 +418,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               plan_name: info.planName,
               upgrade_url: upgradeUrl,
             })) ?? buildMembershipCanceledEmail(info.name, info.planName, upgradeUrl);
-          await sendEmail({ to: info.email, ...email });
+          await sendTransactionalEmail({ to: info.email, ...email });
         }
       } catch (err) {
         console.error("[stripe-webhook] cancellation email failed:", err);
@@ -491,7 +491,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   renewal_date: renewalDate,
                   billing_url: billingUrl,
                 })) ?? buildRenewalReceiptEmail(user.name, planName, amount, renewalDate, billingUrl);
-              await sendEmail({ to: user.email, ...email });
+              await sendTransactionalEmail({ to: user.email, ...email });
             }
           }
         } catch (err) {
@@ -525,7 +525,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               plan_name: info.planName,
               billing_url: billingUrl,
             })) ?? buildPaymentFailedEmail(info.name, info.planName, billingUrl);
-          await sendEmail({ to: info.email, ...email });
+          await sendTransactionalEmail({ to: info.email, ...email });
         }
       } catch (err) {
         console.error("[stripe-webhook] payment-failed email failed:", err);

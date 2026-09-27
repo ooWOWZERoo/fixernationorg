@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAction, getClientIp } from "@/lib/audit";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { loadTemplate } from "@/lib/template-engine";
 import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { recordEvent } from "@/lib/application-events";
@@ -80,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     emailToSend = templateResult ?? buildAccountInviteEmail(application.name, appType, inviteUrl);
 
     try {
-      await sendEmail({ to: application.email, ...emailToSend });
+      await sendTransactionalEmail({ to: application.email, ...emailToSend });
     } catch (err) {
       console.error("[invite] Failed to send invite email:", err);
     }

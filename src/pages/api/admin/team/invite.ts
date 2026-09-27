@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { sendTransactionalEmail } from "@/lib/email";
 import { logAction, getClientIp } from "@/lib/audit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixernation.org";
@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const roleLabel = role === "SUPER_ADMIN" ? "Super Admin" : "Admin";
   const article = role === "SUPER_ADMIN" ? "a" : "an";
 
-  await sendEmail({
+  await sendTransactionalEmail({
     to: email,
     subject: `You've been invited to join Fixer Nation as ${article} ${roleLabel}`,
     html: `

@@ -2,8 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
-import { trackingHmac } from "@/lib/track";
+import { continueProviderCampaignSend } from "@/lib/send-provider-campaign";
 
 type ProviderCampaignDb = {
   providerCampaign: {
@@ -21,28 +20,16 @@ type ProviderContactDb = {
 type ProviderCampaignSendDb = {
   providerCampaignSend: {
     createMany: (a: unknown) => Promise<{ count: number }>;
-    findMany: (a: unknown) => Promise<Array<{ id: string; providerContactId: string }>>;
-    updateMany: (a: unknown) => Promise<{ count: number }>;
   };
 };
 
 type CampaignRecord = {
   id: string;
   providerUserId: string;
-  name: string;
-  subject: string;
-  fromName: string;
-  htmlBody: string;
-  textBody: string | null;
   status: string;
 };
 
-type ContactRecord = {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-};
+type ContactRecord = { id: string };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -73,77 +60,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const contacts = await pdb.providerContact.findMany({
     where: { providerUserId: session.user.id },
-    select: { id: true, email: true, firstName: true, lastName: true },
+    select: { id: true },
   }) as ContactRecord[];
 
   if (contacts.length === 0) {
     return res.status(400).json({ error: "You have no contacts to send to. Add contacts first." });
   }
 
-  await cdb.providerCampaign.update({
-    where: { id },
-    data: { status: "SENDING" },
-  });
-
+  // Queue the whole audience up front, then flip to SENDING. Doing it in this
+  // order means a crash between the two leaves rows that the drain simply
+  // ignores (it only touches SENDING campaigns) rather than a SENDING
+  // campaign with no queue behind it.
   await sdb.providerCampaignSend.createMany({
-    data: contacts.map((c) => ({
-      campaignId: id,
-      providerContactId: c.id,
-      status: "QUEUED",
-    })),
+    data: contacts.map((c) => ({ campaignId: id, providerContactId: c.id, status: "QUEUED" })),
     skipDuplicates: true,
   });
 
-  const sendRecords = await sdb.providerCampaignSend.findMany({
-    where: { campaignId: id },
-    select: { id: true, providerContactId: true },
+  await cdb.providerCampaign.update({ where: { id }, data: { status: "SENDING" } });
+
+  // Drain what this invocation's time budget and the mailbox's remaining
+  // hourly budget allow, then hand the rest to the hourly resume cron. This
+  // request no longer waits on the full audience the way the old serial loop
+  // did — it returns as soon as either budget is spent, and the campaign stays
+  // SENDING until the queue is actually empty.
+  const result = await continueProviderCampaignSend(id);
+
+  return res.status(200).json({
+    sent: result.sent,
+    failed: result.failed,
+    total: contacts.length,
+    queued: contacts.length - result.sent - result.failed,
+    done: result.done,
+    pausedForHourlyCap: result.hourlyCapReached,
   });
-  const sendIdMap = new Map(sendRecords.map((r) => [r.providerContactId, r.id]));
-
-  const baseUrl = process.env.NEXTAUTH_URL ?? "";
-  const fromDisplay = `${campaign.fromName} via Fixer Nation <campaigns@fixernation.org>`;
-  const footer = `<br><br><hr style="border:none;border-top:1px solid #eee"><p style="font-size:12px;color:#999">Sent by ${campaign.fromName} through Fixer Nation. Questions? Contact <a href="mailto:support@fixernation.org">support@fixernation.org</a>.</p>`;
-  const textFooter = `\n\n---\nSent by ${campaign.fromName} through Fixer Nation. Questions? support@fixernation.org`;
-
-  let sent = 0;
-  let failed = 0;
-  const failedIds: string[] = [];
-
-  for (const contact of contacts) {
-    const sendId = sendIdMap.get(contact.id);
-    const pixel = sendId
-      ? `<img src="${baseUrl}/api/track/provider-open?s=${sendId}&t=${trackingHmac(sendId)}" width="1" height="1" style="display:none" alt="">`
-      : "";
-    try {
-      await sendEmail({
-        to: contact.email,
-        subject: campaign.subject,
-        html: campaign.htmlBody + pixel + footer,
-        text: (campaign.textBody ?? campaign.subject) + textFooter,
-        from: fromDisplay,
-      });
-      await sdb.providerCampaignSend.updateMany({
-        where: { campaignId: id, providerContactId: contact.id },
-        data: { status: "SENT", sentAt: new Date() },
-      });
-      sent++;
-    } catch {
-      await sdb.providerCampaignSend.updateMany({
-        where: { campaignId: id, providerContactId: contact.id },
-        data: { status: "FAILED" },
-      });
-      failedIds.push(contact.id);
-      failed++;
-    }
-  }
-
-  await cdb.providerCampaign.update({
-    where: { id },
-    data: {
-      status: sent > 0 ? "SENT" : "DRAFT",
-      sentAt: sent > 0 ? new Date() : null,
-    },
-  });
-
-  return res.status(200).json({ sent, failed, total: contacts.length });
 }
