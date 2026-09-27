@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import type { ContactConsent, ContactConsentTopic } from "@prisma/client";
 
 const MORNING_BOOST_LIST_NAME = "Morning Boost";
@@ -76,16 +77,32 @@ export async function ensureContactForUser(
   }
 
   const nameParts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  const contact = await db.contact.create({
-    data: {
-      email,
-      firstName: nameParts[0] || null,
-      lastName: nameParts.slice(1).join(" ") || null,
-      userId,
-      source,
-    },
-  });
-  return contact.id;
+  try {
+    const contact = await db.contact.create({
+      data: {
+        email,
+        firstName: nameParts[0] || null,
+        lastName: nameParts.slice(1).join(" ") || null,
+        userId,
+        source,
+      },
+    });
+    return contact.id;
+  } catch (err) {
+    // Two callers can race here (e.g. an AFFILIATE invite-claim fires
+    // enrollMorningBoost + enrollAffiliateList concurrently, both landing on
+    // the same brand-new user/email) -- the loser hits a unique violation on
+    // userId or email instead of a real error. Re-resolve to the winner's row
+    // rather than letting the loser's caller silently swallow the exception
+    // and skip its own side effect (consent/list-membership) forever.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner =
+        (await db.contact.findUnique({ where: { userId }, select: { id: true } })) ??
+        (await db.contact.findUnique({ where: { email }, select: { id: true } }));
+      if (winner) return winner.id;
+    }
+    throw err;
+  }
 }
 
 // Establishes the Morning Boost opt-in default the first time a contact
