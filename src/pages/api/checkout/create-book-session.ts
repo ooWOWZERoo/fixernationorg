@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { findFormatForPrice } from "@/lib/book-formats";
 import { getStripe, isMissingStripeCustomer } from "@/lib/stripe";
 import Stripe from "stripe";
 
@@ -53,6 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (price.product.type !== "BOOK") {
     return res.status(400).json({ error: "This price is not for a book." });
+  }
+
+  // Kindle editions are Amazon-only: there is no ebook delivery here, so a
+  // paid checkout for one would take money for something we can't hand over.
+  // The admin UI won't let a price reach a DIGITAL format, and the formats
+  // endpoint rejects it too; this is the last line of defence.
+  if ((await findFormatForPrice(price.id)) === "DIGITAL") {
+    return res.status(400).json({ error: "The Kindle edition is on Amazon only." });
   }
 
   if (price.interval !== "ONE_TIME" || !price.stripePriceId) {

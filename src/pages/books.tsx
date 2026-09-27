@@ -4,38 +4,10 @@ import Image from "next/image";
 import { useState } from "react";
 import type { GetServerSideProps } from "next";
 import { db } from "@/lib/db";
+import { fetchBookFormats, toPublicFormats, type PublicBookFormat } from "@/lib/book-formats";
+import { BOOK_PRESENTATION, type BookFilter as Filter } from "@/lib/book-presentation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
-
-type Filter = "all" | "series" | "new";
-
-// Static metadata that doesn't belong in the DB (presentation + external links)
-const BOOK_META: Record<string, { amazon: string | null; filter: Filter[]; tag: string; tagNew: boolean }> = {
-  "kill-the-bully": {
-    amazon: "https://www.amazon.com",
-    filter: ["all", "series"],
-    tag: "Also on Amazon Kindle",
-    tagNew: false,
-  },
-  "your-past-doesnt-define-you": {
-    amazon: "https://www.amazon.com",
-    filter: ["all", "series"],
-    tag: "Also on Amazon Kindle",
-    tagNew: false,
-  },
-  "think-with-5-brains": {
-    amazon: null,
-    filter: ["all", "series", "new"],
-    tag: "New Arrival",
-    tagNew: true,
-  },
-  "how-to-lie": {
-    amazon: null,
-    filter: ["all", "series", "new"],
-    tag: "New Arrival",
-    tagNew: true,
-  },
-};
 
 const FILTERS: { label: string; value: Filter }[] = [
   { label: "All Books", value: "all" },
@@ -49,6 +21,7 @@ interface BookItem {
   name: string;
   description: string | null;
   imageUrl: string | null;
+  formats: PublicBookFormat[];
 }
 
 interface Props {
@@ -59,7 +32,7 @@ const BooksPage: NextPageWithLayout<Props> = ({ books }) => {
   const [active, setActive] = useState<Filter>("all");
 
   const visible = books.filter((b) => {
-    const meta = BOOK_META[b.slug];
+    const meta = BOOK_PRESENTATION[b.slug];
     return meta ? meta.filter.includes(active) : active === "all";
   });
 
@@ -111,7 +84,8 @@ const BooksPage: NextPageWithLayout<Props> = ({ books }) => {
           {/* Grid */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {visible.map((book) => {
-              const meta = BOOK_META[book.slug] ?? { amazon: null, tag: "Book", tagNew: false };
+              const meta = BOOK_PRESENTATION[book.slug] ?? { tag: "Book", tagNew: false, filter: [] };
+              const amazonFormats = book.formats.filter((f) => f.amazonUrl);
               return (
                 <div
                   key={book.id}
@@ -138,28 +112,54 @@ const BooksPage: NextPageWithLayout<Props> = ({ books }) => {
                     <h3 className="text-sm font-extrabold leading-snug text-navy">{book.name}</h3>
                     <p className="flex-1 text-sm leading-relaxed text-ink-soft">{book.description}</p>
 
-                    <div className="mt-2 flex gap-2">
+                    {book.formats.length > 0 && (
+                      <p className="text-xs font-semibold text-ink-soft">
+                        {book.formats.map((f) => f.label).join(" · ")}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <Link
                         href={`/books/${book.slug}`}
                         className="flex flex-1 items-center justify-center rounded-[8px] border-2 border-navy px-3 py-2 text-xs font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
                       >
                         Details
                       </Link>
-                      {meta.amazon ? (
+                      {amazonFormats.length === 1 && (
                         <a
-                          href={meta.amazon}
+                          href={amazonFormats[0].amazonUrl!}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex flex-1 items-center justify-center rounded-[8px] bg-amber px-3 py-2 text-xs font-bold text-navy-dark no-underline shadow-[0_8px_16px_-8px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
                         >
                           Amazon
                         </a>
-                      ) : (
+                      )}
+                      {book.formats.length === 0 && (
                         <span className="flex flex-1 items-center justify-center rounded-[8px] bg-cream-panel px-3 py-2 text-xs font-bold text-ink-soft cursor-default">
                           Coming Soon
                         </span>
                       )}
                     </div>
+
+                    {amazonFormats.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-ink-soft">
+                          On Amazon
+                        </span>
+                        {amazonFormats.map((f) => (
+                          <a
+                            key={f.format}
+                            href={f.amazonUrl!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-full bg-amber px-3 py-1.5 text-[11px] font-bold text-navy-dark no-underline transition-all hover:bg-amber-dark"
+                          >
+                            {f.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -203,7 +203,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
     select: { id: true, slug: true, name: true, description: true, imageUrl: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  return { props: { books: JSON.parse(JSON.stringify(books)) } };
+
+  const rows = await fetchBookFormats(books.map((b) => b.id));
+  const withFormats = books.map((b) => ({
+    ...b,
+    formats: toPublicFormats(rows.filter((r) => r.productId === b.id)),
+  }));
+
+  return { props: { books: JSON.parse(JSON.stringify(withFormats)) } };
 };
 
 export default BooksPage;

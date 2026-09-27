@@ -182,6 +182,7 @@ model Product {
   updatedAt       DateTime    @updatedAt
   prices          Price[]
   bookOrders      BookOrder[]
+  bookFormats     BookFormat[]
 
   @@index([type, active])
   @@index([sortOrder])
@@ -202,9 +203,39 @@ model Price {
   product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   memberships    UserMembership[]
   bookOrders     BookOrder[]
+  bookFormat     BookFormat?
 
   @@index([productId])
   @@index([active])
+}
+
+// ─── Book Formats (SP-72) ────────────────────────────────────────────────────
+// One row per purchasable edition of a BOOK product. Paperback and Hardcover
+// can carry an in-site Price and an Amazon link at the same time; DIGITAL is
+// Amazon-only (there is no ebook delivery path in this app), enforced in the
+// admin API as well as the UI.
+
+enum BookFormatType {
+  PAPERBACK
+  HARDCOVER
+  DIGITAL
+}
+
+model BookFormat {
+  id        String         @id @default(cuid())
+  productId String
+  format    BookFormatType
+  amazonUrl String?
+  priceId   String?        @unique
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price   Price?  @relation(fields: [priceId], references: [id], onDelete: SetNull)
+
+  @@unique([productId, format])
+  @@index([productId])
 }
 
 // ─── Book Orders (direct on-site book purchases) ─────────────────────────────

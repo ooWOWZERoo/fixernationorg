@@ -6,15 +6,10 @@ import { getServerSession } from "next-auth";
 import { useState } from "react";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fetchBookFormats, toPublicFormats, type PublicBookFormat } from "@/lib/book-formats";
+import { NEW_ARRIVAL_SLUGS } from "@/lib/book-presentation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
-
-const BOOK_META: Record<string, { amazon: string | null; tagNew: boolean }> = {
-  "kill-the-bully": { amazon: "https://www.amazon.com", tagNew: false },
-  "your-past-doesnt-define-you": { amazon: "https://www.amazon.com", tagNew: false },
-  "think-with-5-brains": { amazon: null, tagNew: true },
-  "how-to-lie": { amazon: null, tagNew: true },
-};
 
 interface BookProps {
   id: string;
@@ -23,35 +18,33 @@ interface BookProps {
   description: string | null;
   imageUrl: string | null;
   features: string[];
-  buyNowPriceId: string | null;
-  buyNowAmount: number | null;
 }
 
 interface Props {
   book: BookProps;
+  formats: PublicBookFormat[];
   isSignedIn: boolean;
 }
 
-const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
-  const meta = BOOK_META[book.slug] ?? { amazon: null, tagNew: false };
-  const [buyLoading, setBuyLoading] = useState(false);
+const BookDetailPage: NextPageWithLayout<Props> = ({ book, formats, isSignedIn }) => {
+  const isNewArrival = NEW_ARRIVAL_SLUGS.includes(book.slug);
+  const hasInSitePrice = formats.some((f) => f.priceId);
+  const [buyLoading, setBuyLoading] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string | null>(null);
 
-  async function buyNow() {
-    if (!book.buyNowPriceId) return;
-
+  async function buyNow(priceId: string) {
     if (!isSignedIn) {
       window.location.href = `/signin?callbackUrl=/books/${book.slug}`;
       return;
     }
 
-    setBuyLoading(true);
+    setBuyLoading(priceId);
     setBuyError(null);
     try {
       const res = await fetch("/api/checkout/create-book-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId: book.buyNowPriceId }),
+        body: JSON.stringify({ priceId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -64,7 +57,7 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
       window.location.href = data.url;
     } catch (err) {
       setBuyError(err instanceof Error ? err.message : "Something went wrong");
-      setBuyLoading(false);
+      setBuyLoading(null);
     }
   }
 
@@ -114,14 +107,9 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
 
             {/* Info */}
             <div>
-              {meta.tagNew && (
+              {isNewArrival && (
                 <span className="mb-3 inline-block text-xs font-extrabold uppercase tracking-wider text-coral">
                   New Arrival
-                </span>
-              )}
-              {!meta.tagNew && (
-                <span className="mb-3 inline-block text-xs font-extrabold uppercase tracking-wider text-amber-dark">
-                  Also on Amazon Kindle
                 </span>
               )}
 
@@ -149,30 +137,43 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
                 </ul>
               )}
 
-              <div className="mt-8 flex flex-wrap gap-3">
-                {book.buyNowPriceId && book.buyNowAmount !== null && (
-                  <button
-                    onClick={buyNow}
-                    disabled={buyLoading}
-                    className="inline-flex items-center justify-center rounded-[10px] bg-navy px-7 py-3 text-sm font-bold text-white no-underline shadow-[0_12px_24px_-10px_rgba(20,40,56,0.45)] transition-all hover:-translate-y-0.5 hover:bg-navy-dark disabled:opacity-60"
-                  >
-                    {buyLoading ? "Redirecting…" : `Buy now — $${(book.buyNowAmount / 100).toFixed(2)}`}
-                  </button>
-                )}
-                {meta.amazon ? (
-                  <a
-                    href={meta.amazon}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-[10px] bg-amber px-7 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
-                  >
-                    Buy on Amazon
-                  </a>
-                ) : !book.buyNowPriceId ? (
-                  <span className="inline-flex items-center justify-center rounded-[10px] bg-cream-panel px-7 py-3 text-sm font-bold text-ink-soft cursor-default">
-                    Amazon — Coming Soon
-                  </span>
-                ) : null}
+              {formats.length > 0 ? (
+                <div className="mt-8 space-y-3">
+                  {formats.map((f) => (
+                    <div
+                      key={f.format}
+                      className="flex flex-wrap items-center gap-3 rounded-[12px] bg-white p-3 shadow-[0_10px_24px_-18px_rgba(20,40,56,0.35)]"
+                    >
+                      <span className="min-w-[88px] text-sm font-extrabold text-navy">{f.label}</span>
+                      {f.priceId && f.amount !== null && (
+                        <button
+                          onClick={() => buyNow(f.priceId!)}
+                          disabled={buyLoading !== null}
+                          className="inline-flex items-center justify-center rounded-[10px] bg-navy px-6 py-2.5 text-sm font-bold text-white no-underline shadow-[0_12px_24px_-10px_rgba(20,40,56,0.45)] transition-all hover:-translate-y-0.5 hover:bg-navy-dark disabled:opacity-60"
+                        >
+                          {buyLoading === f.priceId ? "Redirecting…" : `Buy now — $${(f.amount / 100).toFixed(2)}`}
+                        </button>
+                      )}
+                      {f.amazonUrl && (
+                        <a
+                          href={f.amazonUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-[10px] bg-amber px-6 py-2.5 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
+                        >
+                          Buy on Amazon
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-8 rounded-[12px] bg-cream-panel px-5 py-4 text-sm font-semibold text-ink-soft">
+                  Ways to buy this one are on the way.
+                </p>
+              )}
+
+              <div className="mt-6">
                 <Link
                   href="/join"
                   className="inline-flex items-center justify-center rounded-[10px] border-2 border-navy px-7 py-3 text-sm font-bold text-navy no-underline transition-all hover:bg-navy hover:text-white"
@@ -184,7 +185,7 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, isSignedIn }) => {
               {buyError && <p className="mt-3 text-sm text-red-600">{buyError}</p>}
 
               <p className="mt-5 text-xs text-ink-soft">
-                {book.buyNowPriceId
+                {hasInSitePrice
                   ? "Buying direct ships the physical book and turns on a free 90-day Fixer Nation membership automatically. No QR code needed."
                   : "Every book includes a 90-day free Fixer Nation membership via QR code inside the cover."}
               </p>
@@ -235,11 +236,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
       description: true,
       imageUrl: true,
       features: true,
-      prices: {
-        where: { interval: "ONE_TIME", active: true },
-        select: { id: true, amount: true },
-        take: 1,
-      },
     },
   });
 
@@ -247,18 +243,12 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     return { notFound: true };
   }
 
-  const buyNowPrice = book.prices[0] ?? null;
-  const { prices, ...bookFields } = book;
+  const formats = toPublicFormats(await fetchBookFormats([book.id]));
 
   return {
     props: {
-      book: JSON.parse(
-        JSON.stringify({
-          ...bookFields,
-          buyNowPriceId: buyNowPrice?.id ?? null,
-          buyNowAmount: buyNowPrice?.amount ?? null,
-        })
-      ),
+      book: JSON.parse(JSON.stringify(book)),
+      formats: JSON.parse(JSON.stringify(formats)),
       isSignedIn: !!session?.user?.id,
     },
   };

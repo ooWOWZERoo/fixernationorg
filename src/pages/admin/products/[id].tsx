@@ -6,7 +6,9 @@ import { getServerSession } from "next-auth";
 import type { Product, Price } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fetchBookFormats } from "@/lib/book-formats";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { BookFormatsSection, type BookFormatRow } from "@/components/admin/BookFormatsSection";
 import type { NextPageWithLayout } from "@/types/next";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -34,9 +36,10 @@ type ProductWithPrices = Product & { prices: Price[] };
 
 interface Props {
   product: ProductWithPrices;
+  bookFormats: BookFormatRow[];
 }
 
-const AdminProductEdit: NextPageWithLayout<Props> = ({ product }) => {
+const AdminProductEdit: NextPageWithLayout<Props> = ({ product, bookFormats }) => {
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -467,6 +470,14 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product }) => {
           </div>
         </form>
       </div>
+
+      {product.type === "BOOK" && (
+        <BookFormatsSection
+          productId={product.id}
+          prices={product.prices}
+          formats={bookFormats}
+        />
+      )}
     </div>
   );
 };
@@ -487,7 +498,20 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   if (!product) return { notFound: true };
 
-  return { props: { product: JSON.parse(JSON.stringify(product)) } };
+  const rows = product.type === "BOOK" ? await fetchBookFormats([product.id]) : [];
+  const bookFormats: BookFormatRow[] = rows.map((r) => ({
+    format: r.format,
+    amazonUrl: r.amazonUrl,
+    priceId: r.priceId,
+    exists: true,
+  }));
+
+  return {
+    props: {
+      product: JSON.parse(JSON.stringify(product)),
+      bookFormats: JSON.parse(JSON.stringify(bookFormats)),
+    },
+  };
 };
 
 export default AdminProductEdit;
