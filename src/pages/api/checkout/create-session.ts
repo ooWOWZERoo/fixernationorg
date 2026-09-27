@@ -4,6 +4,12 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getStripe, isMissingStripeCustomer } from "@/lib/stripe";
+import {
+  normalizePromoCode,
+  validatePromoCode,
+  PROMO_CODE_INVALID_MESSAGE,
+  type ValidatedPromoCode,
+} from "@/lib/promo-codes";
 import Stripe from "stripe";
 
 const bodySchema = z.object({
@@ -54,26 +60,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "This plan is not yet available for purchase. Please contact support." });
   }
 
-  // A promo code either resolves to a usable Stripe coupon or the whole
-  // checkout is refused — never send someone to Stripe without the discount
-  // they typed in.
-  let promo: { code: string; stripeCouponId: string; affiliateId: string } | null = null;
-  const rawPromo = parsed.data.promoCode?.trim().toUpperCase();
+  let promo: ValidatedPromoCode | null = null;
+  const rawPromo = normalizePromoCode(parsed.data.promoCode);
   if (rawPromo) {
-    const found = await db.promoCode.findUnique({ where: { code: rawPromo } });
-    const couponId = (found as unknown as { stripeCouponId: string | null } | null)?.stripeCouponId ?? null;
-    const now = new Date();
-    const usable =
-      found &&
-      couponId &&
-      found.status === "ACTIVE" &&
-      (!found.validUntil || found.validUntil > now) &&
-      (found.maxUses === null || found.usedCount < found.maxUses);
-
-    if (!usable) {
-      return res.status(400).json({ error: "This promo code is invalid or has expired." });
+    promo = await validatePromoCode(rawPromo);
+    if (!promo) {
+      return res.status(400).json({ error: PROMO_CODE_INVALID_MESSAGE });
     }
-    promo = { code: rawPromo, stripeCouponId: couponId!, affiliateId: found!.affiliateId };
   }
 
   const user = await db.user.findUnique({

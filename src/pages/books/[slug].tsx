@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
 import { GetServerSideProps } from "next";
+import { useRouter } from "next/router";
 import { getServerSession } from "next-auth";
 import { useState } from "react";
 import { authOptions } from "@/lib/auth";
@@ -27,10 +28,16 @@ interface Props {
 }
 
 const BookDetailPage: NextPageWithLayout<Props> = ({ book, formats, isSignedIn }) => {
+  const router = useRouter();
   const isNewArrival = NEW_ARRIVAL_SLUGS.includes(book.slug);
   const hasInSitePrice = formats.some((f) => f.priceId);
   const [buyLoading, setBuyLoading] = useState<string | null>(null);
   const [buyError, setBuyError] = useState<string | null>(null);
+  // Seeded from a shareable affiliate/ambassador promo link (?promo=CODE),
+  // but stays a normal controlled input the user can edit afterward.
+  const [promoCode, setPromoCode] = useState(() =>
+    typeof router.query.promo === "string" ? router.query.promo : ""
+  );
 
   async function buyNow(priceId: string) {
     if (!isSignedIn) {
@@ -44,7 +51,7 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, formats, isSignedIn }
       const res = await fetch("/api/checkout/create-book-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ priceId, promoCode: promoCode.trim() || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -135,6 +142,28 @@ const BookDetailPage: NextPageWithLayout<Props> = ({ book, formats, isSignedIn }
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {/* Nothing to discount on a Kindle-only title, so the field only
+                  shows up when something is actually buyable here. */}
+              {hasInSitePrice && (
+                <div className="mt-8 max-w-sm">
+                  <label htmlFor="promoCode" className="block text-xs font-bold text-navy">
+                    Promo code (optional)
+                  </label>
+                  <input
+                    id="promoCode"
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    autoComplete="off"
+                    placeholder="Got a code? Add it here"
+                    className="mt-2 w-full rounded-[10px] border border-ink/15 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-amber focus:outline-none focus:ring-2 focus:ring-amber/30"
+                  />
+                  <p className="mt-1.5 text-xs text-ink-soft">
+                    We&apos;ll take the discount off at checkout.
+                  </p>
+                </div>
               )}
 
               {formats.length > 0 ? (

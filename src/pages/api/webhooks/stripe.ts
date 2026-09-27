@@ -12,7 +12,10 @@ import {
 } from "@/lib/emails/membership";
 import { enrollInJourneys } from "@/lib/automation";
 import { ensureContactForUser, ensureDefaultMorningBoostConsent } from "@/lib/contacts";
-import { attributeAffiliateCommission } from "@/lib/commission";
+import {
+  attributeAffiliateCommission,
+  attributeAffiliateCommissionForBookOrder,
+} from "@/lib/commission";
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://fixernation.org";
 
@@ -352,6 +355,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             shippingCountry: shipping?.address?.country ?? null,
           },
         })) as { id: string; userId: string };
+
+        // grossAmount comes off the session, not a re-read of the row we just
+        // wrote — no read-after-write race, and it's the amount actually
+        // collected after any promo discount.
+        const bookPromoCode = cs.metadata?.promoCode;
+        const bookAffiliateId = cs.metadata?.affiliateId;
+        if (bookPromoCode && bookAffiliateId) {
+          try {
+            await attributeAffiliateCommissionForBookOrder({
+              bookOrderId,
+              affiliateId: bookAffiliateId,
+              promoCode: bookPromoCode,
+              grossAmountCents: cs.amount_total,
+            });
+          } catch (err) {
+            console.error("[stripe-webhook] book affiliate commission attribution failed:", err);
+          }
+        }
 
         const userId = updated.userId ?? cs.metadata.userId;
         if (userId) {

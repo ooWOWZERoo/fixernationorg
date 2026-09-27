@@ -5,10 +5,17 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findFormatForPrice } from "@/lib/book-formats";
 import { getStripe, isMissingStripeCustomer } from "@/lib/stripe";
+import {
+  normalizePromoCode,
+  validatePromoCode,
+  PROMO_CODE_INVALID_MESSAGE,
+  type ValidatedPromoCode,
+} from "@/lib/promo-codes";
 import Stripe from "stripe";
 
 const bodySchema = z.object({
   priceId: z.string().min(1),
+  promoCode: z.string().max(40).optional(),
 });
 
 // BookOrder is a new model the local Prisma client doesn't know about yet
@@ -68,6 +75,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "This book is not yet available for purchase. Please contact support." });
   }
 
+  // Same shared validation the membership checkout uses. A Coupon's `duration`
+  // is subscription-only semantics, so the coupons minted for affiliates apply
+  // exactly once on a mode: "payment" session.
+  let promo: ValidatedPromoCode | null = null;
+  const rawPromo = normalizePromoCode(parsed.data.promoCode);
+  if (rawPromo) {
+    promo = await validatePromoCode(rawPromo);
+    if (!promo) {
+      return res.status(400).json({ error: PROMO_CODE_INVALID_MESSAGE });
+    }
+  }
+
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, email: true, stripeCustomerId: true },
@@ -79,6 +98,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const bookOrderDb = db as never as BookOrderDb;
   const nnUser = user;
   const nnPrice = price;
+  const nnPromo = promo;
 
   async function createFreshCustomer(): Promise<string> {
     const customer = await stripe.customers.create({
@@ -115,7 +135,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         payment_method_types: ["card"],
         shipping_address_collection: { allowed_countries: ["US", "CA"] },
         line_items: [{ price: nnPrice.stripePriceId!, quantity: 1 }],
-        metadata: { userId: nnUser.id, bookOrderId: bookOrder.id },
+        ...(nnPromo ? { discounts: [{ coupon: nnPromo.stripeCouponId }] } : {}),
+        // A one-time payment has no subscription_data, so affiliate
+        // attribution rides on the top-level metadata bag the book branch of
+        // the webhook already reads.
+        metadata: {
+          userId: nnUser.id,
+          bookOrderId: bookOrder.id,
+          ...(nnPromo ? { promoCode: nnPromo.code, affiliateId: nnPromo.affiliateId } : {}),
+        },
         success_url: `${baseUrl}/account/book-orders/${bookOrder.id}?checkout=success`,
         cancel_url: `${baseUrl}/books/${nnPrice.product.slug}`,
       };

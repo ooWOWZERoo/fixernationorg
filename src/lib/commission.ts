@@ -35,6 +35,112 @@ function pickRule<T extends { appliesTo: string | null; rate: unknown }>(
   });
 }
 
+interface BookOrderAttributeArgs {
+  bookOrderId: string;
+  affiliateId: string;
+  promoCode: string;
+  /** Cents, straight off the Checkout Session's amount_total. */
+  grossAmountCents: number | null;
+}
+
+// BookOrder is a model the local Prisma client doesn't know about yet
+// (regenerates on the next Vercel build) — cast at the call site per
+// project convention.
+type BookOrderCommissionDb = {
+  bookOrder: {
+    findUnique: (a: unknown) => Promise<{ product: { type: string } } | null>;
+  };
+};
+
+// Parallel to attributeAffiliateCommission, but for a one-time book purchase:
+// no subscription, no invoice, and the ledger row keys off the BookOrder id.
+export async function attributeAffiliateCommissionForBookOrder({
+  bookOrderId,
+  affiliateId,
+  promoCode,
+  grossAmountCents,
+}: BookOrderAttributeArgs): Promise<void> {
+  // checkout.session.completed fires once per session under normal delivery,
+  // so this only matters when a retry follows a failure on our side.
+  const already = await db.commissionLedger.findFirst({
+    where: { sourceType: "PROMO_CODE", sourceRef: bookOrderId },
+    select: { id: true },
+  });
+  if (already) return;
+
+  const bookOrderDb = db as never as BookOrderCommissionDb;
+  const order = await bookOrderDb.bookOrder.findUnique({
+    where: { id: bookOrderId },
+    select: { product: { select: { type: true } } },
+  });
+  const productType = order?.product.type ?? null;
+
+  // Book sales never fall back to an affiliate's catch-all (membership) rate:
+  // only an explicitly BOOK-scoped rule can price one. Pre-filtering here
+  // leaves pickRule's catch-all matching untouched for the subscription path.
+  const allRules = await db.commissionRule.findMany({
+    where: { affiliateId, active: true },
+  });
+  const rule = pickRule(
+    allRules.filter((r) => r.appliesTo === "BOOK"),
+    productType
+  );
+
+  const grossAmount = (grossAmountCents ?? 0) / 100;
+
+  // Same reasoning as the subscription path: the discount was genuinely
+  // redeemed even when no rule can price a commission, so the redemption
+  // still counts against maxUses, and the zero-amount CANCELLED row is the
+  // marker that stops a retry from incrementing usedCount twice.
+  if (!rule) {
+    await db.$transaction(async (tx) => {
+      await tx.commissionLedger.create({
+        data: {
+          affiliateId,
+          sourceType: "PROMO_CODE",
+          sourceRef: bookOrderId,
+          description: `Promo code ${promoCode} redeemed on a book purchase — no active BOOK commission rule matched`,
+          grossAmount,
+          commissionRate: null,
+          commissionAmount: 0,
+          status: "CANCELLED",
+        },
+      });
+      await tx.promoCode.updateMany({
+        where: { code: promoCode },
+        data: { usedCount: { increment: 1 } },
+      });
+    });
+    return;
+  }
+
+  const rate = Number(rule.rate);
+  const commissionAmount = rule.type === "PERCENTAGE" ? grossAmount * rate : rate;
+  const pendingUntil =
+    rule.pendingDays > 0 ? new Date(Date.now() + rule.pendingDays * 86400 * 1000) : null;
+
+  await db.$transaction(async (tx) => {
+    await tx.commissionLedger.create({
+      data: {
+        affiliateId,
+        sourceType: "PROMO_CODE",
+        sourceRef: bookOrderId,
+        description: `Promo code ${promoCode} — book purchase`,
+        grossAmount,
+        commissionRate: rule.type === "PERCENTAGE" ? rate : null,
+        commissionAmount,
+        pendingUntil,
+        status: pendingUntil ? "PENDING" : "APPROVED",
+        ...(pendingUntil ? {} : { approvedAt: new Date() }),
+      },
+    });
+    await tx.promoCode.updateMany({
+      where: { code: promoCode },
+      data: { usedCount: { increment: 1 } },
+    });
+  });
+}
+
 export async function attributeAffiliateCommission({
   sub,
   inv,
