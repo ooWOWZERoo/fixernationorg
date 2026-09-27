@@ -32,13 +32,7 @@ Vercel runs `npm run build` (which runs `prisma generate && next build`), then s
 
 ### Database migrations
 
-Vercel does not run `prisma migrate deploy` automatically. After a schema change, run migrations manually from the Neon console or via a one-off command:
-
-```bash
-DATABASE_URL=<neon-url> npx prisma migrate deploy
-```
-
-Or set up a Vercel build command that includes it: `prisma migrate deploy && prisma generate && next build`.
+Migrations run automatically on every deploy — `npm run build` (`scripts/build.sh`) runs `prisma migrate deploy` before `next build`, deriving a direct (non-pooled) `DIRECT_URL` from `DATABASE_URL` since Neon's PgBouncer pooled connection doesn't support the session-level advisory locks `migrate deploy` needs. No manual step required after a schema change — just push.
 
 ### Environment variables
 
