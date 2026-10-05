@@ -7,12 +7,15 @@ import { recordEvent } from "@/lib/application-events";
 import { enrollInJourneys } from "@/lib/automation";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { provisionAffiliate } from "@/lib/affiliate";
-import { ensureContactForUser, setConsent, ensureAffiliateListMembership } from "@/lib/contacts";
+import { ensureContactForUser, ensureDefaultMorningBoostConsent, ensureAffiliateListMembership } from "@/lib/contacts";
 
+// Uses the default-only helper, not a forced opt-in -- the existing-account
+// link path (an already-registered user gaining a PROVIDER/AMBASSADOR/
+// AFFILIATE role) must not override a consent choice they already made.
 async function enrollMorningBoost(userId: string, email: string, name: string | null) {
   try {
     const contactId = await ensureContactForUser(userId, email, name, "signup");
-    await setConsent(contactId, "MORNING_BOOST", true, "signup");
+    await ensureDefaultMorningBoostConsent(contactId, "signup");
   } catch (err) {
     console.error("[invite] Morning Boost auto-enroll failed:", err);
   }

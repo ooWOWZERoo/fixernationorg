@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
 const addPriceSchema = z.object({
-  interval: z.enum(["FREE_TRIAL", "MONTHLY", "ANNUAL", "ONE_TIME"]),
+  interval: z.enum(["MONTHLY", "ANNUAL", "ONE_TIME"]),
   amount: z.number().int().min(0),
   membershipRole: z.enum(["CONSUMER", "PROVIDER", "AMBASSADOR", "MEMBER"]).nullable().optional(),
   trialDays: z.number().int().positive().nullable().optional(),

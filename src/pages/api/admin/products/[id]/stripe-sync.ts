@@ -11,7 +11,6 @@ const STRIPE_INTERVAL: Record<string, { interval: "month" | "year" } | null> = {
   MONTHLY: { interval: "month" },
   ANNUAL: { interval: "year" },
   ONE_TIME: null,
-  FREE_TRIAL: null,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

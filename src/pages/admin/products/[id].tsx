@@ -19,7 +19,6 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const INTERVAL_LABEL: Record<string, string> = {
-  FREE_TRIAL: "Free Trial",
   MONTHLY: "Monthly",
   ANNUAL: "Annual",
   ONE_TIME: "One-Time",
@@ -129,7 +128,7 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product, bookFormats }) =
       interval: priceForm.interval,
       amount: amountCents,
       membershipRole: priceForm.membershipRole || null,
-      trialDays: priceForm.interval === "FREE_TRIAL" && priceForm.trialDays
+      trialDays: (priceForm.interval === "MONTHLY" || priceForm.interval === "ANNUAL") && priceForm.trialDays
         ? parseInt(priceForm.trialDays, 10)
         : null,
       active: priceForm.active,
@@ -399,7 +398,6 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product, bookFormats }) =
                 onChange={(e) => setPriceForm((f) => ({ ...f, interval: e.target.value }))}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
               >
-                <option value="FREE_TRIAL">Free Trial</option>
                 <option value="MONTHLY">Monthly</option>
                 <option value="ANNUAL">Annual</option>
                 <option value="ONE_TIME">One-Time</option>
@@ -435,15 +433,15 @@ const AdminProductEdit: NextPageWithLayout<Props> = ({ product, bookFormats }) =
               </select>
             </div>
 
-            {priceForm.interval === "FREE_TRIAL" && (
+            {(priceForm.interval === "MONTHLY" || priceForm.interval === "ANNUAL") && (
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">Trial Days</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">Trial Days (optional)</label>
                 <input
                   type="number"
                   min="1"
                   value={priceForm.trialDays}
                   onChange={(e) => setPriceForm((f) => ({ ...f, trialDays: e.target.value }))}
-                  placeholder="7"
+                  placeholder="30"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
                 />
               </div>
