@@ -209,7 +209,7 @@ test("the new affiliate's self-service page shows the promo code, join link, and
   // substring of the full URL, so a loose match resolves to both elements.
   await expect(page.getByText(PROMO_CODE, { exact: true })).toBeVisible();
   await expect(page.getByText(`/join?promo=${PROMO_CODE}`)).toBeVisible();
-  await expect(page.getByText("You earn 15% on all products.")).toBeVisible();
+  await expect(page.getByText("You earn 15% on all products except Book.")).toBeVisible();
 });
 
 test("manual ledger entry -> approve -> mark paid updates the Owed / Paid out balance", async ({ page }) => {
