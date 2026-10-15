@@ -73,8 +73,10 @@ export async function syncApplicationContact(application: ApplicationLike): Prom
       ...(application.userId ? { userId: application.userId } : {}),
     },
     update: {
-      // Fill in name only if not already set
-      ...(firstName ? { firstName: { set: undefined } } : {}),
+      // Name is deliberately left untouched here -- the backfill below
+      // (only fires if the existing contact has no firstName yet) is the
+      // real mechanism for filling it in without clobbering a name a real
+      // person may have since edited via the admin UI.
       // Link userId if application now has one
       ...(application.userId ? { userId: application.userId } : {}),
     },
