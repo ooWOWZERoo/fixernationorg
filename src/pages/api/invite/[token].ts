@@ -202,66 +202,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       role: newRole,
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
 
-    // Awaited, not fire-and-forget -- these are real data grants (Contact,
-    // consent, list membership, AffiliateAssignment, AmbassadorProfile), not
-    // side-effect emails. A Vercel serverless function can be frozen the
-    // instant the HTTP response is sent; an un-awaited promise here has no
-    // guarantee of ever completing (confirmed live via real
-    // ContactConsent_contactId_fkey / Contact_userId_fkey violations in
-    // production logs -- the Contact/consent rows for the SAME request's
-    // own brand-new user were never actually created). The existing-account
-    // link branch above already awaits the equivalent set via
-    // `Promise.all(ops)`. Using allSettled here (not all) so one task's
-    // rejection can't cut the await short before its siblings finish.
-    const grantOps: { name: string; promise: Promise<unknown> }[] = [];
-
     if (newRole === "PROVIDER" || newRole === "AMBASSADOR" || newRole === "AFFILIATE") {
-      grantOps.push({ name: "enrollMorningBoost", promise: enrollMorningBoost(user.id, application.email, name.trim()) });
+      enrollMorningBoost(user.id, application.email, name.trim());
     }
 
     // Ambassador-specific setup
     if (newRole === "AMBASSADOR") {
-      grantOps.push({
-        name: "ambassadorProfile",
-        promise: generateUniqueReferralCode().then((referralCode) =>
+      generateUniqueReferralCode()
+        .then((referralCode) =>
           db.ambassadorProfile.upsert({
             where: { userId: user.id },
             create: { userId: user.id, referralCode },
             update: {},
           })
-        ),
-      });
-      grantOps.push({
-        name: "provisionAffiliate(AMBASSADOR)",
-        promise: provisionAffiliate({
-          userId: user.id,
-          applicationId: application.id,
-          affiliateType: "AMBASSADOR",
-          assignedBy: "invite-claim",
-        }),
-      });
+        )
+        .catch((err) => console.error("[invite] AmbassadorProfile create failed:", err));
+      provisionAffiliate({
+        userId: user.id,
+        applicationId: application.id,
+        affiliateType: "AMBASSADOR",
+        assignedBy: "invite-claim",
+      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
     }
 
     // Standalone affiliate — commissions only, no ambassador profile
     if (newRole === "AFFILIATE") {
-      grantOps.push({
-        name: "provisionAffiliate(AFFILIATE)",
-        promise: provisionAffiliate({
-          userId: user.id,
-          applicationId: application.id,
-          affiliateType: "AFFILIATE",
-          assignedBy: "invite-claim",
-        }),
-      });
-      grantOps.push({ name: "enrollAffiliateList", promise: enrollAffiliateList(user.id, application.email, name.trim()) });
+      provisionAffiliate({
+        userId: user.id,
+        applicationId: application.id,
+        affiliateType: "AFFILIATE",
+        assignedBy: "invite-claim",
+      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
+      enrollAffiliateList(user.id, application.email, name.trim());
     }
-
-    const grantResults = await Promise.allSettled(grantOps.map((op) => op.promise));
-    grantResults.forEach((result, i) => {
-      if (result.status === "rejected") {
-        console.error(`[invite] new-account role grant task "${grantOps[i].name}" failed:`, result.reason);
-      }
-    });
 
     // Auto-join role-based groups and fire automation triggers
     try {
