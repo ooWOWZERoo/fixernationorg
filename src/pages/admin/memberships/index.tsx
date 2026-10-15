@@ -91,7 +91,7 @@ const AdminMembershipsPage: NextPageWithLayout<Props> = ({ memberships, counts }
   const mrr = memberships
     .filter((m) => m.status === "ACTIVE" || m.status === "TRIALING")
     .reduce((sum, m) => {
-      const monthly = m.price.interval === "YEARLY" ? m.price.amount / 12 : m.price.amount;
+      const monthly = m.price.interval === "ANNUAL" ? m.price.amount / 12 : m.price.amount;
       return sum + monthly;
     }, 0);
 
@@ -258,7 +258,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const nowMs = Date.now();
 
   const memberships: MembershipRow[] = rows.map((r) => {
-    const monthly = r.price.interval === "YEARLY" ? r.price.amount / 12 : r.price.amount;
+    const monthly = r.price.interval === "ANNUAL" ? r.price.amount / 12 : r.price.amount;
     const msActive = nowMs - r.createdAt.getTime();
     const monthsActive = Math.max(1, Math.round(msActive / (30 * 24 * 60 * 60 * 1000)));
     const ltv = Math.round(monthly * monthsActive);
