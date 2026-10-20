@@ -9,25 +9,62 @@ import { generateUniqueReferralCode } from "@/lib/referral";
 import { provisionAffiliate } from "@/lib/affiliate";
 import { ensureContactForUser, ensureDefaultMorningBoostConsent, ensureAffiliateListMembership } from "@/lib/contacts";
 
-// Uses the default-only helper, not a forced opt-in -- the existing-account
-// link path (an already-registered user gaining a PROVIDER/AMBASSADOR/
-// AFFILIATE role) must not override a consent choice they already made.
-async function enrollMorningBoost(userId: string, email: string, name: string | null) {
-  try {
-    const contactId = await ensureContactForUser(userId, email, name, "signup");
-    await ensureDefaultMorningBoostConsent(contactId, "signup");
-  } catch (err) {
-    console.error("[invite] Morning Boost auto-enroll failed:", err);
-  }
-}
+// Resolves the Contact once and runs the role-grant side effects that hang
+// off it. Previously, Morning Boost consent and Affiliates list membership
+// each independently called ensureContactForUser for the SAME user at the
+// same time -- two concurrent find-or-create/update races on the same row,
+// which is what actually produced the FK violations seen in production
+// (confirmed: they persisted even after making the calls awaited, just
+// shifting from .create() to .update() failures). Resolving the contact
+// once here removes that race at the source, and -- since every downstream
+// step below is now a single idempotent write instead of its own 2-4-step
+// chain -- awaiting this whole batch adds much less latency than the
+// previous per-helper duplication did.
+async function runRoleGrantSideEffects(
+  logLabel: string,
+  userId: string,
+  applicationId: string,
+  email: string,
+  name: string | null,
+  newRole: "PROVIDER" | "AMBASSADOR" | "AFFILIATE"
+): Promise<void> {
+  const contactId = await ensureContactForUser(userId, email, name, "signup");
 
-async function enrollAffiliateList(userId: string, email: string, name: string | null) {
-  try {
-    const contactId = await ensureContactForUser(userId, email, name, "signup");
-    await ensureAffiliateListMembership(contactId);
-  } catch (err) {
-    console.error("[invite] Affiliates list auto-enroll failed:", err);
+  const grantOps: { name: string; promise: Promise<unknown> }[] = [
+    { name: "morningBoostConsent", promise: ensureDefaultMorningBoostConsent(contactId, "signup") },
+  ];
+
+  if (newRole === "AMBASSADOR") {
+    grantOps.push({
+      name: "ambassadorProfile",
+      promise: generateUniqueReferralCode().then((referralCode) =>
+        db.ambassadorProfile.upsert({
+          where: { userId },
+          create: { userId, referralCode },
+          update: {},
+        })
+      ),
+    });
+    grantOps.push({
+      name: "provisionAffiliate(AMBASSADOR)",
+      promise: provisionAffiliate({ userId, applicationId, affiliateType: "AMBASSADOR", assignedBy: "invite-claim" }),
+    });
   }
+
+  if (newRole === "AFFILIATE") {
+    grantOps.push({
+      name: "provisionAffiliate(AFFILIATE)",
+      promise: provisionAffiliate({ userId, applicationId, affiliateType: "AFFILIATE", assignedBy: "invite-claim" }),
+    });
+    grantOps.push({ name: "affiliateListMembership", promise: ensureAffiliateListMembership(contactId) });
+  }
+
+  const results = await Promise.allSettled(grantOps.map((op) => op.promise));
+  results.forEach((result, i) => {
+    if (result.status === "rejected") {
+      console.error(`[invite] ${logLabel} role grant task "${grantOps[i].name}" failed:`, result.reason);
+    }
+  });
 }
 
 const postSchema = z.object({
@@ -111,57 +148,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : application.type === "AFFILIATE" ? "AFFILIATE"
         : null;
 
-      const ops: Promise<unknown>[] = [
-        db.userApplication.update({
-          where: { id: application.id },
-          data: {
-            userId: existing.id,
-            accountInviteToken: null,
-            accountInviteExpiresAt: null,
-          },
-        }),
-      ];
+      await db.userApplication.update({
+        where: { id: application.id },
+        data: {
+          userId: existing.id,
+          accountInviteToken: null,
+          accountInviteExpiresAt: null,
+        },
+      });
 
       if (newRole) {
-        ops.push(db.user.update({ where: { id: existing.id }, data: { role: newRole } }));
-        ops.push(enrollMorningBoost(existing.id, application.email, application.name));
+        await db.user.update({ where: { id: existing.id }, data: { role: newRole } });
+        await runRoleGrantSideEffects("existing-account", existing.id, application.id, application.email, application.name, newRole);
 
-        if (newRole === "AMBASSADOR") {
-          ops.push(
-            generateUniqueReferralCode().then((referralCode) =>
-              db.ambassadorProfile.upsert({
-                where: { userId: existing.id },
-                create: { userId: existing.id, referralCode },
-                update: {},
-              })
-            )
-          );
-          ops.push(
-            provisionAffiliate({
-              userId: existing.id,
-              applicationId: application.id,
-              affiliateType: "AMBASSADOR",
-              assignedBy: "invite-claim",
-            })
-          );
-        }
-
-        if (newRole === "AFFILIATE") {
-          ops.push(
-            provisionAffiliate({
-              userId: existing.id,
-              applicationId: application.id,
-              affiliateType: "AFFILIATE",
-              assignedBy: "invite-claim",
-            })
-          );
-          ops.push(enrollAffiliateList(existing.id, application.email, application.name));
-        }
-      }
-
-      await Promise.all(ops);
-
-      if (newRole) {
         autoJoinGroups(existing.id, newRole).catch(() => {});
         enrollInJourneys({ trigger: "ROLE_CHANGE", userId: existing.id, triggerConfig: { role: newRole } }).catch(() => {});
         recordEvent(application.id, "ACCOUNT_LINKED", null, { userId: existing.id, role: newRole }).catch(() => {});
@@ -203,37 +202,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }).catch((err) => console.error("[events] ACCOUNT_CREATED record failed:", err));
 
     if (newRole === "PROVIDER" || newRole === "AMBASSADOR" || newRole === "AFFILIATE") {
-      enrollMorningBoost(user.id, application.email, name.trim());
-    }
-
-    // Ambassador-specific setup
-    if (newRole === "AMBASSADOR") {
-      generateUniqueReferralCode()
-        .then((referralCode) =>
-          db.ambassadorProfile.upsert({
-            where: { userId: user.id },
-            create: { userId: user.id, referralCode },
-            update: {},
-          })
-        )
-        .catch((err) => console.error("[invite] AmbassadorProfile create failed:", err));
-      provisionAffiliate({
-        userId: user.id,
-        applicationId: application.id,
-        affiliateType: "AMBASSADOR",
-        assignedBy: "invite-claim",
-      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
-    }
-
-    // Standalone affiliate — commissions only, no ambassador profile
-    if (newRole === "AFFILIATE") {
-      provisionAffiliate({
-        userId: user.id,
-        applicationId: application.id,
-        affiliateType: "AFFILIATE",
-        assignedBy: "invite-claim",
-      }).catch((err) => console.error("[invite] provisionAffiliate failed:", err));
-      enrollAffiliateList(user.id, application.email, name.trim());
+      await runRoleGrantSideEffects("new-account", user.id, application.id, application.email, name.trim(), newRole);
     }
 
     // Auto-join role-based groups and fire automation triggers
