@@ -29,11 +29,11 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://in.heycatch.ai",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https://res.cloudinary.com",
               "font-src 'self' data: https://fonts.gstatic.com",
-              "connect-src 'self' https://api.stripe.com https://api.cloudinary.com",
+              "connect-src 'self' https://api.stripe.com https://api.cloudinary.com https://in.heycatch.ai",
               "frame-src https://js.stripe.com https://hooks.stripe.com",
               "worker-src 'self'",
               "media-src 'self' https://res.cloudinary.com",
@@ -43,6 +43,21 @@ const nextConfig = {
             ].join("; "),
           },
         ],
+      },
+    ];
+  },
+
+  // HeyCatch channel-attribution short links -- single lowercase-letter or
+  // digit paths are reserved by HeyCatch; confirmed no real route in
+  // src/pages uses one (checked 2026-10-22, no top-level single-character
+  // file/dir and no catch-all route exists). If a real single-character
+  // route is ever added, exclude it from this regex first.
+  async redirects() {
+    return [
+      {
+        source: "/:l([a-z0-9])",
+        destination: "/?utm_source=heycatch&utm_campaign=:l",
+        permanent: false,
       },
     ];
   },
