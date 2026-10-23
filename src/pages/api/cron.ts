@@ -9,7 +9,7 @@ import { buildAccountInviteEmail } from "@/lib/emails/account-invite";
 import { loadTemplate } from "@/lib/template-engine";
 import { applyApplicationTags } from "@/lib/application-crm";
 import { applicationRoleLabel, type ApplicationTypeKey } from "@/lib/application-labels";
-import { ensureContactForUser } from "@/lib/contacts";
+import { ensureContactForUser, setConsent } from "@/lib/contacts";
 import { sendCampaignNow, continueCampaignSend, utcDayWindow } from "@/lib/send-campaign";
 import { continueProviderCampaignSend, findPausedProviderCampaigns } from "@/lib/send-provider-campaign";
 import {
@@ -755,6 +755,48 @@ async function runCrmReconciliation(): Promise<{ message: string }> {
   return { message: `Reconciled ${usersLinked} orphaned user(s), linked ${contactsLinked} previously-unlinked contact(s)` };
 }
 
+// Source tag used ONLY by the trial.fixernation.org landing page's Morning
+// Boost signup (see src/pages/trial-landing.tsx) -- this is the sole
+// identifier that scopes this sweep to those sign-ups specifically. Never
+// reuse this source string for a regular self-service Morning Boost
+// opt-in (e.g. /account), or this job will auto-unsubscribe a real member
+// after 30 days.
+const MORNING_BOOST_TRIAL_SOURCE = "trial_landing_30day";
+const MORNING_BOOST_TRIAL_DAYS = 30;
+
+// Morning Boost has no built-in expiry concept -- consent is permanent
+// until someone unsubscribes. The trial landing page's "30 days of
+// Morning Boosts" offer needs one, so this sweep finds contacts who
+// opted in via that specific source more than 30 days ago and opts them
+// out, which also removes them from the Morning Boost ContactList
+// (setConsent's own sync). Scoped tightly to MORNING_BOOST_TRIAL_SOURCE so
+// a real member's permanent opt-in (via /account) is never touched.
+async function runMorningBoostTrialExpiry(): Promise<{ message: string }> {
+  const cutoff = new Date(Date.now() - MORNING_BOOST_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+  const expired = await db.contactConsent.findMany({
+    where: {
+      topic: "MORNING_BOOST",
+      optedIn: true,
+      source: MORNING_BOOST_TRIAL_SOURCE,
+      optedInAt: { lte: cutoff },
+    },
+    select: { contactId: true },
+  });
+
+  let expiredCount = 0;
+  for (const row of expired) {
+    try {
+      await setConsent(row.contactId, "MORNING_BOOST", false, "trial_landing_30day_expired");
+      expiredCount++;
+    } catch (err) {
+      console.error(`[morning-boost-trial-expiry] failed to expire contact ${row.contactId}:`, err);
+    }
+  }
+
+  return { message: `Expired ${expiredCount} of ${expired.length} 30-day Morning Boost trial sign-up(s)` };
+}
+
 const JOBS: Record<string, JobHandler> = {
   "health-check": async () => ({ message: "Health check OK" }),
   "campaign-scheduler": runCampaignScheduler,
@@ -768,6 +810,7 @@ const JOBS: Record<string, JobHandler> = {
   "membership-renewal-reminders": runMembershipRenewalReminders,
   "campaign-send-hourly-resume": runCampaignSendHourlyResume,
   "reconcile-crm": runCrmReconciliation,
+  "morning-boost-trial-expiry": runMorningBoostTrialExpiry,
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

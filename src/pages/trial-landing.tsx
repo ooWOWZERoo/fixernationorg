@@ -16,11 +16,17 @@ import type { NextPageWithLayout } from "@/types/next";
 // reusing /join's existing, already-correct flow is the actual
 // equivalent of "the same checkout process."
 //
-// The Morning Boost signup form is still a safe placeholder (matching the
-// original's FN_CONFIG.morningBoostSignupEndpoint being unset) until a
-// real secure opt-in endpoint is confirmed -- not invented here.
+// The Morning Boost form posts to the existing /api/public/subscribe
+// endpoint (same CRM-contact-creation + consent + list-membership logic
+// every other public signup form on this site already uses), tagged with
+// a source string that ONLY this landing page uses. That source is what
+// scopes the 30-day auto-expiry cron job (runMorningBoostTrialExpiry in
+// src/pages/api/cron.ts) to these sign-ups specifically -- never change
+// this string without updating that job to match, or trial sign-ups will
+// never expire (or worse, a real member's source could start matching).
 const MEMBERSHIP_TRIAL_URL = "/join";
-const MORNING_BOOST_SIGNUP_ENDPOINT = "";
+const MORNING_BOOST_SIGNUP_ENDPOINT = "/api/public/subscribe";
+const MORNING_BOOST_TRIAL_SOURCE = "trial_landing_30day";
 
 const TrialLandingPage: NextPageWithLayout = () => {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -62,13 +68,12 @@ const TrialLandingPage: NextPageWithLayout = () => {
     }
     const firstName = (form.elements.namedItem("firstName") as HTMLInputElement).value.trim();
     const email = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
-    const consent = (form.elements.namedItem("consent") as HTMLInputElement).checked;
     setSubmitting(true);
     try {
       const response = await fetch(url.href, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, email, consent, source: "fnphwn-30-day-landing-page", campaign: "morning-boost-30-day" }),
+        body: JSON.stringify({ email, firstName, topic: "MORNING_BOOST", source: MORNING_BOOST_TRIAL_SOURCE }),
       });
       if (!response.ok) throw new Error("Failed");
       setFormStatus("Thanks! Please check your inbox for the confirmation email.");
