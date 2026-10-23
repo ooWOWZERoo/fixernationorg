@@ -5,11 +5,21 @@ import type { NextPageWithLayout } from "@/types/next";
 // Served at trial.fixernation.org via the hostname rewrite in
 // src/middleware.ts. Content, structure, and CSS ported verbatim from the
 // supplied FNPHWN_Project_B_Landing_Page static page -- see that README
-// for the original design notes. The two CTAs are deliberately left as
-// safe placeholders (matching the original's FN_CONFIG.membershipTrialUrl
-// / morningBoostSignupEndpoint being unset) until a real trial-registration
-// URL and a secure opt-in endpoint are confirmed -- not invented here.
-const MEMBERSHIP_TRIAL_URL = "";
+// for the original design notes.
+//
+// The membership CTA sends the user to /join -- the exact same page and
+// checkout flow (sign-in gate, plan picker, create-session API call,
+// Stripe redirect) the main site's own free-trial button uses. It does
+// NOT create a Stripe Checkout Session directly from this page: a session
+// URL (like checkout.stripe.com/g/pay/cs_live_...) is single-use and tied
+// to one specific transaction, so there's nothing reusable to hardcode --
+// reusing /join's existing, already-correct flow is the actual
+// equivalent of "the same checkout process."
+//
+// The Morning Boost signup form is still a safe placeholder (matching the
+// original's FN_CONFIG.morningBoostSignupEndpoint being unset) until a
+// real secure opt-in endpoint is confirmed -- not invented here.
+const MEMBERSHIP_TRIAL_URL = "/join";
 const MORNING_BOOST_SIGNUP_ENDPOINT = "";
 
 const TrialLandingPage: NextPageWithLayout = () => {
