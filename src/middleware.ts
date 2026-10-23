@@ -47,6 +47,18 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // ── Campaign landing subdomain ──────────────────────────────────────────────
+  // trial.fixernation.org serves a dedicated marketing landing page at "/",
+  // internally rewritten to src/pages/trial-landing.tsx -- the URL bar stays
+  // on trial.fixernation.org. Any other path on that host falls through to
+  // the normal site so links from the landing page (e.g. to /join) still work.
+  const host = req.headers.get("host") ?? "";
+  if (host === "trial.fixernation.org" && pathname === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/trial-landing";
+    return NextResponse.rewrite(url);
+  }
+
   // ── Admin route gate ────────────────────────────────────────────────────────
   if (pathname.startsWith("/admin")) {
     const token = await getToken({ req, secret: process.env.AUTH_SECRET });
