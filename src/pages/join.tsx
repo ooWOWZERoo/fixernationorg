@@ -33,7 +33,7 @@ interface Props {
 const FAQS = [
   {
     q: "What's included in all memberships?",
-    a: "Every member gets the FN community, daily Morning Boost emails, the Vetted Professional Network, Ask The Fixer, the blog, the library, and the mobile app.",
+    a: "Every member gets the FN community, daily Morning Boost emails, the Vetted Professional Network, Ask The Fixer, the blog, and the library.",
   },
   {
     q: "How does the free trial work?",
