@@ -6,7 +6,7 @@ import { analytics } from "@heycatch/sdk";
 // to inline per their own docs -- same category as a Stripe publishable
 // key, not a secret.
 analytics.init({
-  projectKey: "hck_pk_tOsQs0Zq89tBJ9db21r7Efyk5LmE_u5T",
+  projectKey: "hck_pk_3W2c3G4N35Ber8LidECjhrjEwBYZomwI",
   install: {
     framework: "nextjs",
     frameworkVersion: "15",
