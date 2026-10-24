@@ -33,6 +33,7 @@ const AUTOMATION_CATEGORIES: { key: string; label: string }[] = [
   { key: "marketing", label: "Marketing" },
   { key: "success", label: "Community & milestones" },
   { key: "payments", label: "Payments & ops" },
+  { key: "trial", label: "Free trial emails" },
 ];
 
 interface Props {

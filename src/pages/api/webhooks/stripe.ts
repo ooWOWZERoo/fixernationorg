@@ -10,7 +10,8 @@ import {
   buildPaymentFailedEmail,
   buildMembershipCanceledEmail,
 } from "@/lib/emails/membership";
-import { enrollInJourneys } from "@/lib/automation";
+import { enrollInJourneys, cancelActiveEnrollments } from "@/lib/automation";
+import { MB_TRIAL_TAG } from "@/lib/trial-automation";
 import { ensureContactForUser, ensureDefaultMorningBoostConsent } from "@/lib/contacts";
 import {
   attributeAffiliateCommission,
@@ -40,7 +41,7 @@ type MembershipDb = {
     updateMany: (a: unknown) => Promise<unknown>;
     findFirst: (
       a: unknown
-    ) => Promise<{ userId: string; priceId: string; currentPeriodEnd: Date | null } | null>;
+    ) => Promise<{ userId: string; priceId: string; status: string; currentPeriodEnd: Date | null } | null>;
   };
 };
 
@@ -151,6 +152,33 @@ async function sendMembershipThankYouEmail(userId: string, priceId: string) {
   await sendTransactionalEmail({ to: user.email, ...email });
 }
 
+// Trial-journey hooks, keyed off the status transition rather than the
+// Stripe event type so webhook retries and the created/updated/
+// invoice.payment_succeeded overlap can't double-fire them (the previous
+// status is already written by the first delivery).
+function applyTrialJourneyTransitions(userId: string, prevStatus: string | null, status: string) {
+  if (status === "TRIALING" && prevStatus !== "TRIALING") {
+    enrollInJourneys({ trigger: "TRIAL_STARTED" as never, userId }).catch(() => {});
+  }
+
+  // Trial converted to paid: the onboarding nurture's trial-end reminders no
+  // longer apply.
+  if (prevStatus === "TRIALING" && status === "ACTIVE") {
+    cancelActiveEnrollments({ trigger: "TRIAL_STARTED" as never, userId, reason: "trial_converted" }).catch(() => {});
+  }
+
+  // Track switch: an email-only Morning Boost trial contact who starts a
+  // full trial (or pays) stops getting membership invitations.
+  if ((status === "TRIALING" || status === "ACTIVE") && prevStatus !== status) {
+    cancelActiveEnrollments({
+      trigger: "TAG_ADDED",
+      triggerConfig: { tag: MB_TRIAL_TAG },
+      userId,
+      reason: status === "TRIALING" ? "full_trial_started" : "membership_active",
+    }).catch(() => {});
+  }
+}
+
 export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdFromCustomer(customerId);
@@ -194,6 +222,7 @@ export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
       where: { userId } as unknown as Record<string, unknown>,
       data: { source: "STRIPE", status, currentPeriodEnd, cancelAtPeriodEnd: sub.cancel_at_period_end, trialEnd, updatedAt: new Date() } as unknown as Record<string, unknown>,
     });
+    applyTrialJourneyTransitions(userId, existing.status, status);
     return;
   }
 
@@ -260,6 +289,8 @@ export async function handleSubscriptionUpsert(sub: Stripe.Subscription) {
       }
     }
   }
+
+  applyTrialJourneyTransitions(userId, existingMembership?.status ?? null, status);
 
   if (isNewMembership) {
     try {

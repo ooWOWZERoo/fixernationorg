@@ -24,20 +24,34 @@ export function buildCampaignEmail(
     ? `<img src="${BASE_URL}/api/track/open/${sendId}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;" />`
     : "";
 
-  const footerHtml = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:32px;">
-  <tr><td style="padding:16px 0;border-top:1px solid #e5e7eb;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;color:#9ca3af;line-height:1.6;">
-    You're receiving this because you're subscribed to Fixer Nation emails.<br>
-    <a href="${unsubUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a>
-  </td></tr>
-</table>
-${trackingPixel}`;
-
-  const footerText = `\n\n--\nYou're receiving this because you're subscribed to Fixer Nation emails.\nUnsubscribe: ${unsubUrl}`;
+  const footer = buildMarketingFooter(unsubUrl);
 
   return {
     subject,
-    html: bodyHtml + footerHtml,
-    text: bodyText + footerText,
+    html: bodyHtml + footer.html + `\n${trackingPixel}`,
+    text: bodyText + footer.text,
   };
+}
+
+// Shared marketing-email footer. Campaign sends pass a resolved unsubscribe
+// URL; stored automation templates (scripts/seed-trial-email-automation.ts)
+// pass the literal {{unsubscribe_url}} / {{manage_preferences_url}} tokens,
+// which the automation engine resolves per recipient at send time.
+export function buildMarketingFooter(unsubUrl: string, preferencesUrl?: string): { html: string; text: string } {
+  const prefsHtml = preferencesUrl
+    ? ` &middot; <a href="${preferencesUrl}" style="color:#9ca3af;text-decoration:underline;">Manage email preferences</a>`
+    : "";
+  const html = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:32px;">
+  <tr><td style="padding:16px 0;border-top:1px solid #e5e7eb;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;color:#9ca3af;line-height:1.6;">
+    You're receiving this because you're subscribed to Fixer Nation emails.<br>
+    <a href="${unsubUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a>${prefsHtml}
+  </td></tr>
+</table>`;
+
+  const text =
+    `\n\n--\nYou're receiving this because you're subscribed to Fixer Nation emails.\nUnsubscribe: ${unsubUrl}` +
+    (preferencesUrl ? `\nManage email preferences: ${preferencesUrl}` : "");
+
+  return { html, text };
 }

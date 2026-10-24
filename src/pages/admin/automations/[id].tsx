@@ -30,6 +30,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   GROUP_JOIN: "Group join",
   EVENT_RSVP: "Event RSVP",
   LOYALTY_MILESTONE: "Loyalty milestone",
+  TRIAL_STARTED: "Membership trial started",
 };
 
 const STATUS_COLORS: Record<string, string> = {

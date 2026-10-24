@@ -4,6 +4,13 @@ import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { setConsent } from "@/lib/contacts";
 import { enrollInJourneys } from "@/lib/automation";
+import { MB_TRIAL_SOURCE, MB_TRIAL_TAG } from "@/lib/trial-automation";
+
+type MembershipStatusDb = {
+  userMembership: {
+    findUnique: (a: unknown) => Promise<{ status: string } | null>;
+  };
+};
 
 const schema = z.object({
   email: z.string().email(),
@@ -44,9 +51,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // — otherwise a member who subscribes via this public form before (or
   // instead of) registering ends up with a permanently unlinked CRM record
   // even after they do sign up, since nothing else ever revisits this row.
+  let linkedUserId = contact.userId;
   if (!contact.userId) {
     const existingUser = await db.user.findUnique({ where: { email }, select: { id: true } });
     if (existingUser) {
+      linkedUserId = existingUser.id;
       await db.contact.update({ where: { id: contact.id }, data: { userId: existingUser.id } }).catch(() => {});
     }
   }
@@ -98,6 +107,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }).then(() =>
     enrollInJourneys({ trigger: "TAG_ADDED", contactId: contact.id, triggerConfig: { tag: NEWSLETTER_TAG } })
   ).catch(() => {});
+
+  // 30-day Morning Boost trial signup (trial.fixernation.org) -> MB_ONLY
+  // membership-invitation journey. Its own tag, gated on this one source,
+  // so the general newsletter tag above can never pull other subscribers
+  // into it. Anyone already trialing or holding a membership is skipped --
+  // they shouldn't get trial sales prompts.
+  if (source === MB_TRIAL_SOURCE) {
+    (async () => {
+      if (linkedUserId) {
+        const membership = await (db as never as MembershipStatusDb).userMembership.findUnique({
+          where: { userId: linkedUserId },
+        });
+        if (membership && (membership.status === "ACTIVE" || membership.status === "TRIALING")) return;
+      }
+      await db.contactTag.upsert({
+        where: { contactId_tag: { contactId: contact.id, tag: MB_TRIAL_TAG } },
+        create: { contactId: contact.id, tag: MB_TRIAL_TAG },
+        update: {},
+      });
+      await enrollInJourneys({ trigger: "TAG_ADDED", contactId: contact.id, triggerConfig: { tag: MB_TRIAL_TAG } });
+    })().catch(() => {});
+  }
 
   return res.status(200).json({ ok: true });
 }

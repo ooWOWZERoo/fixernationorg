@@ -50,6 +50,7 @@ const STEP_META: Record<string, { label: string; bg: string; border: string; tex
 const TRIGGER_LABELS: Record<string, string> = {
   MANUAL: "Manual", SIGNUP: "User signup", ROLE_CHANGE: "Role change",
   TAG_ADDED: "Tag added", APPLICATION_ACCEPTED: "Application accepted",
+  TRIAL_STARTED: "Membership trial started",
 };
 
 // ── Helper: compute positions ─────────────────────────────────────────────────

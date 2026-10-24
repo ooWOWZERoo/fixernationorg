@@ -504,7 +504,10 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
   const due30 = await membershipDb.userMembership.findMany({
     where: {
       renewal30ReminderSentAt: null,
-      status: { in: ["ACTIVE", "TRIALING"] },
+      // ACTIVE only: during a Stripe trial currentPeriodEnd is the trial end,
+      // so TRIALING rows would get renewal copy before they've ever been
+      // charged. Trial-period messaging belongs to the FULL_TRIAL journey.
+      status: "ACTIVE",
       currentPeriodEnd: { gt: in7d, lte: in30d },
       OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }, { source: "MANUAL_GRANT" }],
     },
@@ -566,7 +569,7 @@ async function runMembershipRenewalReminders(): Promise<{ message: string }> {
   const due7 = await membershipDb.userMembership.findMany({
     where: {
       renewal7ReminderSentAt: null,
-      status: { in: ["ACTIVE", "TRIALING"] },
+      status: "ACTIVE",
       currentPeriodEnd: { gt: now, lte: in7d },
       OR: [{ source: "STRIPE", cancelAtPeriodEnd: false }, { source: "GIFT_CODE" }, { source: "MANUAL_GRANT" }],
     },

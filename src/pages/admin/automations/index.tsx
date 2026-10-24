@@ -22,6 +22,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   DAILY_CHECKIN_STREAK: "Daily check-in streak",
   RECOGNITION_RECEIVED: "Recognition received",
   BRAIN_BUILDER_MILESTONE: "Brain Builder milestone",
+  TRIAL_STARTED: "Membership trial started",
 };
 
 const TEMPLATE_CATEGORIES: { key: string; label: string }[] = [
@@ -32,6 +33,7 @@ const TEMPLATE_CATEGORIES: { key: string; label: string }[] = [
   { key: "marketing", label: "Marketing" },
   { key: "success", label: "Customer success" },
   { key: "payments", label: "Payments & ops" },
+  { key: "trial", label: "Free trial" },
 ];
 
 const JOURNEY_TEMPLATES = [
