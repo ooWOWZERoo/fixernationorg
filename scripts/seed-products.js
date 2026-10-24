@@ -94,7 +94,6 @@ async function main() {
         "Everything in Free, plus:",
         "Full blog and library access",
         "Vetted Professional Network",
-        "Mobile app access",
       ],
       active: true,
       sortOrder: 2,
