@@ -459,6 +459,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Downgrade to CONSUMER
       await db.user.update({ where: { id: userId }, data: { role: "CONSUMER" } });
 
+      // A trial cancelled outright (never converted) must stop its FULL_TRIAL
+      // onboarding nurture too -- this branch is separate from
+      // handleSubscriptionUpsert/applyTrialJourneyTransitions (which only
+      // covers the TRIALING-entry and TRIALING->ACTIVE-conversion cases), so
+      // without this a cancelled trial would otherwise keep receiving
+      // day-N onboarding emails on schedule.
+      cancelActiveEnrollments({
+        trigger: "TRIAL_STARTED" as never,
+        userId,
+        reason: "trial_canceled",
+      }).catch(() => {});
+
       try {
         const info = await getUserAndPlan(userId);
         if (info) {
