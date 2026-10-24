@@ -361,6 +361,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing h1{font-size:clamp(2.7rem,5vw,5rem);font-weight:800;margin:26px 0}
         .fn-trial-landing h2{font-size:clamp(2.2rem,3.65vw,3.65rem);margin:14px 0 23px}
         .fn-trial-landing h3{font-size:1.22rem}
+        .fn-trial-landing .hero h1,.fn-trial-landing .community h2,.fn-trial-landing .last-word h2,.fn-trial-landing .visual-box h3{color:#fff}
         .fn-trial-landing p{margin:0 0 17px}
         .fn-trial-landing .wrap{width:min(1160px,calc(100% - 48px));margin:auto}
         .fn-trial-landing .skip{position:absolute;left:-9999px}
@@ -380,7 +381,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .hero:after{content:'';position:absolute;width:660px;height:660px;border:1px solid #ffffff18;border-radius:50%;right:-170px;top:-210px}
         .fn-trial-landing .sun-glow{position:absolute;width:500px;height:500px;right:16%;bottom:-380px;background:#f2c46c33;filter:blur(80px);border-radius:50%}
         .fn-trial-landing .hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:1.1fr .9fr;align-items:center;min-height:670px;gap:60px;padding:80px 0}
-        .fn-trial-landing .eyebrow{font-size:12px;font-weight:800;letter-spacing:.19em;color:#b8731e}
+        .fn-trial-landing .eyebrow{font-size:12px;font-weight:800;letter-spacing:.19em;color:#9a5f0f;background:none;padding:0;display:inline}
         .fn-trial-landing .eyebrow.light{color:#fac877}
         .fn-trial-landing .hero h1 em,.fn-trial-landing .community h2 em,.fn-trial-landing .last-word em{color:#ffcc73}
         .fn-trial-landing .hero h1 em,.fn-trial-landing h2 em{font-style:normal}
@@ -410,7 +411,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .star{color:#e9a22a}
         .fn-trial-landing .section{padding:105px 0}
         .fn-trial-landing .split{display:grid;grid-template-columns:1fr 1fr;gap:90px;align-items:center}
-        .fn-trial-landing .section h2 em{color:#dd8e1d}
+        .fn-trial-landing .section h2 em{color:#b06a12}
         .fn-trial-landing .section-lead{font-size:19px;color:#546579}
         .fn-trial-landing .benefit-lines{margin:30px 0}
         .fn-trial-landing .benefit-lines>div{display:flex;align-items:flex-start;gap:16px;margin:15px 0}
@@ -462,12 +463,12 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .signup-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:25px}
         .fn-trial-landing .signup-card{background:#fff;border-radius:24px;border:1px solid #dfe6ed;padding:40px;display:flex;flex-direction:column;box-shadow:0 15px 35px #173e5b13}
         .fn-trial-landing .signup-card.primary{border:2px solid #efae43}
-        .fn-trial-landing .card-tag{font-weight:800;color:#b47617;font-size:11px;letter-spacing:.12em}
+        .fn-trial-landing .card-tag{font-weight:800;color:#9a5f0f;font-size:11px;letter-spacing:.12em}
         .fn-trial-landing .signup-card h3{font-size:26px;margin:16px 0}
         .fn-trial-landing .signup-card p{color:#5a687a}
         .fn-trial-landing .signup-card ul{list-style:disc;padding-left:23px;margin:10px 0 34px;line-height:2;color:#243c5c}
         .fn-trial-landing .signup-card.primary .btn{margin-top:auto}
-        .fn-trial-landing .disclosure{font-size:12px!important;color:#6d7887!important;margin-top:16px}
+        .fn-trial-landing .disclosure{font-size:12px!important;color:#5f6b7a!important;margin-top:16px}
         .fn-trial-landing .signup-card form{display:flex;flex-direction:column;gap:10px;margin-top:8px}
         .fn-trial-landing .signup-card label{font-weight:700;font-size:13px}
         .fn-trial-landing .signup-card input:not([type=checkbox]){font:inherit;padding:15px 16px;width:100%;border:1px solid #cbd5df;border-radius:9px;background:white}
