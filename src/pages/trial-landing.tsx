@@ -177,10 +177,10 @@ const TrialLandingPage: NextPageWithLayout = () => {
               <div className="boost-sun" />
               <a className="boost-card" href="https://fixernation.org/morning-boost">
                 <img
-                  src="https://res.cloudinary.com/x9ll3a3t/image/upload/c_fill,w_800,h_400,g_center,f_auto,q_auto/v1790595099/morning-boost/vchq4m4k1glumxuiplnl.png"
+                  src="https://res.cloudinary.com/x9ll3a3t/image/upload/c_crop,x_90,y_195,w_716,h_600/f_auto,q_auto/v1790595099/morning-boost/vchq4m4k1glumxuiplnl.png"
                   alt="Fixer Nation Positivity, Health and Wellness Network"
-                  width={800}
-                  height={400}
+                  width={716}
+                  height={600}
                   loading="lazy"
                 />
                 <div className="boost-card-body">
@@ -429,7 +429,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .boost-visual{min-height:470px;border-radius:30px;background:linear-gradient(150deg,#e3f2fa,#f9dfaa);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:40px}
         .fn-trial-landing .boost-sun{position:absolute;width:270px;height:270px;border-radius:50%;background:radial-gradient(#ffdb8a,#f2b34e88,#f2b34e00);top:13px;right:3px}
         .fn-trial-landing .boost-card{position:relative;display:block;width:100%;background:#fff;border-radius:22px;overflow:hidden;text-decoration:none;color:var(--navy);box-shadow:0 30px 55px #0d24504a}
-        .fn-trial-landing .boost-card img{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover}
+        .fn-trial-landing .boost-card img{display:block;width:100%;height:300px;object-fit:contain;padding:24px 28px 0;background:#fff}
         .fn-trial-landing .boost-card-body{padding:26px 28px 28px}
         .fn-trial-landing .boost-card-body h3{font-size:28px;margin:8px 0 10px;color:var(--navy)}
         .fn-trial-landing .boost-card-body p{color:#5a687a;margin:0 0 16px}
