@@ -175,13 +175,21 @@ const TrialLandingPage: NextPageWithLayout = () => {
             </div>
             <div className="boost-visual">
               <div className="boost-sun" />
-              <div className="visual-box">
-                <span className="micro">FIXER NATION MORNING BOOST</span>
-                <div className="circle-play">▶</div>
-                <h3>Today is a new opportunity.</h3>
-                <p>Press play. Refocus. Move forward.</p>
-              </div>
-              <div className="caption-sample">Concept graphic — replace with a real Morning Boost video thumbnail when available</div>
+              <a className="boost-card" href="https://fixernation.org/morning-boost">
+                <img
+                  src="https://res.cloudinary.com/x9ll3a3t/image/upload/c_fill,w_800,h_400,g_center,f_auto,q_auto/v1790595099/morning-boost/vchq4m4k1glumxuiplnl.png"
+                  alt="Fixer Nation Positivity, Health and Wellness Network"
+                  width={800}
+                  height={400}
+                  loading="lazy"
+                />
+                <div className="boost-card-body">
+                  <span className="micro">DAILY INSPIRATION</span>
+                  <h3>Morning Boost</h3>
+                  <p>A short read every morning to help you reset, refocus, and move forward.</p>
+                  <span className="boost-card-link">Read today&apos;s boost →</span>
+                </div>
+              </a>
             </div>
           </div>
         </section>
@@ -361,7 +369,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing h1{font-size:clamp(2.7rem,5vw,5rem);font-weight:800;margin:26px 0}
         .fn-trial-landing h2{font-size:clamp(2.2rem,3.65vw,3.65rem);margin:14px 0 23px}
         .fn-trial-landing h3{font-size:1.22rem}
-        .fn-trial-landing .hero h1,.fn-trial-landing .community h2,.fn-trial-landing .last-word h2,.fn-trial-landing .visual-box h3{color:#fff}
+        .fn-trial-landing .hero h1,.fn-trial-landing .community h2,.fn-trial-landing .last-word h2{color:#fff}
         .fn-trial-landing p{margin:0 0 17px}
         .fn-trial-landing .wrap{width:min(1160px,calc(100% - 48px));margin:auto}
         .fn-trial-landing .skip{position:absolute;left:-9999px}
@@ -420,12 +428,12 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .benefit-lines strong{color:var(--navy)}
         .fn-trial-landing .boost-visual{min-height:470px;border-radius:30px;background:linear-gradient(150deg,#e3f2fa,#f9dfaa);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:40px}
         .fn-trial-landing .boost-sun{position:absolute;width:270px;height:270px;border-radius:50%;background:radial-gradient(#ffdb8a,#f2b34e88,#f2b34e00);top:13px;right:3px}
-        .fn-trial-landing .visual-box{position:relative;width:100%;min-height:330px;border-radius:22px;text-align:center;background:linear-gradient(145deg,#163d7c,#0b2355);box-shadow:0 30px 55px #0d24504a;padding:35px 26px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}
-        .fn-trial-landing .visual-box .micro{color:#f5c16b}
-        .fn-trial-landing .visual-box h3{font-size:28px;margin:10px 0}
-        .fn-trial-landing .visual-box p{color:#dbe7f4}
-        .fn-trial-landing .circle-play{width:95px;height:95px;display:grid;place-items:center;background:#f5b139;color:#143262;border:9px solid #ffffff3b;border-radius:50%;font-size:26px;margin:26px auto 12px}
-        .fn-trial-landing .caption-sample{position:absolute;bottom:8px;color:#52647a;font-size:10px;background:#fff9;padding:2px 6px;border-radius:4px}
+        .fn-trial-landing .boost-card{position:relative;display:block;width:100%;background:#fff;border-radius:22px;overflow:hidden;text-decoration:none;color:var(--navy);box-shadow:0 30px 55px #0d24504a}
+        .fn-trial-landing .boost-card img{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover}
+        .fn-trial-landing .boost-card-body{padding:26px 28px 28px}
+        .fn-trial-landing .boost-card-body h3{font-size:28px;margin:8px 0 10px;color:var(--navy)}
+        .fn-trial-landing .boost-card-body p{color:#5a687a;margin:0 0 16px}
+        .fn-trial-landing .boost-card-link{font-weight:800;font-size:14px;color:var(--blue)}
         .fn-trial-landing .section-soft{background:var(--cream)}
         .fn-trial-landing .section-heading{text-align:center;max-width:750px;margin:0 auto 50px}
         .fn-trial-landing .section-heading p{font-size:18px;color:#627083}
@@ -519,8 +527,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
           .fn-trial-landing .screen-tile figcaption{display:block}
           .fn-trial-landing .screen-tile figcaption span{display:block}
           .fn-trial-landing .boost-visual{min-height:375px;padding:24px}
-          .fn-trial-landing .visual-box{min-height:290px}
-          .fn-trial-landing .community-art{min-height:300px}
+            .fn-trial-landing .community-art{min-height:300px}
           .fn-trial-landing .community-bubble{font-size:12px}
           .fn-trial-landing .daily-grid{gap:30px}
           .fn-trial-landing .signup-card{padding:26px}
