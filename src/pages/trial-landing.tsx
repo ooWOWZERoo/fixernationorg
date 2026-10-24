@@ -1,6 +1,7 @@
 import Head from "next/head";
 import { useState } from "react";
 import type { NextPageWithLayout } from "@/types/next";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 
 // Served at trial.fixernation.org via the hostname rewrite in
 // src/middleware.ts. Content, structure, and CSS ported verbatim from the
@@ -338,20 +339,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         </section>
       </main>
 
-      <footer>
-        <div className="wrap footer-grid">
-          <img src="/images/trial-landing/fixer-nation-logo.png" alt="Fixer Nation logo" />
-          <div>
-            <strong>Fixer Nation Positivity, Health & Wellness Network</strong>
-            <p>The Health Club for Your Mind, Body & Soul™</p>
-            <p>© <span>{year}</span> Fixer Nation. All rights reserved.</p>
-          </div>
-          <div className="footer-links">
-            <a href="https://fixernation.org/">Main website ↗</a>
-            <span>Privacy and terms links: configure before launch.</span>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
       {alertMessage && (
         <div className="setup-alert" role="alert" aria-live="assertive">
@@ -370,7 +358,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing h2{font-size:clamp(2.2rem,3.65vw,3.65rem);margin:14px 0 23px}
         .fn-trial-landing h3{font-size:1.22rem}
         .fn-trial-landing .hero h1,.fn-trial-landing .community h2,.fn-trial-landing .last-word h2{color:#fff}
-        .fn-trial-landing p{margin:0 0 17px}
+        .fn-trial-landing main p{margin:0 0 17px}
         .fn-trial-landing .wrap{width:min(1160px,calc(100% - 48px));margin:auto}
         .fn-trial-landing .skip{position:absolute;left:-9999px}
         .fn-trial-landing .skip:focus{left:12px;top:10px;background:white;z-index:1000}
@@ -488,13 +476,6 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .last-word h2{font-size:clamp(1.9rem,3vw,3rem)}
         .fn-trial-landing .last-word p{color:#e6edf5}
         .fn-trial-landing .tiny-star{font-size:35px;color:#edb03c}
-        .fn-trial-landing footer{padding:45px 0;background:#fff}
-        .fn-trial-landing .footer-grid{display:flex;gap:45px;align-items:center;font-size:12px;color:#677487}
-        .fn-trial-landing .footer-grid img{width:200px}
-        .fn-trial-landing .footer-grid p{margin:3px 0}
-        .fn-trial-landing .footer-grid strong{color:#193c6d}
-        .fn-trial-landing .footer-links{margin-left:auto;display:flex;flex-direction:column;gap:7px}
-        .fn-trial-landing .footer-links a{color:#17437b}
         .fn-trial-landing .setup-alert{position:fixed;z-index:10;bottom:20px;right:20px;background:#102d53;color:#fff;max-width:390px;padding:22px 40px 20px 20px;border:2px solid #ffcf76;border-radius:14px;box-shadow:0 14px 45px #0006}
         .fn-trial-landing .setup-alert p{font-size:13px;margin:8px 0 0}
         .fn-trial-landing .setup-alert button{position:absolute;right:10px;top:5px;border:0;background:transparent;color:white;font-size:25px;cursor:pointer}
@@ -531,9 +512,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
           .fn-trial-landing .community-bubble{font-size:12px}
           .fn-trial-landing .daily-grid{gap:30px}
           .fn-trial-landing .signup-card{padding:26px}
-          .fn-trial-landing .footer-grid{flex-direction:column;align-items:flex-start;gap:12px}
-          .fn-trial-landing .footer-links{margin:0}
-          .fn-trial-landing .hero-ctas{align-items:flex-start;flex-direction:column}
+              .fn-trial-landing .hero-ctas{align-items:flex-start;flex-direction:column}
         }
         @media(prefers-reduced-motion:reduce){
           .fn-trial-landing *,.fn-trial-landing *:before,.fn-trial-landing *:after{scroll-behavior:auto!important;transition:none!important}
