@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
-import { isBlogHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
+import { isHtmlBody, stripBlogHtmlMarker } from "@/lib/blog-format";
 import { sanitizeBlogBody, blogPreviewText } from "@/lib/sanitize-html";
 
 interface PostFull {
@@ -212,7 +212,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   // posts are passed through untouched.
   let bodyHtml: string | null = null;
   let outPost = post;
-  if (isBlogHtml(post.body)) {
+  if (isHtmlBody(post.body)) {
     const clean = sanitizeBlogBody(stripBlogHtmlMarker(post.body));
     bodyHtml = gated ? null : clean;
     outPost = { ...post, body: blogPreviewText(clean) };

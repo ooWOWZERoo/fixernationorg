@@ -16,6 +16,18 @@ export function stripBlogHtmlMarker(body: string): string {
   return isBlogHtml(body) ? body.slice(BLOG_HTML_MARKER.length) : body;
 }
 
+// Some older plain-text posts were written with real HTML tags in the body
+// (e.g. "<p>...</p>\n\n<h2>...</h2>"). The old page showed those tags as
+// literal text. Treat a body that opens with a block tag as HTML.
+export function looksLikeHtml(body: string): boolean {
+  return /^\s*<(p|h[1-6]|ul|ol|blockquote|div)\b/i.test(body);
+}
+
+// True for any body that should be rendered as (sanitized) HTML.
+export function isHtmlBody(body: string): boolean {
+  return isBlogHtml(body) || looksLikeHtml(body);
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -24,6 +36,7 @@ function escapeHtml(s: string): string {
 // one <p> each, with single newlines collapsing to a space (as HTML does).
 // Lets the editor open an old post looking the way it looks today.
 export function legacyBodyToHtml(body: string): string {
+  if (looksLikeHtml(body)) return body;
   return body
     .split("\n\n")
     .map((p) => p.trim())

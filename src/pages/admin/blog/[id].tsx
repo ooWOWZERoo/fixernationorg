@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 import { BlogEditor } from "@/components/admin/BlogEditor";
-import { BLOG_HTML_MARKER, isBlogHtml, isBlogHtmlEmpty, legacyBodyToHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
+import { BLOG_HTML_MARKER, isBlogHtml, isBlogHtmlEmpty, isHtmlBody, legacyBodyToHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
 
 function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -263,7 +263,7 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
           <BlogEditor value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} />
           <p className="mt-1 text-xs text-slate-400">
             The editor uses the same text styles as the published post, so spacing matches the live page.
-            {!isBlogHtml(post.body) && " This post was written in the older plain-text format; saving converts it to the new format."}
+            {!isHtmlBody(post.body) && " This post was written in the older plain-text format; saving converts it to the new format."}
           </p>
         </div>
 
