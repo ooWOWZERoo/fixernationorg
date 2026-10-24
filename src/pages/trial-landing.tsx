@@ -302,7 +302,6 @@ const TrialLandingPage: NextPageWithLayout = () => {
                 <button type="button" className="btn btn-gold full" id="membership-cta" onClick={handleMembershipCta}>
                   Start my free 30-day trial →
                 </button>
-                <p className="disclosure">Trial billing and renewal details will be shown in the connected membership checkout. Confirm terms before publishing.</p>
               </div>
 
               <div className="signup-card secondary" id="boost-signup">
@@ -323,7 +322,6 @@ const TrialLandingPage: NextPageWithLayout = () => {
                   </button>
                   <p className="form-status" role="status" aria-live="polite">{formStatus}</p>
                 </form>
-                <p className="disclosure">Please connect this form to your email provider and configure consent and privacy links before publishing.</p>
               </div>
             </div>
           </div>
@@ -464,7 +462,6 @@ const TrialLandingPage: NextPageWithLayout = () => {
         .fn-trial-landing .signup-card p{color:#5a687a}
         .fn-trial-landing .signup-card ul{list-style:disc;padding-left:23px;margin:10px 0 34px;line-height:2;color:#243c5c}
         .fn-trial-landing .signup-card.primary .btn{margin-top:auto}
-        .fn-trial-landing .disclosure{font-size:12px!important;color:#5f6b7a!important;margin-top:16px}
         .fn-trial-landing .signup-card form{display:flex;flex-direction:column;gap:10px;margin-top:8px}
         .fn-trial-landing .signup-card label{font-weight:700;font-size:13px}
         .fn-trial-landing .signup-card input:not([type=checkbox]){font:inherit;padding:15px 16px;width:100%;border:1px solid #cbd5df;border-radius:9px;background:white}
