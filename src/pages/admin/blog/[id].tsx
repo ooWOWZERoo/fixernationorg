@@ -8,6 +8,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+import { BlogEditor } from "@/components/admin/BlogEditor";
+import { BLOG_HTML_MARKER, isBlogHtml, isBlogHtmlEmpty, legacyBodyToHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
 
 function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,7 +109,7 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
     slug: post.slug,
     category: post.category ?? "",
     excerpt: post.excerpt ?? "",
-    body: post.body,
+    body: isBlogHtml(post.body) ? stripBlogHtmlMarker(post.body) : legacyBodyToHtml(post.body),
     imageUrl: post.imageUrl ?? "",
     authorName: post.authorName,
     publishedAt: toDatetimeLocal(post.publishedAt as unknown as string | null),
@@ -119,16 +121,20 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setSaveError(null);
     setSaved(false);
+    if (isBlogHtmlEmpty(form.body)) {
+      setSaveError("Write something in the body before saving.");
+      return;
+    }
+    setSaving(true);
 
     const payload = {
       title: form.title.trim(),
       slug: form.slug.trim(),
       category: form.category.trim() || null,
       excerpt: form.excerpt.trim() || null,
-      body: form.body.trim(),
+      body: BLOG_HTML_MARKER + form.body.trim(),
       imageUrl: form.imageUrl.trim() || null,
       authorName: form.authorName.trim() || "Anthony J. Placito",
       publishedAt: form.publishedAt || null,
@@ -162,7 +168,7 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-6">
         <Link href="/admin/blog" className="text-sm text-slate-500 no-underline hover:text-navy">
           ← Blog
@@ -253,16 +259,12 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="body">Body</label>
-          <textarea
-            id="body"
-            value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-            rows={12}
-            required
-            className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-          />
-          <p className="mt-1 text-xs text-slate-400">Line breaks carry through to the live page.</p>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Body</label>
+          <BlogEditor value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} />
+          <p className="mt-1 text-xs text-slate-400">
+            The editor uses the same text styles as the published post, so spacing matches the live page.
+            {!isBlogHtml(post.body) && " This post was written in the older plain-text format; saving converts it to the new format."}
+          </p>
         </div>
 
         <ImageField

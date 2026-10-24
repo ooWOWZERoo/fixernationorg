@@ -6,6 +6,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+import { BlogEditor } from "@/components/admin/BlogEditor";
+import { BLOG_HTML_MARKER, isBlogHtmlEmpty } from "@/lib/blog-format";
 
 function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -124,15 +126,19 @@ const AdminBlogNew: NextPageWithLayout = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    if (isBlogHtmlEmpty(form.body)) {
+      setError("Write something in the body before saving.");
+      return;
+    }
+    setSaving(true);
 
     const payload = {
       title: form.title.trim(),
       slug: form.slug.trim(),
       category: form.category.trim() || undefined,
       excerpt: form.excerpt.trim() || undefined,
-      body: form.body.trim(),
+      body: BLOG_HTML_MARKER + form.body.trim(),
       imageUrl: form.imageUrl.trim() || undefined,
       authorName: form.authorName.trim() || "Anthony J. Placito",
       publishedAt: form.publishedAt || null,
@@ -158,7 +164,7 @@ const AdminBlogNew: NextPageWithLayout = () => {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-6">
         <Link href="/admin/blog" className="text-sm text-slate-500 no-underline hover:text-navy">
           ← Blog
@@ -226,17 +232,9 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="body">Body</label>
-          <textarea
-            id="body"
-            value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-            rows={12}
-            required
-            placeholder="Write your post. Line breaks are kept as-is."
-            className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-          />
-          <p className="mt-1 text-xs text-slate-400">Line breaks carry through to the live page.</p>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Body</label>
+          <BlogEditor value={form.body} onChange={(html) => setForm((f) => ({ ...f, body: html }))} />
+          <p className="mt-1 text-xs text-slate-400">The editor uses the same text styles as the published post, so spacing matches the live page.</p>
         </div>
 
         <ImageField

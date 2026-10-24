@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { BLOG_HTML_MARKER, isBlogHtml, isBlogHtmlEmpty, stripBlogHtmlMarker } from "@/lib/blog-format";
+import { sanitizeBlogBody } from "@/lib/sanitize-html";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 
@@ -38,6 +40,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const { imageUrl, publishedAt, ...rest } = parsed.data;
+
+    // Rich-text bodies (marked by the editor) are sanitized server-side; the
+    // client is never trusted to send clean HTML.
+    if (typeof rest.body === "string" && isBlogHtml(rest.body)) {
+      const clean = sanitizeBlogBody(stripBlogHtmlMarker(rest.body));
+      if (isBlogHtmlEmpty(clean)) return res.status(400).json({ error: "The post body is empty." });
+      rest.body = BLOG_HTML_MARKER + clean;
+    }
     const data: Record<string, unknown> = { ...rest };
     if (imageUrl !== undefined) data.imageUrl = imageUrl || null;
     if (publishedAt !== undefined) data.publishedAt = publishedAt ? new Date(publishedAt) : null;

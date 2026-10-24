@@ -114,3 +114,37 @@
     transition: none;
   }
 }
+
+/* Blog post body (rich-text posts). Shared by the admin editor and the public
+   post page so spacing in the editor is exactly what gets published. Sizes
+   are in rem/em, not Tailwind utilities, so both places resolve identically.
+   Legacy plain-text posts do NOT use this class. */
+.blog-content {
+  font-size: 1rem;
+  line-height: 1.625;
+  color: #23262b;
+}
+.blog-content > :first-child { margin-top: 0; }
+.blog-content p { margin: 0 0 1.25rem; }
+.blog-content p:empty { min-height: 1.625rem; }
+.blog-content h2 { margin: 2rem 0 0.75rem; font-size: 1.75rem; line-height: 1.25; font-weight: 800; }
+.blog-content h3 { margin: 1.75rem 0 0.625rem; font-size: 1.375rem; line-height: 1.3; font-weight: 700; }
+.blog-content h4 { margin: 1.5rem 0 0.5rem; font-size: 1.125rem; line-height: 1.4; font-weight: 700; }
+.blog-content ul, .blog-content ol { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+.blog-content ul { list-style: disc; }
+.blog-content ol { list-style: decimal; }
+.blog-content li { margin: 0.25rem 0; }
+.blog-content li > p { margin: 0; }
+.blog-content blockquote {
+  margin: 0 0 1.25rem;
+  padding-left: 1rem;
+  border-left: 4px solid #f2a93c;
+  font-style: italic;
+  color: #5c6470;
+}
+.blog-content hr { margin: 2rem 0; border: 0; border-top: 1px solid rgba(31, 58, 84, 0.2); }
+.blog-content a { text-decoration: underline; text-underline-offset: 2px; }
+.blog-content img { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; border-radius: 0.75rem; }
+.blog-content code { padding: 0.1rem 0.3rem; border-radius: 0.25rem; background: rgba(31, 58, 84, 0.08); font-size: 0.9em; }
+.blog-content pre { margin: 0 0 1.25rem; padding: 0.75rem 1rem; border-radius: 0.5rem; background: rgba(31, 58, 84, 0.08); overflow-x: auto; }
+.blog-content pre code { padding: 0; background: none; }

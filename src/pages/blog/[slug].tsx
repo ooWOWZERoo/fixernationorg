@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
+import { isBlogHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
+import { sanitizeBlogBody, blogPreviewText } from "@/lib/sanitize-html";
 
 interface PostFull {
   id: string;
@@ -24,9 +26,12 @@ interface PostFull {
 interface Props {
   post: PostFull;
   gated: boolean;
+  // Sanitized HTML for rich-text posts (null for legacy plain-text posts, and
+  // for non-members, who never receive the full body).
+  bodyHtml: string | null;
 }
 
-const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated }) => {
+const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml }) => {
   const date = new Date(post.publishedAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -133,13 +138,17 @@ const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated }) => {
         <>
           <section className="px-6 pb-20 pt-4 lg:px-8">
             <div className="mx-auto max-w-3xl">
-              <div className="prose prose-navy max-w-none">
-                {post.body.split("\n\n").map((paragraph, i) => (
-                  <p key={i} className="mb-5 text-base leading-relaxed text-ink">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
+              {bodyHtml !== null ? (
+                <div className="blog-content" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+              ) : (
+                <div className="prose prose-navy max-w-none">
+                  {post.body.split("\n\n").map((paragraph, i) => (
+                    <p key={i} className="mb-5 text-base leading-relaxed text-ink">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -197,8 +206,20 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const session = await getServerSession(context.req, context.res, authOptions);
   const gated = !session || !isMember(session.user.role, session.user.adminRole);
 
+  // Rich-text posts: sanitize again at render time (defense in depth) and
+  // never put the full HTML in props for non-members. `post.body` carries only
+  // the first paragraph's text for the blurred preview. Legacy plain-text
+  // posts are passed through untouched.
+  let bodyHtml: string | null = null;
+  let outPost = post;
+  if (isBlogHtml(post.body)) {
+    const clean = sanitizeBlogBody(stripBlogHtmlMarker(post.body));
+    bodyHtml = gated ? null : clean;
+    outPost = { ...post, body: blogPreviewText(clean) };
+  }
+
   return {
-    props: { post: JSON.parse(JSON.stringify(post)), gated },
+    props: { post: JSON.parse(JSON.stringify(outPost)), gated, bodyHtml },
   };
 };
 
