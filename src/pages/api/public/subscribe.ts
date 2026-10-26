@@ -5,6 +5,9 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { setConsent } from "@/lib/contacts";
 import { enrollInJourneys } from "@/lib/automation";
 import { MB_TRIAL_SOURCE, MB_TRIAL_TAG } from "@/lib/trial-automation";
+import { sendMorningBoostEmail } from "@/lib/email";
+import { buildMorningBoostWelcomeEmail } from "@/lib/emails/morning-boost-welcome";
+import { makeUnsubUrl } from "@/lib/unsub-token";
 
 type MembershipStatusDb = {
   userMembership: {
@@ -39,6 +42,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const { email, firstName, lastName, topic, source } = parsed.data;
+
+  // Welcome email goes to a trial-landing signup only the first time they opt
+  // in to Morning Boost -- a repeat submit from an already-subscribed address
+  // must not send it again.
+  const priorMbConsent = source === MB_TRIAL_SOURCE
+    ? await db.contactConsent.findFirst({
+        where: { topic: "MORNING_BOOST", optedIn: true, contact: { email } },
+        select: { id: true },
+      })
+    : null;
 
   // Upsert contact — name fields only set on create; never overwrite an existing contact's name
   const contact = await db.contact.upsert({
@@ -114,7 +127,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // into it. Anyone already trialing or holding a membership is skipped --
   // they shouldn't get trial sales prompts.
   if (source === MB_TRIAL_SOURCE) {
-    (async () => {
+    // Awaited (not fire-and-forget): serverless may freeze the function once
+    // the response is sent, which can silently drop enrollment work.
+    await (async () => {
       if (linkedUserId) {
         const membership = await (db as never as MembershipStatusDb).userMembership.findUnique({
           where: { userId: linkedUserId },
@@ -128,6 +143,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       await enrollInJourneys({ trigger: "TAG_ADDED", contactId: contact.id, triggerConfig: { tag: MB_TRIAL_TAG } });
     })().catch(() => {});
+  }
+
+  if (source === MB_TRIAL_SOURCE && !priorMbConsent) {
+    try {
+      const welcome = buildMorningBoostWelcomeEmail(
+        contact.firstName ?? firstName,
+        makeUnsubUrl(contact.id, process.env.NEXTAUTH_URL ?? "https://fixernation.org", "MORNING_BOOST")
+      );
+      // Failures are recorded centrally by sendEmail's deliver(); the visitor is
+      // still signed up, so don't fail the request over a delivery problem.
+      await sendMorningBoostEmail({ to: email, ...welcome });
+    } catch (err) {
+      console.error("[subscribe] Morning Boost welcome email failed:", err);
+    }
   }
 
   return res.status(200).json({ ok: true });

@@ -77,7 +77,7 @@ const TrialLandingPage: NextPageWithLayout = () => {
         body: JSON.stringify({ email, firstName, topic: "MORNING_BOOST", source: MORNING_BOOST_TRIAL_SOURCE }),
       });
       if (!response.ok) throw new Error("Failed");
-      setFormStatus("Thanks! Please check your inbox for the confirmation email.");
+      setFormStatus("You're in! Check your inbox for a welcome email.");
       form.reset();
     } catch {
       setFormStatus("We could not complete registration right now. Please try again later.");
