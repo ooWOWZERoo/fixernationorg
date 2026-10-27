@@ -13,7 +13,7 @@ import type { NextPageWithLayout } from "@/types/next";
 type ConsentTopic = "MORNING_BOOST" | "CAMPAIGNS" | "NEWSLETTERS" | "PRODUCT_UPDATES";
 
 const EMAIL_PREF_TOPICS: { key: ConsentTopic; label: string; description: string }[] = [
-  { key: "MORNING_BOOST", label: "Morning Boost", description: "Get the daily Morning Boost email — a short read to start your day." },
+  { key: "MORNING_BOOST", label: "Morning Boost", description: "Get the daily Morning Boost email, a short video to start your day." },
   { key: "CAMPAIGNS", label: "Promos & offers", description: "Deals, discounts, and time-limited offers from Fixer Nation." },
   { key: "NEWSLETTERS", label: "Newsletter", description: "A periodic roundup of what's happening at Fixer Nation." },
   { key: "PRODUCT_UPDATES", label: "Product updates", description: "New features and changes as we roll them out." },

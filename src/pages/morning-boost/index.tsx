@@ -34,7 +34,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
         <title>Morning Boost — Fixer Nation</title>
         <meta
           name="description"
-          content="Daily inspiration from Fixer Nation. One short read every morning to help you reset, refocus, and move forward."
+          content="Daily inspiration from Fixer Nation. One short video every morning to help you reset, refocus, and move forward."
         />
       </Head>
 
@@ -46,7 +46,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
             Morning Boost
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-ink-soft">
-            A short read every morning to help you reset, refocus, and move forward.
+            A short video every morning to help you reset, refocus, and move forward.
           </p>
         </div>
       </section>
@@ -92,7 +92,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
                     href={`/morning-boost/${featured.slug}`}
                     className="inline-flex items-center rounded-[10px] bg-amber px-6 py-3 text-sm font-bold text-navy-dark no-underline shadow-[0_12px_24px_-10px_rgba(242,169,60,0.65)] transition-all hover:-translate-y-0.5 hover:bg-amber-dark"
                   >
-                    Read Today's Boost
+                    Watch Today's Boost
                   </Link>
                 </div>
               </div>

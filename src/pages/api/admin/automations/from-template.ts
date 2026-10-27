@@ -26,7 +26,7 @@ const TEMPLATES: Record<string, {
 <p>You just joined a community built around one idea: there are no problems in life, only issues and answers.</p>
 <p>Here's what you have access to right now:</p>
 <ul>
-  <li><strong>Morning Boost</strong> — a short daily read to start your day focused</li>
+  <li><strong>Morning Boost</strong> — a short daily video to start your day focused</li>
   <li><strong>The Blog</strong> — practical articles on home, work, and community</li>
   <li><strong>The Resource Library</strong> — guides and worksheets members can actually use</li>
   <li><strong>The Community Feed</strong> — connect with other members, ask questions, share what you know</li>
@@ -40,7 +40,7 @@ You just joined a community built around one idea: there are no problems in life
 
 Here's what you have access to right now:
 
-- Morning Boost — a short daily read to start your day focused
+- Morning Boost — a short daily video to start your day focused
 - The Blog — practical articles on home, work, and community
 - The Resource Library — guides and worksheets members can actually use
 - The Community Feed — connect with other members, ask questions, share what you know
@@ -65,7 +65,7 @@ Founder, Fixer Nation`,
 <ol>
   <li><strong>Complete your profile</strong> — add a photo, a headline, and a short bio. Other members will find you, and you'll earn 5 community points for doing it. <a href="https://fixernation.org/account/profile">Do it here.</a></li>
   <li><strong>Browse upcoming events</strong> — we run workshops, Q&amp;As, and community calls. Check what's coming up: <a href="https://fixernation.org/events">fixernation.org/events</a></li>
-  <li><strong>Read today's Morning Boost</strong> — it takes about 3 minutes and it's free: <a href="https://fixernation.org/morning-boost">fixernation.org/morning-boost</a></li>
+  <li><strong>Watch today's Morning Boost</strong> — it takes about 3 minutes and it's free: <a href="https://fixernation.org/morning-boost">fixernation.org/morning-boost</a></li>
 </ol>
 <p>See you in there.</p>
 <p>— Anthony</p>`,
@@ -81,7 +81,7 @@ Three things worth doing today:
 2. Browse upcoming events — we run workshops, Q&As, and community calls.
    https://fixernation.org/events
 
-3. Read today's Morning Boost — takes about 3 minutes.
+3. Watch today's Morning Boost — takes about 3 minutes.
    https://fixernation.org/morning-boost
 
 See you in there.
@@ -247,7 +247,7 @@ Founder, Fixer Nation`,
           htmlBody: `<p>Hi {{first_name}},</p>
 <p>Now that you're in, here's a quick look at what's available to you as a member:</p>
 <ul>
-  <li><strong>Morning Boost</strong> — a short daily read. Published every morning. <a href="https://fixernation.org/morning-boost">Read today's.</a></li>
+  <li><strong>Morning Boost</strong> — a short daily video. Published every morning. <a href="https://fixernation.org/morning-boost">Watch today's.</a></li>
   <li><strong>Resource Library</strong> — guides, worksheets, and templates on practical topics. <a href="https://fixernation.org/resources">Browse it here.</a></li>
   <li><strong>Blog</strong> — full access to all articles. <a href="https://fixernation.org/blog">Start reading.</a></li>
   <li><strong>Events</strong> — workshops, Q&amp;As, and community calls. <a href="https://fixernation.org/events">See what's coming up.</a></li>
@@ -258,7 +258,7 @@ Founder, Fixer Nation`,
 
 Now that you're in, here's a quick look at what's available:
 
-- Morning Boost — a short daily read, published every morning.
+- Morning Boost — a short daily video, published every morning.
   https://fixernation.org/morning-boost
 
 - Resource Library — guides, worksheets, and templates.

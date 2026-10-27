@@ -149,7 +149,7 @@ export function defaultBlock(type: EmailBlockType): EmailBlock {
     case "personalization":   return { id: newId(), type, variable: "{{first_name}}", fallback: "there", label: "First name" };
     case "event_card":        return { id: newId(), type, event: null, buttonLabel: "View Event" };
     case "blog_card":         return { id: newId(), type, post: null, buttonLabel: "Read the Post" };
-    case "morning_boost_card":return { id: newId(), type, boost: null, buttonLabel: "Read Today's Boost" };
+    case "morning_boost_card":return { id: newId(), type, boost: null, buttonLabel: "Watch Today's Boost" };
     case "resource_card":     return { id: newId(), type, resource: null, buttonLabel: "Download" };
     case "product_card":      return { id: newId(), type, product: null, buttonLabel: "Learn More" };
     case "membership_cta":    return { id: newId(), type, heading: "Ready to Join?", body: "Become a Fixer Nation member and get full access to everything we offer.", buttonLabel: "Join Fixer Nation", buttonHref: "https://fixernation.org/join", bgColor: "#1e3a5f" };

@@ -112,7 +112,7 @@ const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml }) => {
               <span className="mb-3 inline-block text-2xl">🔒</span>
               <h3 className="text-xl font-extrabold text-navy">This article is for members</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                Join Fixer Nation to read the full archive — every article, Morning Boost, Ask The Fixer, and more.
+                Join Fixer Nation for the full archive: every article, every Morning Boost, Ask The Fixer, and more.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <Link

@@ -511,7 +511,7 @@ function MorningBoostCardEditor({ block, update }: { block: MorningBoostCardBloc
         />
       </FieldRow>
       <FieldRow label="Button label">
-        <Input value={block.buttonLabel} onChange={v => update({ buttonLabel: v })} placeholder="Read Today's Boost" />
+        <Input value={block.buttonLabel} onChange={v => update({ buttonLabel: v })} placeholder="Watch Today's Boost" />
       </FieldRow>
     </div>
   );

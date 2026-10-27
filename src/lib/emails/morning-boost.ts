@@ -26,7 +26,7 @@ export function buildMorningBoostEmail(
 
   const readUrl = `${BASE_URL}/morning-boost/${entry.slug}`;
   const unsubscribeUrl = `${BASE_URL}/account`;
-  const ctaLabel = entry.videoUrl ? "Watch on Fixer Nation" : "Read on Fixer Nation";
+  const ctaLabel = "Watch on Fixer Nation";
 
   const greeting = recipientName ? `Good morning, ${recipientName.split(" ")[0]}.` : "Good morning.";
 

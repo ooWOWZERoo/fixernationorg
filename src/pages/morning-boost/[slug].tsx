@@ -120,7 +120,7 @@ const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated }) => {
               <span className="mb-3 inline-block text-2xl">☀️</span>
               <h3 className="text-xl font-extrabold text-navy">Members only</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                Sign up to read every Morning Boost entry, plus blog posts and Ask The Fixer answers.
+                Sign up to watch every Morning Boost, plus read blog posts and Ask The Fixer answers.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <Link

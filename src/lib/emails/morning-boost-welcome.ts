@@ -46,7 +46,7 @@ export function buildMorningBoostWelcomeEmail(
               ${p(`Hi ${escapeHtml(name)},`)}
               ${p("You're signed up. Every morning for the next 30 days, we'll send you a short Morning Boost to help you reset, refocus, and start the day with something positive.")}
               ${p("Look for the next one in your inbox in the morning. If you don't see it, check your spam or promotions folder and mark us as safe.")}
-              ${p(`Want to read today's boost now? It's waiting at ${link(boostUrl, "fixernation.org/morning-boost")}.`)}
+              ${p(`Want to watch today's boost now? It's waiting at ${link(boostUrl, "fixernation.org/morning-boost")}.`)}
               ${p(`If you'd like more than a daily email, a free 30-day Fixer Nation trial gives you goals, plans, challenges and the community. You can start it any time at ${link(joinUrl, "fixernation.org/join")}.`)}
               ${p("One better morning at a time,<br>The Fixer Nation Team")}
             </td>
@@ -70,7 +70,7 @@ export function buildMorningBoostWelcomeEmail(
     "",
     "Look for the next one in your inbox in the morning. If you don't see it, check your spam or promotions folder and mark us as safe.",
     "",
-    `Want to read today's boost now? It's waiting at ${boostUrl}`,
+    `Want to watch today's boost now? It's waiting at ${boostUrl}`,
     "",
     `If you'd like more than a daily email, a free 30-day Fixer Nation trial gives you goals, plans, challenges and the community. You can start it any time at ${joinUrl}`,
     "",

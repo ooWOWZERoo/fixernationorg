@@ -219,7 +219,7 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
                 Full access to every article
               </h3>
               <p className="mt-2 text-sm text-ink-soft">
-                Join Fixer Nation to read the complete blog archive, Morning Boost, and more.
+                Join Fixer Nation to read the complete blog archive, watch Morning Boost, and more.
               </p>
               <Link
                 href="/join"

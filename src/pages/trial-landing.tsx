@@ -187,8 +187,8 @@ const TrialLandingPage: NextPageWithLayout = () => {
                 <div className="boost-card-body">
                   <span className="micro">DAILY INSPIRATION</span>
                   <h3>Morning Boost</h3>
-                  <p>A short read every morning to help you reset, refocus, and move forward.</p>
-                  <span className="boost-card-link">Read today&apos;s boost →</span>
+                  <p>A short video every morning to help you reset, refocus, and move forward.</p>
+                  <span className="boost-card-link">Watch today&apos;s boost →</span>
                 </div>
               </a>
             </div>
