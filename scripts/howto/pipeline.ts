@@ -146,6 +146,9 @@ export async function produce(board: Storyboard, opts: RunOptions) {
     await page.waitForTimeout(600);
   } catch (e) {
     failure = e;
+    await page.screenshot({ path: path.join(out, "failure.png") }).catch(() => {});
+    const html = await page.locator(".ProseMirror").first().innerHTML().catch(() => "");
+    if (html) fs.writeFileSync(path.join(out, "failure-editor.html"), html);
   } finally {
     try { await board.cleanup?.(page); } catch (e) { console.error("cleanup failed:", e); }
     const video = page.video();

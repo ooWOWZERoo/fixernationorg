@@ -13,6 +13,7 @@ import { spawnSync } from "child_process";
 import { createRequire } from "module";
 import path from "path";
 import fs from "fs";
+import type { Page } from "@playwright/test";
 import { produce, glideClick, typeSlowly, type Storyboard } from "./pipeline";
 
 const ffmpeg = createRequire(__filename)("ffmpeg-static") as string;
@@ -34,11 +35,25 @@ if (/(^|\/\/)(www\.)?fixernation\.org/.test(baseUrl) && process.env.HOWTO_ALLOW_
 const outDir = path.join(process.cwd(), "howto-out");
 fs.mkdirSync(outDir, { recursive: true });
 const image = path.join(outDir, "demo-image.png");
-spawnSync(ffmpeg, ["-y", "-f", "lavfi", "-i", "color=c=0x1e5bae:s=800x450", "-frames:v", "1", image]);
+spawnSync(ffmpeg, ["-y", "-f", "lavfi", "-i", "gradients=s=480x270:c0=0x1e5bae:c1=0xf2a93c:x0=0:y0=0:x1=480:y1=270:d=1", "-frames:v", "1", image]);
 
 const TITLE = "Demo: how to write a blog post";
 const bar = (label: string) => `button[aria-label="${label}"]`;
 let postId = "";
+
+// Click a toolbar button, then let the editor take focus back before typing.
+const tool = async (p: Page, label: string) => {
+  await glideClick(p, bar(label));
+  await p.waitForTimeout(400);
+};
+// Keep the Body label at the top of the screen so the toolbar stays visible.
+const showBody = (p: Page) =>
+  p.evaluate(() => {
+    const el = document.querySelector(".ProseMirror")?.closest(".rounded-lg");
+    if (el) (el as HTMLElement).scrollIntoView({ block: "start" });
+    window.scrollBy(0, -70);
+  });
+const docEnd = process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End";
 
 const board: Storyboard = {
   slug: "blog-editor",
@@ -62,17 +77,18 @@ const board: Storyboard = {
     },
     {
       say: "The body works like a word processor. What you see here uses the same spacing as the published page.",
-      run: async (p) => { await glideClick(p, ".ProseMirror"); await typeSlowly(p, "Why a good headline matters"); },
+      run: async (p) => { await showBody(p); await glideClick(p, ".ProseMirror"); await typeSlowly(p, "Why a good headline matters"); },
     },
     {
       say: "Use the heading buttons for section titles, and bold or italic for emphasis.",
       run: async (p) => {
-        await glideClick(p, bar("Heading 2"));
+        await showBody(p);
+        await tool(p, "Heading 2");
         await p.keyboard.press("Enter");
         await typeSlowly(p, "Readers decide in seconds, so lead with the ");
-        await glideClick(p, bar("Bold"));
+        await tool(p, "Bold");
         await typeSlowly(p, "most useful idea");
-        await glideClick(p, bar("Bold"));
+        await tool(p, "Bold");
         await typeSlowly(p, ".");
         await p.keyboard.press("Enter");
       },
@@ -80,7 +96,8 @@ const board: Storyboard = {
     {
       say: "Lists, quotes and divider lines are one click each.",
       run: async (p) => {
-        await glideClick(p, bar("Bullet list"));
+        await showBody(p);
+        await tool(p, "Bullet list");
         await typeSlowly(p, "Keep sentences short"); await p.keyboard.press("Enter");
         await typeSlowly(p, "Say one thing per paragraph"); await p.keyboard.press("Enter");
         await p.keyboard.press("Enter");
@@ -89,16 +106,20 @@ const board: Storyboard = {
     {
       say: "To add a link, highlight the words, click Link, and enter the address when asked.",
       run: async (p) => {
+        await showBody(p);
         await typeSlowly(p, "Read more on our site");
-        await p.keyboard.press("Shift+Home");
-        await glideClick(p, bar("Link"));
-        await p.keyboard.press("End");
+        // Select just this line (Shift+Home would select to the top of the document on a Mac).
+        await p.keyboard.press(process.platform === "darwin" ? "Meta+Shift+ArrowLeft" : "Shift+Home");
+        await tool(p, "Link");
+        await p.keyboard.press("ArrowRight"); // collapse the selection to the end of the line
         await p.keyboard.press("Enter");
       },
     },
     {
       say: "Click Image to upload a picture. It goes straight into the post.",
       run: async (p) => {
+        await showBody(p);
+        await p.keyboard.press(docEnd);
         const [chooser] = await Promise.all([p.waitForEvent("filechooser"), glideClick(p, bar("Insert image"))]);
         await chooser.setFiles(image);
         await p.locator(".ProseMirror img").first().waitFor({ timeout: 30000 });
@@ -106,7 +127,7 @@ const board: Storyboard = {
     },
     {
       say: "The alignment buttons let you center or justify text.",
-      run: async (p) => { await glideClick(p, ".ProseMirror h2"); await glideClick(p, bar("Align center")); },
+      run: async (p) => { await showBody(p); await glideClick(p, ".ProseMirror h2"); await tool(p, "Align center"); },
     },
     {
       say: "Leave the publish date blank to save a draft. Nothing goes live until you set a date. Click Create Post.",
@@ -124,7 +145,10 @@ const board: Storyboard = {
         await glideClick(p, 'a:has-text("Preview draft")');
         await p.goto(href!); // the link opens a new tab; show it in this one
         await p.waitForSelector(".blog-content");
-        await p.mouse.wheel(0, 300);
+        await p.waitForTimeout(2500); // let the draft banner register
+        await p.mouse.wheel(0, 350);
+        await p.waitForTimeout(1500);
+        await p.mouse.wheel(0, 350);
       },
     },
     {
