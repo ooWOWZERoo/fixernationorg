@@ -111,7 +111,7 @@ export async function produce(board: Storyboard, opts: RunOptions) {
   // 1. Narration audio per step.
   const clips = board.steps.map((s, i) => {
     const file = path.join(out, "audio", `step-${String(i + 1).padStart(2, "0")}.aiff`);
-    sh("say", ["-v", opts.voice ?? "Samantha", "-r", "170", "-o", file, s.say]);
+    sh("say", ["-v", opts.voice ?? "Ava (Premium)", "-r", "165", "-o", file, s.say]);
     return { file, dur: durationOf(file) };
   });
 
