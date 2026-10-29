@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
 import { BlogEditor } from "@/components/admin/BlogEditor";
+import { HowToVideo } from "@/components/admin/HowToVideo";
 import { BLOG_HTML_MARKER, isBlogHtmlEmpty } from "@/lib/blog-format";
 
 function ImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
@@ -171,6 +172,8 @@ const AdminBlogNew: NextPageWithLayout = () => {
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">New Post</h1>
       </div>
+
+      <HowToVideo feature="blog-editor" />
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
         {error && (

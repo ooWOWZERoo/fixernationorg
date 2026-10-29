@@ -5,7 +5,7 @@ import { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isMember } from "@/lib/access";
+import { isMember, ADMIN_ROLES } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import type { NextPageWithLayout } from "@/types/next";
 import { isHtmlBody, stripBlogHtmlMarker } from "@/lib/blog-format";
@@ -20,7 +20,7 @@ interface PostFull {
   category: string | null;
   imageUrl: string | null;
   authorName: string;
-  publishedAt: string;
+  publishedAt: string | null;
 }
 
 interface Props {
@@ -29,14 +29,18 @@ interface Props {
   // Sanitized HTML for rich-text posts (null for legacy plain-text posts, and
   // for non-members, who never receive the full body).
   bodyHtml: string | null;
+  // True when an admin is viewing an unpublished draft.
+  preview: boolean;
 }
 
-const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml }) => {
-  const date = new Date(post.publishedAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml, preview }) => {
+  const date = post.publishedAt
+    ? new Date(post.publishedAt).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "Draft";
 
   return (
     <>
@@ -46,7 +50,14 @@ const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml }) => {
           name="description"
           content={post.excerpt ?? `${post.title} — Fixer Nation Blog`}
         />
+        {preview && <meta name="robots" content="noindex, nofollow" />}
       </Head>
+
+      {preview && (
+        <div className="bg-amber px-6 py-2.5 text-center text-sm font-bold text-navy-dark">
+          Draft preview. This post is not published and only admins can see it.
+        </div>
+      )}
 
       {/* Back nav */}
       <div className="px-6 pt-8 lg:px-8">
@@ -199,11 +210,15 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     select: { id: true, slug: true, title: true, excerpt: true, body: true, category: true, imageUrl: true, authorName: true, publishedAt: true },
   });
 
-  if (!post || !post.publishedAt) {
+  const session = await getServerSession(context.req, context.res, authOptions);
+  const isAdmin = !!session && ADMIN_ROLES.includes(session.user.adminRole as (typeof ADMIN_ROLES)[number]);
+
+  // Unpublished drafts are visible to admins only (checked server-side).
+  if (!post || (!post.publishedAt && !isAdmin)) {
     return { notFound: true };
   }
+  const preview = !post.publishedAt;
 
-  const session = await getServerSession(context.req, context.res, authOptions);
   const gated = !session || !isMember(session.user.role, session.user.adminRole);
 
   // Rich-text posts: sanitize again at render time (defense in depth) and
@@ -219,7 +234,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   }
 
   return {
-    props: { post: JSON.parse(JSON.stringify(outPost)), gated, bodyHtml },
+    props: { post: JSON.parse(JSON.stringify(outPost)), gated, bodyHtml, preview },
   };
 };
 

@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import type { NextPageWithLayout } from "@/types/next";
+import { HowToVideo } from "@/components/admin/HowToVideo";
 import { BlogEditor } from "@/components/admin/BlogEditor";
 import { BLOG_HTML_MARKER, isBlogHtml, isBlogHtmlEmpty, isHtmlBody, legacyBodyToHtml, stripBlogHtmlMarker } from "@/lib/blog-format";
 
@@ -186,6 +187,15 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
               </span>
             )}
           </div>
+          <div className="flex items-center gap-4">
+            <a
+              href={`/blog/${post.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-navy no-underline hover:text-navy-dark"
+            >
+              {post.publishedAt ? "View live" : "Preview draft"} ↗
+            </a>
           <button
             onClick={handleDelete}
             disabled={deleting}
@@ -193,8 +203,11 @@ const AdminBlogEdit: NextPageWithLayout<Props> = ({ post }) => {
           >
             {deleting ? "Deleting…" : "Delete"}
           </button>
+          </div>
         </div>
       </div>
+
+      <HowToVideo feature="blog-editor" />
 
       <form onSubmit={handleSave} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
         {saveError && (

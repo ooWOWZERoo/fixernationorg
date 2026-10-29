@@ -86,6 +86,14 @@ const AdminBlogPage: NextPageWithLayout<Props> = ({ posts }) => {
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
+                    <a
+                      href={`/blog/${post.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mr-4 text-sm font-medium text-slate-500 no-underline hover:text-navy"
+                    >
+                      {post.publishedAt ? "View" : "Preview"}
+                    </a>
                     <Link
                       href={`/admin/blog/${post.id}`}
                       className="text-sm font-medium text-navy no-underline hover:text-navy-dark"
