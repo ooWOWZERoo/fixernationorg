@@ -24,8 +24,12 @@ const BLOG = {
   older: { title: `QA e2e fav blog older ${STAMP}`, slug: `qa-e2e-fav-blog-older-${STAMP}`, at: OLD },
   unstarred: { title: `QA e2e fav blog unstarred ${STAMP}`, slug: `qa-e2e-fav-blog-unstarred-${STAMP}`, at: OLDER },
 };
+// Dated just before today (UTC) so the hourly recurring Morning Boost dispatch,
+// which sends today's entry to the real list, can never pick this fixture up
+// if a run is killed before cleanup. Still newer than the 2021 fixtures.
+const BEFORE_TODAY_UTC = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()) - 60 * 60 * 1000);
 const BOOST = {
-  featured: { title: `QA e2e fav boost featured ${STAMP}`, slug: `qa-e2e-fav-boost-featured-${STAMP}`, at: new Date() },
+  featured: { title: `QA e2e fav boost featured ${STAMP}`, slug: `qa-e2e-fav-boost-featured-${STAMP}`, at: BEFORE_TODAY_UTC },
   older: { title: `QA e2e fav boost older ${STAMP}`, slug: `qa-e2e-fav-boost-older-${STAMP}`, at: OLD },
   unstarred: { title: `QA e2e fav boost unstarred ${STAMP}`, slug: `qa-e2e-fav-boost-unstarred-${STAMP}`, at: OLDER },
 };
