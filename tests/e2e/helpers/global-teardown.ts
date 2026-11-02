@@ -295,6 +295,16 @@ export default async function globalTeardown() {
       },
     },
     {
+      // Favorites rows cascade with the post.
+      name: "blogPosts",
+      run: async () =>
+        (
+          await db.blogPost.deleteMany({
+            where: { createdAt: { gte: startedAt }, title: QA_NAME },
+          })
+        ).count,
+    },
+    {
       name: "mediaAssets",
       run: async () =>
         (

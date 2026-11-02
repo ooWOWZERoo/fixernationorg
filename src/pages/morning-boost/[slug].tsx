@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { sanitizeMorningBoostBody } from "@/lib/sanitize-html";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface BoostFull {
@@ -25,9 +26,11 @@ interface BoostFull {
 interface Props {
   entry: BoostFull;
   gated: boolean;
+  // Null unless a member is viewing the entry.
+  favorited: boolean | null;
 }
 
-const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated }) => {
+const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated, favorited }) => {
   const date = new Date(entry.publishedAt).toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -69,6 +72,11 @@ const MorningBoostEntryPage: NextPageWithLayout<Props> = ({ entry, gated }) => {
             <span className="text-ink-soft">·</span>
             <span className="text-sm text-ink-soft">{date}</span>
           </div>
+          {favorited !== null && (
+            <div className="mt-5">
+              <FavoriteButton type="boost" itemId={entry.id} initialFavorited={favorited} variant="labeled" />
+            </div>
+          )}
         </div>
       </section>
 
@@ -207,8 +215,17 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
 
   const sanitized = { ...entry, body: sanitizeMorningBoostBody(entry.body) };
 
+  let favorited: boolean | null = null;
+  if (session && !gated) {
+    const row = await db.morningBoostFavorite.findUnique({
+      where: { userId_morningBoostId: { userId: session.user.id, morningBoostId: entry.id } },
+      select: { id: true },
+    });
+    favorited = row !== null;
+  }
+
   return {
-    props: { entry: JSON.parse(JSON.stringify(sanitized)), gated },
+    props: { entry: JSON.parse(JSON.stringify(sanitized)), gated, favorited },
   };
 };
 

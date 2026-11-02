@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 // Direct DB access for e2e assertions/setup that the app's own APIs don't
 // expose (reading a real email-verification token). Scoped to its own
@@ -431,6 +432,55 @@ export async function getActivePriceId(): Promise<string | null> {
     select: { id: true },
   });
   return row?.id ?? null;
+}
+
+// ── Favorites ────────────────────────────────────────────────────────────────
+
+export async function createBlogPostFixture(title: string, slug: string, publishedAt: Date): Promise<string> {
+  const row = await client().blogPost.create({
+    data: { title, slug, body: `${title}\n\nQA e2e fixture body.`, publishedAt },
+    select: { id: true },
+  });
+  return row.id;
+}
+
+// BlogFavorite rows cascade with the post.
+export async function deleteBlogPostFixture(id: string): Promise<void> {
+  await client().blogPost.deleteMany({ where: { id } });
+}
+
+export async function createMorningBoostFixture(title: string, slug: string, publishedAt: Date): Promise<string> {
+  const row = await client().morningBoost.create({
+    data: { title, slug, body: `<p>${title}</p>`, publishedAt },
+    select: { id: true },
+  });
+  return row.id;
+}
+
+// MorningBoostFavorite rows cascade with the entry.
+export async function deleteMorningBoostFixture(id: string): Promise<void> {
+  await client().morningBoost.deleteMany({ where: { id } });
+}
+
+export async function clearFavoritesForUser(userId: string): Promise<void> {
+  await client().blogFavorite.deleteMany({ where: { userId } });
+  await client().morningBoostFavorite.deleteMany({ where: { userId } });
+}
+
+export async function countFavorites(userId: string, type: "blog" | "boost", itemId: string): Promise<number> {
+  return type === "blog"
+    ? client().blogFavorite.count({ where: { userId, blogPostId: itemId } })
+    : client().morningBoostFavorite.count({ where: { userId, morningBoostId: itemId } });
+}
+
+// A verified CONSUMER (non-member) account for the 403 path; no named
+// fixture has that role. Remove with deleteTestUser.
+export async function createConsumerUser(email: string, password: string): Promise<string> {
+  const row = await client().user.create({
+    data: { email, passwordHash: await bcrypt.hash(password, 10), emailVerified: new Date(), role: "CONSUMER" },
+    select: { id: true },
+  });
+  return row.id;
 }
 
 export async function closeTestDb(): Promise<void> {

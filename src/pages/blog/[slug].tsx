@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isMember, ADMIN_ROLES } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import type { NextPageWithLayout } from "@/types/next";
 import { isHtmlBody, stripBlogHtmlMarker } from "@/lib/blog-format";
 import { sanitizeBlogBody, blogPreviewText } from "@/lib/sanitize-html";
@@ -31,9 +32,11 @@ interface Props {
   bodyHtml: string | null;
   // True when an admin is viewing an unpublished draft.
   preview: boolean;
+  // Null unless a member is viewing a published post.
+  favorited: boolean | null;
 }
 
-const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml, preview }) => {
+const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml, preview, favorited }) => {
   const date = post.publishedAt
     ? new Date(post.publishedAt).toLocaleDateString("en-US", {
         year: "numeric",
@@ -87,6 +90,11 @@ const BlogPostPage: NextPageWithLayout<Props> = ({ post, gated, bodyHtml, previe
             <span className="text-ink-soft">·</span>
             <span className="text-sm text-ink-soft">{date}</span>
           </div>
+          {favorited !== null && (
+            <div className="mt-5">
+              <FavoriteButton type="blog" itemId={post.id} initialFavorited={favorited} variant="labeled" />
+            </div>
+          )}
         </div>
       </section>
 
@@ -233,8 +241,17 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     outPost = { ...post, body: blogPreviewText(clean) };
   }
 
+  let favorited: boolean | null = null;
+  if (session && !gated && !preview) {
+    const row = await db.blogFavorite.findUnique({
+      where: { userId_blogPostId: { userId: session.user.id, blogPostId: post.id } },
+      select: { id: true },
+    });
+    favorited = row !== null;
+  }
+
   return {
-    props: { post: JSON.parse(JSON.stringify(outPost)), gated, bodyHtml, preview },
+    props: { post: JSON.parse(JSON.stringify(outPost)), gated, bodyHtml, preview, favorited },
   };
 };
 

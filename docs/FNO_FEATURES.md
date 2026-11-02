@@ -24,8 +24,8 @@ The app has two faces: the public/member-facing site (sections 1–6) and the ad
 
 ### 1.2 Member-gated content
 All three use the same pattern: a preview is public, the rest is blurred with a "Join Fixer Nation" gate for non-members.
-- **Blog (`/blog`, `/blog/[slug]`)** — featured/most-recent post public; category filter chips; older posts gated.
-- **Morning Boost (`/morning-boost`, `/morning-boost/[slug]`)** — today's entry public; archive gated. Entries support image or video (with poster image, download-blocked controls).
+- **Blog (`/blog`, `/blog/[slug]`)** — featured/most-recent post public; category filter chips; older posts gated; members can star posts (list cards and detail page) and flip the list between All and Favorites (`?view=favorites`, newest-starred first, private to the member).
+- **Morning Boost (`/morning-boost`, `/morning-boost/[slug]`)** — today's entry public; archive gated. Entries support image or video (with poster image, download-blocked controls). Members can star entries and flip the list between All and Favorites (`?view=favorites`); the dashboard has a "My favorites" card linking to both views.
 - **Resources Library (`/resources`, `/resources/[slug]`)** — guides/worksheets/tools/templates/videos; fully member-gated (detail pages redirect non-members to `/join`).
 
 ### 1.3 Growth content (browsable by anyone, tracking requires sign-in)

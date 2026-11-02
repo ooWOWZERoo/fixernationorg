@@ -7,6 +7,11 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { FavoritesToggle, type FavoritesView } from "@/components/favorites/FavoritesToggle";
+import { useFavoritesView } from "@/components/favorites/useFavoritesView";
+import { getFavoriteIds } from "@/lib/favorites";
+import { orderByFavorites } from "@/lib/favorites-view";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface BoostSummary {
@@ -23,10 +28,63 @@ interface Props {
   featured: BoostSummary | null;
   archive: BoostSummary[];
   isActiveMember: boolean;
+  favoriteIds: string[];
+  initialView: FavoritesView;
 }
 
-const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActiveMember }) => {
+const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActiveMember, favoriteIds, initialView }) => {
   const hasArchive = archive.length > 0;
+  const { favoriteIds: favIds, view, setView, onFavoriteChange } = useFavoritesView(favoriteIds, initialView);
+
+  const favoritesView = isActiveMember && view === "favorites";
+  const favoriteSet = new Set(favIds);
+  const favoriteEntries = favoritesView
+    ? orderByFavorites(featured ? [featured, ...archive] : archive, favIds)
+    : [];
+
+  const starFor = (entry: BoostSummary, className: string) =>
+    isActiveMember ? (
+      <FavoriteButton
+        type="boost"
+        itemId={entry.id}
+        initialFavorited={favoriteSet.has(entry.id)}
+        onChange={onFavoriteChange}
+        className={className}
+      />
+    ) : null;
+
+  const renderRow = (entry: BoostSummary) => (
+    <div key={entry.id} className="relative">
+      <Link
+        href={`/morning-boost/${entry.slug}`}
+        className="flex items-center gap-5 rounded-2xl bg-white p-5 pr-20 no-underline shadow-[0_10px_24px_-18px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-0.5"
+      >
+        {entry.imageUrl && (
+          <Image
+            src={entry.imageUrl}
+            alt={entry.title}
+            width={72}
+            height={72}
+            className="h-18 w-18 shrink-0 rounded-xl object-cover"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="font-bold text-navy line-clamp-1">{entry.title}</p>
+          {entry.excerpt && (
+            <p className="mt-1 text-sm text-ink-soft line-clamp-2">{entry.excerpt}</p>
+          )}
+          <p className="mt-1 text-xs text-ink-soft">
+            {new Date(entry.publishedAt).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+      </Link>
+      {starFor(entry, "absolute right-4 top-1/2 -translate-y-1/2")}
+    </div>
+  );
 
   return (
     <>
@@ -36,6 +94,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
           name="description"
           content="Daily inspiration from Fixer Nation. One short video every morning to help you reset, refocus, and move forward."
         />
+        {favoritesView && <meta name="robots" content="noindex" />}
       </Head>
 
       {/* Hero */}
@@ -64,9 +123,29 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
             </div>
           )}
 
+          {isActiveMember && featured && (
+            <div className="mb-6 flex justify-center">
+              <FavoritesToggle view={view} onChange={setView} />
+            </div>
+          )}
+
+          {favoritesView && (
+            favoriteEntries.length === 0 ? (
+              <div className="rounded-2xl bg-white p-14 text-center shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]">
+                <p className="text-lg font-bold text-navy">No favorites yet.</p>
+                <p className="mt-2 text-sm text-ink-soft">
+                  Tap the star on any boost you want to watch again.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">{favoriteEntries.map(renderRow)}</div>
+            )
+          )}
+
           {/* Featured entry — visible to everyone */}
-          {featured && (
-            <article className="mb-12 overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
+          {featured && !favoritesView && (
+            <article className="relative mb-12 overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
+              {starFor(featured, "absolute right-4 top-4 z-10")}
               {featured.imageUrl && (
                 <div className="aspect-[2/1] overflow-hidden">
                   <Image
@@ -100,42 +179,12 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
           )}
 
           {/* Archive */}
-          {hasArchive && (
+          {hasArchive && !favoritesView && (
             <>
               <h2 className="mb-6 text-xl font-extrabold text-navy">Past boosts</h2>
 
               {isActiveMember ? (
-                <div className="space-y-4">
-                  {archive.map((entry) => (
-                    <Link
-                      key={entry.id}
-                      href={`/morning-boost/${entry.slug}`}
-                      className="flex items-center gap-5 rounded-2xl bg-white p-5 no-underline shadow-[0_10px_24px_-18px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-0.5"
-                    >
-                      {entry.imageUrl && (
-                        <Image
-                          src={entry.imageUrl}
-                          alt={entry.title}
-                          width={72}
-                          height={72}
-                          className="h-18 w-18 shrink-0 rounded-xl object-cover"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-bold text-navy line-clamp-1">{entry.title}</p>
-                        {entry.excerpt && (
-                          <p className="mt-1 text-sm text-ink-soft line-clamp-2">{entry.excerpt}</p>
-                        )}
-                        <p className="mt-1 text-xs text-ink-soft">
-                          {new Date(entry.publishedAt).toLocaleDateString("en-US", {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
+                <div className="space-y-4">{archive.map(renderRow)}
                 </div>
               ) : (
                 /* Gate for non-members */
@@ -210,6 +259,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const session = await getServerSession(context.req, context.res, authOptions);
   const activeMember = session ? isMember(session.user.role, session.user.adminRole) : false;
 
+  // Favorites are members-only: non-members never get ids or the view param.
+  const favoriteIds = session && activeMember ? await getFavoriteIds(session.user.id, "boost") : [];
+  const initialView: FavoritesView = activeMember && context.query.view === "favorites" ? "favorites" : "all";
+
   const now = new Date();
   const tomorrowStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 
@@ -232,7 +285,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const archive = serialized.slice(1);
 
   return {
-    props: { featured, archive, isActiveMember: activeMember },
+    props: { featured, archive, isActiveMember: activeMember, favoriteIds, initialView },
   };
 };
 

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getTotalPoints } from "@/lib/loyalty";
 import { applicationRoleLabel } from "@/lib/application-labels";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { isMember } from "@/lib/access";
 import type { NextPageWithLayout } from "@/types/next";
 
 type TerritoryInfo = {
@@ -345,6 +346,29 @@ const DashboardPage: NextPageWithLayout<Props> = ({ name, email, role, adminRole
             </span>
           </div>
         </div>
+
+        {isMember(role, adminRole) && (
+          <div className="mb-6 rounded-2xl border border-navy/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-dark mb-1">
+              My favorites
+            </p>
+            <p className="text-sm text-ink-soft">Everything you've starred, in one place.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <Link
+                href="/blog?view=favorites"
+                className="text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
+              >
+                Saved posts
+              </Link>
+              <Link
+                href="/morning-boost?view=favorites"
+                className="text-sm font-semibold text-navy underline underline-offset-2 hover:text-navy-dark"
+              >
+                Saved boosts
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Focus area onboarding prompt */}
         {!hasFocusAreas && !focusBannerDismissed && (

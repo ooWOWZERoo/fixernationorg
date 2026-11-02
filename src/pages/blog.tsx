@@ -8,6 +8,11 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isMember } from "@/lib/access";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { FavoritesToggle, type FavoritesView } from "@/components/favorites/FavoritesToggle";
+import { useFavoritesView } from "@/components/favorites/useFavoritesView";
+import { getFavoriteIds } from "@/lib/favorites";
+import { orderByFavorites } from "@/lib/favorites-view";
 import type { NextPageWithLayout } from "@/types/next";
 
 interface PostSummary {
@@ -26,16 +31,37 @@ interface Props {
   posts: PostSummary[];
   categories: string[];
   userIsMember: boolean;
+  favoriteIds: string[];
+  initialView: FavoritesView;
 }
 
-const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, userIsMember }) => {
+const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, userIsMember, favoriteIds, initialView }) => {
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const { favoriteIds: favIds, view, setView, onFavoriteChange } = useFavoritesView(favoriteIds, initialView);
 
-  const visible = activeCategory === "all"
-    ? posts
-    : posts.filter((p) => p.category === activeCategory);
+  const favoritesView = userIsMember && view === "favorites";
+  const favoriteSet = new Set(favIds);
+
+  const favoritePosts = favoritesView
+    ? orderByFavorites(featured ? [featured, ...posts] : posts, favIds)
+    : [];
+  const byCategory = (list: PostSummary[]) =>
+    activeCategory === "all" ? list : list.filter((p) => p.category === activeCategory);
+
+  const visible = favoritesView ? byCategory(favoritePosts) : byCategory(posts);
 
   const hasPosts = featured !== null || posts.length > 0;
+
+  const starFor = (post: PostSummary) =>
+    userIsMember ? (
+      <FavoriteButton
+        type="blog"
+        itemId={post.id}
+        initialFavorited={favoriteSet.has(post.id)}
+        onChange={onFavoriteChange}
+        className="absolute right-3 top-3 z-10"
+      />
+    ) : null;
 
   return (
     <>
@@ -45,6 +71,7 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
           name="description"
           content="Positivity, health, and wellness content from Fixer Nation. Real talk, mindset tools, and Morning Boost inspiration."
         />
+        {favoritesView && <meta name="robots" content="noindex" />}
       </Head>
 
       {/* Header */}
@@ -72,9 +99,16 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
             </div>
           )}
 
+          {userIsMember && hasPosts && (
+            <div className="mb-6 flex justify-center">
+              <FavoritesToggle view={view} onChange={setView} />
+            </div>
+          )}
+
           {/* Featured post */}
-          {featured && (
-            <div className="mb-12 grid overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-2">
+          {featured && !favoritesView && (
+            <div className="relative mb-12 grid overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)] lg:grid-cols-2">
+              {starFor(featured)}
               <div className="min-h-[260px] overflow-hidden">
                 {featured.imageUrl ? (
                   <Image
@@ -149,6 +183,19 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
             </div>
           )}
 
+          {favoritesView && favoritePosts.length === 0 && (
+            <div className="rounded-2xl bg-white p-14 text-center shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)]">
+              <p className="text-lg font-bold text-navy">No favorites yet.</p>
+              <p className="mt-2 text-sm text-ink-soft">
+                Tap the star on any post you want to come back to.
+              </p>
+            </div>
+          )}
+
+          {favoritesView && favoritePosts.length > 0 && visible.length === 0 && (
+            <p className="text-center text-sm text-ink-soft">No favorites in this category.</p>
+          )}
+
           {/* Grid */}
           {visible.length > 0 && (
             <div className="relative">
@@ -158,8 +205,9 @@ const BlogPage: NextPageWithLayout<Props> = ({ featured, posts, categories, user
                   return (
                     <div
                       key={post.id}
-                      className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-1.5"
+                      className="relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_16px_34px_-22px_rgba(20,40,56,0.25)] transition-transform hover:-translate-y-1.5"
                     >
+                      {starFor(post)}
                       <div className="aspect-video overflow-hidden bg-cream-panel">
                         {post.imageUrl && (
                           <Image
@@ -262,6 +310,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
   const session = await getServerSession(context.req, context.res, authOptions);
   const userIsMember = session ? isMember(session.user.role, session.user.adminRole) : false;
 
+  // Favorites are members-only: non-members never get ids or the view param.
+  const favoriteIds = session && userIsMember ? await getFavoriteIds(session.user.id, "blog") : [];
+  const initialView: FavoritesView = userIsMember && context.query.view === "favorites" ? "favorites" : "all";
+
   const allPosts = await db.blogPost.findMany({
     where: { publishedAt: { not: null } },
     select: { id: true, slug: true, title: true, excerpt: true, category: true, imageUrl: true, authorName: true, publishedAt: true },
@@ -277,7 +329,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (context) => 
     new Set(serialized.map((p) => p.category).filter(Boolean) as string[])
   );
 
-  return { props: { featured, posts, categories, userIsMember } };
+  return { props: { featured, posts, categories, userIsMember, favoriteIds, initialView } };
 };
 
 export default BlogPage;
