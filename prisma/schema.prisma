@@ -67,6 +67,8 @@ model User {
   providerContacts         ProviderContact[]  @relation("ProviderContacts")
   providerCampaigns        ProviderCampaign[] @relation("ProviderCampaigns")
   memberFocusAreas         MemberFocusArea[]
+  blogFavorites            BlogFavorite[]
+  morningBoostFavorites    MorningBoostFavorite[]
   memberPreference         MemberPreference?
   fixerPlans               FixerPlan[]
   memberActions            MemberAction[]
@@ -545,8 +547,24 @@ model BlogPost {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  favorites   BlogFavorite[]
+
   @@index([publishedAt])
   @@index([category])
+}
+
+// Private per-member stars; never surfaced to other members or admin.
+model BlogFavorite {
+  id         String   @id @default(cuid())
+  userId     String
+  blogPostId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blogPost BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blogPostId])
+  @@index([userId, createdAt])
 }
 
 // ─── Morning Boost (daily member content) ────────────────────────────────────
@@ -564,7 +582,22 @@ model MorningBoost {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  favorites   MorningBoostFavorite[]
+
   @@index([publishedAt])
+}
+
+model MorningBoostFavorite {
+  id             String   @id @default(cuid())
+  userId         String
+  morningBoostId String
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  morningBoost MorningBoost @relation(fields: [morningBoostId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, morningBoostId])
+  @@index([userId, createdAt])
 }
 
 // ─── Resources (member-gated content library) ────────────────────────────────
