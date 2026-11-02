@@ -72,8 +72,13 @@ export function FavoriteButton({
 
   const labeled = variant === "labeled";
 
+  // `relative` and `absolute` conflict (relative wins), so only add `relative`
+  // when the caller isn't positioning the button itself. Either way the error
+  // tooltip below anchors to this wrapper.
+  const callerPositions = /\b(absolute|relative|fixed|sticky)\b/.test(className);
+
   return (
-    <span className={`relative inline-flex flex-col items-start ${className}`}>
+    <span className={`${callerPositions ? "" : "relative"} inline-flex flex-col items-start ${className}`}>
       <button
         type="button"
         onClick={handleClick}
