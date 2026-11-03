@@ -14,6 +14,14 @@ import { getFavoriteIds } from "@/lib/favorites";
 import { orderByFavorites } from "@/lib/favorites-view";
 import type { NextPageWithLayout } from "@/types/next";
 
+// Uploaded boost images (e.g. the logo) can carry a wide blank border. Ask
+// Cloudinary to trim it so the artwork fills the frame instead of floating.
+function trimmed(url: string): string {
+  return url.includes("res.cloudinary.com") && url.includes("/image/upload/") && !url.includes("e_trim")
+    ? url.replace("/image/upload/", "/image/upload/e_trim:30/")
+    : url;
+}
+
 interface BoostSummary {
   id: string;
   slug: string;
@@ -61,7 +69,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
       >
         {entry.imageUrl && (
           <Image
-            src={entry.imageUrl}
+            src={trimmed(entry.imageUrl)}
             alt={entry.title}
             width={72}
             height={72}
@@ -147,9 +155,9 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
             <article className="relative mb-12 overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
               {starFor(featured, "absolute right-4 top-4 z-10")}
               {featured.imageUrl && (
-                <div className="aspect-[2/1] overflow-hidden bg-white">
+                <div className="aspect-[2/1] overflow-hidden bg-white p-4">
                   <Image
-                    src={featured.imageUrl}
+                    src={trimmed(featured.imageUrl)}
                     alt={featured.title}
                     width={800}
                     height={400}
