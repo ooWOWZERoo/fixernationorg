@@ -65,7 +65,7 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
             alt={entry.title}
             width={72}
             height={72}
-            className="h-18 w-18 shrink-0 rounded-xl object-cover"
+            className="h-18 w-18 shrink-0 rounded-xl bg-white object-contain"
           />
         )}
         <div className="min-w-0">
@@ -147,13 +147,13 @@ const MorningBoostPage: NextPageWithLayout<Props> = ({ featured, archive, isActi
             <article className="relative mb-12 overflow-hidden rounded-2xl bg-white shadow-[0_20px_45px_-20px_rgba(20,40,56,0.3)]">
               {starFor(featured, "absolute right-4 top-4 z-10")}
               {featured.imageUrl && (
-                <div className="aspect-[2/1] overflow-hidden">
+                <div className="aspect-[2/1] overflow-hidden bg-white">
                   <Image
                     src={featured.imageUrl}
                     alt={featured.title}
                     width={800}
                     height={400}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain"
                   />
                 </div>
               )}
