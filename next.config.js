@@ -54,6 +54,16 @@ const nextConfig = {
   // route is ever added, exclude it from this regex first.
   async redirects() {
     return [
+      // Old pricing-plan checkout link (specific plan + checkout flow) → join page.
+      {
+        source: "/pricing-plans/plan-customization",
+        has: [
+          { type: "query", key: "planId", value: "684fe0c4-0743-41bb-a7ad-c25514cc9694" },
+          { type: "query", key: "checkoutFlowId", value: "0e61663f-ebec-4365-9e82-03a3f823b661" },
+        ],
+        destination: "/join",
+        permanent: true,
+      },
       {
         source: "/:l([a-z0-9])",
         destination: "/?utm_source=heycatch&utm_campaign=:l",
